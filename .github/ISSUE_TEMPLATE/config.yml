@@ -1,14 +1,11 @@
-# ⚠️ AJUSTAR: as URLs abaixo usam um caminho de repositório provisório
-# (CITi-UFPE/citi-pessoas). Troque pelo caminho real assim que o repositório
-# existir no GitHub, senão os links da aba de issues ficam quebrados.
 blank_issues_enabled: true
 contact_links:
   - name: 📖 Como desenvolver com Claude Code
-    url: https://github.com/CITi-UFPE/citi-pessoas/blob/main/docs/AI_DEVELOPMENT_GUIDE.md
+    url: https://github.com/Caukugo/citi-pessoas/blob/main/docs/AI_DEVELOPMENT_GUIDE.md
     about: Guia passo a passo para implementar uma feature usando IA.
   - name: 🚀 Instalar e rodar o projeto
-    url: https://github.com/CITi-UFPE/citi-pessoas/blob/main/docs/SETUP.md
+    url: https://github.com/Caukugo/citi-pessoas/blob/main/docs/SETUP.md
     about: Passo a passo do zero, incluindo os erros mais comuns.
   - name: 👥 Quem procurar para cada dúvida
-    url: https://github.com/CITi-UFPE/citi-pessoas/blob/main/docs/TEAM_GUIDE.md
+    url: https://github.com/Caukugo/citi-pessoas/blob/main/docs/TEAM_GUIDE.md
     about: Antes de abrir issue, veja se é dúvida de time.
