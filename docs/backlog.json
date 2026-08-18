@@ -1,0 +1,1811 @@
+{
+  "project": "CITi Pessoas",
+  "phase": "Fase 1 — Fundação da Jornada Individual",
+  "updatedAt": "2026-08-18",
+  "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
+  "legend": {
+    "status": [
+      "Done",
+      "Ready",
+      "Blocked",
+      "In Progress"
+    ],
+    "difficulty": [
+      "guiada",
+      "assistida",
+      "tecnica"
+    ],
+    "priority": [
+      "Alta",
+      "Média",
+      "Baixa"
+    ],
+    "labels": {
+      "area": [
+        "infra",
+        "data",
+        "members",
+        "profile",
+        "x1",
+        "feedback",
+        "anonymous-feedback",
+        "admin"
+      ],
+      "difficulty": [
+        "guided",
+        "assisted",
+        "technical"
+      ],
+      "priority": [
+        "critical",
+        "high",
+        "normal"
+      ]
+    }
+  },
+  "epics": [
+    {
+      "id": "EPIC-0",
+      "name": "Fundação",
+      "owner": "Cauan e Sofia"
+    },
+    {
+      "id": "EPIC-1",
+      "name": "Membros",
+      "owner": "Gabi"
+    },
+    {
+      "id": "EPIC-2",
+      "name": "Perfil do Membro",
+      "owner": "Gabi"
+    },
+    {
+      "id": "EPIC-3",
+      "name": "X1",
+      "owner": "Bia"
+    },
+    {
+      "id": "EPIC-4",
+      "name": "Feedbacks",
+      "owner": "Clara"
+    },
+    {
+      "id": "EPIC-5",
+      "name": "Feedback Anônimo",
+      "owner": "Clara"
+    },
+    {
+      "id": "EPIC-6",
+      "name": "Administração",
+      "owner": "Bia / Cauan"
+    },
+    {
+      "id": "EPIC-7",
+      "name": "Importação",
+      "owner": "Sofia"
+    },
+    {
+      "id": "EPIC-8",
+      "name": "QA",
+      "owner": "Time"
+    }
+  ],
+  "items": [
+    {
+      "id": "BASE-001",
+      "epic": "EPIC-0",
+      "title": "Auditar stack e arquitetura",
+      "description": "Estudar protótipo e materiais existentes, classificar o que reutilizar, adaptar, reescrever e descartar.",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [],
+      "branch": "feat/auditoria",
+      "acceptanceCriteria": [
+        "Relatório de auditoria com decisão de stack registrada em DECISIONS.md"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "BASE-002",
+      "epic": "EPIC-0",
+      "title": "Preparar estrutura do projeto",
+      "description": "Projeto Vite + React + TypeScript com lint, typecheck, testes e build funcionando.",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "BASE-001"
+      ],
+      "branch": "feat/estrutura-projeto",
+      "acceptanceCriteria": [
+        "npm run check passa limpo"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "BASE-003",
+      "epic": "EPIC-0",
+      "title": "App Shell",
+      "description": "Rotas, layouts, providers, sidebar, tratamento global de erro e página 404.",
+      "owner": "Cauan",
+      "reviewer": "Gabi",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "BASE-002"
+      ],
+      "branch": "feat/app-shell",
+      "acceptanceCriteria": [
+        "Todas as rotas da Fase 1 registradas",
+        "Navegação completa na sidebar"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "BASE-004",
+      "epic": "EPIC-0",
+      "title": "Design System inicial",
+      "description": "Componentes compartilhados com os tokens da identidade visual do CITi.",
+      "owner": "Cauan",
+      "reviewer": "Gabi",
+      "difficulty": "tecnica",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "BASE-002"
+      ],
+      "branch": "feat/design-system",
+      "acceptanceCriteria": [
+        "Catálogo navegável em /design-system",
+        "Quatro estados padronizados"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: technical",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "BASE-005",
+      "epic": "EPIC-0",
+      "title": "Autenticação",
+      "description": "Login, rotas protegidas e sessão. Sem autorregistro público.",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "tecnica",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "BASE-003"
+      ],
+      "branch": "feat/autenticacao",
+      "acceptanceCriteria": [
+        "Login funciona nos dois modos de dados",
+        "Nenhuma tela de cadastro público"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: technical",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "BASE-006",
+      "epic": "EPIC-0",
+      "title": "Provisionar Supabase e convidar contas da GG",
+      "description": "Criar o projeto no Supabase, aplicar a migration 0001, desativar sign-ups e convidar as contas da GG criando as linhas em profiles.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "BASE-005"
+      ],
+      "branch": "chore/supabase-provisioning",
+      "acceptanceCriteria": [
+        "Migration 0001 aplicada com sucesso",
+        "Enable sign-ups DESATIVADO no provider de e-mail",
+        "Contas da GG convidadas e com linha em profiles",
+        "Login real funciona com VITE_DATA_SOURCE=supabase",
+        "Chaves compartilhadas com o time fora do repositório"
+      ],
+      "aiInstructions": "Tarefa de infraestrutura, feita no painel do Supabase. Não requer código. Ver o rodapé de supabase/migrations/0001_fase1_schema.sql.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-001",
+      "epic": "EPIC-0",
+      "title": "Modelo Membro",
+      "description": "Entidade central com posição atual, vida acadêmica e ciclo de vida. Arquivamento em vez de exclusão.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [],
+      "branch": "feat/modelo-membro",
+      "acceptanceCriteria": [
+        "Tipo, adapters e migration coerentes",
+        "Mudanças estruturais geram evento"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-002",
+      "epic": "EPIC-0",
+      "title": "Modelo X1",
+      "description": "Registro de X1 com histórico preservado e situação do membro calculada.",
+      "owner": "Sofia",
+      "reviewer": "Bia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "DATA-001"
+      ],
+      "branch": "feat/modelo-x1",
+      "acceptanceCriteria": [
+        "getMemberX1Status coberto por testes",
+        "Periodicidade com exceção por membro"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-003",
+      "epic": "EPIC-0",
+      "title": "Modelo Feedback",
+      "description": "Registros independentes e ilimitados. Tipos informal, formal e carta de ajuste.",
+      "owner": "Sofia",
+      "reviewer": "Clara",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "DATA-001"
+      ],
+      "branch": "feat/modelo-feedback",
+      "acceptanceCriteria": [
+        "Sem campos rígidos FI1/FI2"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-004",
+      "epic": "EPIC-0",
+      "title": "Modelo Feedback Anônimo",
+      "description": "Fluxo independente, sem nenhum campo de autor, com moderação humana.",
+      "owner": "Sofia",
+      "reviewer": "Clara",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "DATA-001"
+      ],
+      "branch": "feat/modelo-anonimo",
+      "acceptanceCriteria": [
+        "Nenhuma coluna identifica quem enviou",
+        "Teste garante que moderar não cria Feedback de acompanhamento"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-005",
+      "epic": "EPIC-0",
+      "title": "Dados de desenvolvimento",
+      "description": "Dados fictícios que permitem rodar a plataforma sem banco.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "DATA-001"
+      ],
+      "branch": "feat/dados-dev",
+      "acceptanceCriteria": [
+        "Dados claramente fictícios",
+        "Aviso visível na interface"
+      ],
+      "aiInstructions": "Concluído na fundação.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "DATA-006",
+      "epic": "EPIC-0",
+      "title": "Fundação da importação CITi Pessoas",
+      "description": "Leitura de CSV, normalização, validação, deduplicação e relatório.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "tecnica",
+      "priority": "Alta",
+      "status": "Done",
+      "dependencies": [
+        "DATA-001"
+      ],
+      "branch": "feat/fundacao-import",
+      "acceptanceCriteria": [
+        "previewMembersCsv coberto por testes"
+      ],
+      "aiInstructions": "Concluído na fundação. Falta o mapeamento real — ver IMPORT-001.",
+      "labels": [
+        "area: infra",
+        "difficulty: technical",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ONB-001",
+      "epic": "EPIC-0",
+      "title": "Onboarding — primeiro fluxo completo (Gabi)",
+      "description": "Rodar o projeto, fazer uma alteração pequena de texto e passar por todo o fluxo Git até o PR. Serve para aprender o processo antes de precisar entender a lógica de uma feature.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "docs/onboarding-gabi",
+      "acceptanceCriteria": [
+        "Projeto rodando localmente com npm run dev",
+        "Login feito com as credenciais de desenvolvimento",
+        "Uma alteração pequena de texto feita e visível no navegador",
+        "Branch criada, commit, push e PR aberto",
+        "PR revisado e mergeado"
+      ],
+      "aiInstructions": "Tarefa de aprendizado do fluxo, não de produto. Peça ao Claude para explicar cada comando de Git antes de rodar. Ver docs/SETUP.md e docs/CONTRIBUTING.md.",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ONB-002",
+      "epic": "EPIC-0",
+      "title": "Onboarding — primeiro fluxo completo (Bia)",
+      "description": "Rodar o projeto, fazer uma alteração pequena de texto e passar por todo o fluxo Git até o PR. Serve para aprender o processo antes de precisar entender a lógica de uma feature.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "docs/onboarding-bia",
+      "acceptanceCriteria": [
+        "Projeto rodando localmente com npm run dev",
+        "Login feito com as credenciais de desenvolvimento",
+        "Uma alteração pequena de texto feita e visível no navegador",
+        "Branch criada, commit, push e PR aberto",
+        "PR revisado e mergeado"
+      ],
+      "aiInstructions": "Tarefa de aprendizado do fluxo, não de produto. Peça ao Claude para explicar cada comando de Git antes de rodar. Ver docs/SETUP.md e docs/CONTRIBUTING.md.",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ONB-003",
+      "epic": "EPIC-0",
+      "title": "Onboarding — primeiro fluxo completo (Clara)",
+      "description": "Rodar o projeto, fazer uma alteração pequena de texto e passar por todo o fluxo Git até o PR. Serve para aprender o processo antes de precisar entender a lógica de uma feature.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "docs/onboarding-clara",
+      "acceptanceCriteria": [
+        "Projeto rodando localmente com npm run dev",
+        "Login feito com as credenciais de desenvolvimento",
+        "Uma alteração pequena de texto feita e visível no navegador",
+        "Branch criada, commit, push e PR aberto",
+        "PR revisado e mergeado"
+      ],
+      "aiInstructions": "Tarefa de aprendizado do fluxo, não de produto. Peça ao Claude para explicar cada comando de Git antes de rodar. Ver docs/SETUP.md e docs/CONTRIBUTING.md.",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "MEM-001",
+      "epic": "EPIC-1",
+      "title": "Listagem de membros",
+      "description": "Tabela com todas as pessoas do CITi e o essencial para decidir quem precisa de atenção.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/members-list",
+      "acceptanceCriteria": [
+        "Tabela com nome (avatar), cargo, subárea e situação de X1",
+        "Dados vindos de useMembers()",
+        "Situação via getMemberX1Status(); quem nunca teve X1 é 'Primeiro X1 pendente'",
+        "Funciona no celular sem rolagem horizontal da página",
+        "Usa apenas componentes de @/components/ui"
+      ],
+      "aiInstructions": "Leia CLAUDE.md e docs/DESIGN_SYSTEM.md. Copie o padrão do bloco 'Exemplo completo' em src/features/design-system/pages/DesignSystemPage.tsx. Não altere src/app/, src/data/ nem src/components/ui/.",
+      "labels": [
+        "area: members",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "MEM-002",
+      "epic": "EPIC-1",
+      "title": "Busca",
+      "description": "Encontrar uma pessoa digitando parte do nome ou do e-mail.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "MEM-001"
+      ],
+      "branch": "feat/members-search",
+      "acceptanceCriteria": [
+        "SearchInput acima da tabela",
+        "Busca ignora acento e maiúsculas",
+        "Termo fica na URL (?busca=)",
+        "Sem resultado mostra EmptyState citando o termo"
+      ],
+      "aiInstructions": "Use o filtro `search` de useMembers(); a normalização já está pronta. Guarde o termo com useSearchParams.",
+      "labels": [
+        "area: members",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "MEM-003",
+      "epic": "EPIC-1",
+      "title": "Filtros",
+      "description": "Filtrar por subárea e situação, combinando com a busca.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "MEM-001"
+      ],
+      "branch": "feat/members-filters",
+      "acceptanceCriteria": [
+        "Filtro por subárea usando a constante AREAS",
+        "Filtro por status; padrão mostra ativos",
+        "Filtros combinam com a busca",
+        "Dá para limpar todos de uma vez"
+      ],
+      "aiInstructions": "useMembers() já aceita area e status. Use o componente Chip para os filtros.",
+      "labels": [
+        "area: members",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "MEM-004",
+      "epic": "EPIC-1",
+      "title": "Acesso ao Perfil",
+      "description": "Clicar em uma linha abre o Perfil do Membro.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "MEM-001",
+        "PERFIL-001"
+      ],
+      "branch": "feat/member-profile-link",
+      "acceptanceCriteria": [
+        "Clique na linha abre /membros/:id",
+        "Usa ROUTES.memberProfile(id)",
+        "Funciona com Enter pelo teclado"
+      ],
+      "aiInstructions": "O componente TR já trata teclado quando recebe onClick. Não escreva o caminho à mão.",
+      "labels": [
+        "area: members",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "MEM-005",
+      "epic": "EPIC-1",
+      "title": "Loading, vazio e erro",
+      "description": "Os estados que faltam na maioria das telas.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "MEM-001"
+      ],
+      "branch": "feat/members-states",
+      "acceptanceCriteria": [
+        "LoadingState enquanto carrega",
+        "ErrorState com Tentar novamente",
+        "EmptyState explicando o porquê"
+      ],
+      "aiInstructions": "Pode ser feito junto com MEM-001. Componentes prontos em @/components/ui.",
+      "labels": [
+        "area: members",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "PERFIL-001",
+      "epic": "EPIC-2",
+      "title": "Estrutura do Perfil",
+      "description": "Página do membro com cabeçalho de identificação e estrutura para as demais seções.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/member-profile",
+      "acceptanceCriteria": [
+        "Carrega com useMember(memberId)",
+        "Cabeçalho com avatar, nome, cargo, subárea, squad e situação de X1",
+        "Membro inexistente mostra mensagem clara",
+        "Link de voltar para /membros",
+        "Quatro estados tratados"
+      ],
+      "aiInstructions": "Use useParams para ler memberId. O componente PageHeader aceita backTo.",
+      "labels": [
+        "area: profile",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "PERFIL-002",
+      "epic": "EPIC-2",
+      "title": "Dados cadastrais",
+      "description": "Bloco com as informações cadastrais do membro.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "PERFIL-001"
+      ],
+      "branch": "feat/member-profile-data",
+      "acceptanceCriteria": [
+        "Mostra e-mails, telefone, curso, período, universidade, entrada, tempo de casa, gerente e responsável de GG",
+        "Campo vazio aparece como travessão",
+        "Datas formatadas com formatDate()"
+      ],
+      "aiInstructions": "Use formatDate e formatDateLong de @/lib/format. Gerente e responsável de GG são ids: busque o membro com useMember.",
+      "labels": [
+        "area: profile",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "PERFIL-003",
+      "epic": "EPIC-2",
+      "title": "Tabs/seções",
+      "description": "Abas do Perfil: Visão geral, X1, Feedbacks e Timeline.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "PERFIL-001"
+      ],
+      "branch": "feat/member-profile-tabs",
+      "acceptanceCriteria": [
+        "Usa o componente Tabs",
+        "Aba ativa fica na URL (?aba=x1)",
+        "Abas de X1 e Feedbacks com aviso de em construção"
+      ],
+      "aiInstructions": "CAMINHO CRÍTICO: desbloqueia X1-008 e FB-007. Deixe as abas de Bia e Clara vazias, com um espaço claro para elas preencherem.",
+      "labels": [
+        "area: profile",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "PERFIL-004",
+      "epic": "EPIC-2",
+      "title": "Timeline inicial",
+      "description": "Linha do tempo cronológica do que aconteceu com o membro.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "PERFIL-003"
+      ],
+      "branch": "feat/member-timeline",
+      "acceptanceCriteria": [
+        "Usa useMemberEvents(memberId), mais recente primeiro",
+        "Cada evento mostra data, título e descrição, com ícone por tipo",
+        "Estado vazio quando não há eventos"
+      ],
+      "aiInstructions": "Os eventos são criados automaticamente pela camada de dados. Os tipos estão em MemberEventType.",
+      "labels": [
+        "area: profile",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "PERFIL-005",
+      "epic": "EPIC-2",
+      "title": "Integração de X1 e Feedback",
+      "description": "Fechamento do Perfil depois que Bia e Clara entregarem suas seções.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Blocked",
+      "dependencies": [
+        "X1-008",
+        "FB-007"
+      ],
+      "branch": "feat/member-profile-integration",
+      "acceptanceCriteria": [
+        "Abas de X1 e Feedbacks funcionando dentro do Perfil",
+        "Visão geral mostra resumo de último X1 e feedbacks recentes"
+      ],
+      "aiInstructions": "Combine com Bia e Clara antes de começar. Não reimplemente as seções delas.",
+      "labels": [
+        "area: profile",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "X1-001",
+      "epic": "EPIC-3",
+      "title": "Novo X1",
+      "description": "Registrar um X1 que aconteceu.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/x1-form",
+      "acceptanceCriteria": [
+        "Formulário em Modal com react-hook-form + zod",
+        "Campos: data, quem conduziu, link do Google Docs, resumo, encaminhamentos",
+        "Campos de hard skills, soft skills e habilidades que a pessoa quer desenvolver",
+        "Avaliação dos quatro valores do CITi (CITI_VALUES), opcional",
+        "Campo de comentários relevantes",
+        "Erros de validação em português",
+        "Nenhum campo de nota de desempenho — X1 não é avaliação",
+        "Botão mostra loading ao salvar"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: o X1 não é avaliação de desempenho — a avaliação de valores é percepção humana registrada, não score. Os campos já existem em X1 (src/data/types.ts) e a lista de valores em CITI_VALUES. Copie o padrão de formulário de src/features/auth/pages/LoginPage.tsx. Carimbe gestaoId com useCurrentGestao().",
+      "labels": [
+        "area: x1",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-002",
+      "epic": "EPIC-3",
+      "title": "Persistir X1",
+      "description": "Salvar o X1 na camada de dados.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "X1-001"
+      ],
+      "branch": "feat/x1-persist",
+      "acceptanceCriteria": [
+        "Salva com useCreateX1()",
+        "A lista atualiza sozinha depois de salvar",
+        "Erro aparece na tela sem fechar o formulário nem perder o texto"
+      ],
+      "aiInstructions": "useCreateX1() já invalida o cache certo. Não chame o adapter diretamente.",
+      "labels": [
+        "area: x1",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-003",
+      "epic": "EPIC-3",
+      "title": "Histórico de X1",
+      "description": "Lista dos X1 de um membro, do mais recente para o mais antigo.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "X1-002"
+      ],
+      "branch": "feat/x1-history",
+      "acceptanceCriteria": [
+        "useX1sByMember(), mais recente primeiro",
+        "Cada item mostra data, quem conduziu, status e início do resumo",
+        "Quatro estados tratados"
+      ],
+      "aiInstructions": "A ordenação já vem pronta do adapter.",
+      "labels": [
+        "area: x1",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-004",
+      "epic": "EPIC-3",
+      "title": "Visualizar X1",
+      "description": "Detalhe completo de um X1.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "X1-003"
+      ],
+      "branch": "feat/x1-detail",
+      "acceptanceCriteria": [
+        "Detalhe em Drawer ou Modal",
+        "Link do documento externo abre em nova aba quando existir"
+      ],
+      "aiInstructions": "Use target=\"_blank\" com rel=\"noopener noreferrer\" no link externo.",
+      "labels": [
+        "area: x1",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "X1-005",
+      "epic": "EPIC-3",
+      "title": "Editar X1",
+      "description": "Corrigir o registro de um X1.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "X1-004"
+      ],
+      "branch": "feat/x1-edit",
+      "acceptanceCriteria": [
+        "Reaproveita o formulário de X1-001",
+        "Salva com useUpdateX1()",
+        "Deixa claro que editar corrige aquele registro, não substitui o histórico"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: o histórico é preservado. Editar serve para corrigir o registro daquele dia; registrar algo novo cria um X1 novo.",
+      "labels": [
+        "area: x1",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "X1-006",
+      "epic": "EPIC-3",
+      "title": "Status do X1",
+      "description": "Situação do registro e situação de acompanhamento do membro.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "X1-003"
+      ],
+      "branch": "feat/x1-status",
+      "acceptanceCriteria": [
+        "Registro: agendado / realizado / cancelado com Badge no tom certo",
+        "Situação do membro vem de getMemberX1Status()",
+        "Nunca grava atrasado no banco",
+        "Membro recém-chegado aparece como Primeiro X1 pendente"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: quem acabou de entrar NÃO é atrasado. A situação é calculada, nunca persistida.",
+      "labels": [
+        "area: x1",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-007",
+      "epic": "EPIC-3",
+      "title": "Periodicidade",
+      "description": "Respeitar a periodicidade configurada, inclusive a exceção por membro.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Blocked",
+      "dependencies": [
+        "ADM-001"
+      ],
+      "branch": "feat/x1-periodicity",
+      "acceptanceCriteria": [
+        "Usa x1PeriodicityFor()",
+        "O Perfil mostra qual periodicidade vale para aquele membro"
+      ],
+      "aiInstructions": "x1PeriodicityFor() já resolve a precedência entre exceção e padrão.",
+      "labels": [
+        "area: x1",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "X1-008",
+      "epic": "EPIC-3",
+      "title": "Integração com Perfil",
+      "description": "A aba de X1 dentro do Perfil do Membro.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "PERFIL-003",
+        "X1-003"
+      ],
+      "branch": "feat/x1-in-profile",
+      "acceptanceCriteria": [
+        "Aba de X1 mostra histórico e permite registrar novo",
+        "Visual consistente com o resto do Perfil"
+      ],
+      "aiInstructions": "Combine com a Gabi onde a seção entra. Não reescreva a estrutura do Perfil.",
+      "labels": [
+        "area: x1",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "FB-001",
+      "epic": "EPIC-4",
+      "title": "Registrar Feedback",
+      "description": "Registrar um feedback de acompanhamento sobre um membro.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/feedback-form",
+      "acceptanceCriteria": [
+        "Formulário em Modal com membro, tipo, conteúdo e data",
+        "Os três tipos disponíveis usando FEEDBACK_TYPE_LABEL",
+        "Sem limite de quantidade e sem campos numerados",
+        "Validação com mensagens em português"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: registros independentes e ilimitados. NÃO crie campos rígidos FI1/FI2.",
+      "labels": [
+        "area: feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "FB-002",
+      "epic": "EPIC-4",
+      "title": "Persistir Feedback",
+      "description": "Salvar o feedback na camada de dados.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "FB-001"
+      ],
+      "branch": "feat/feedback-persist",
+      "acceptanceCriteria": [
+        "Salva com useCreateFeedback(); a lista atualiza sozinha",
+        "Erro tratado sem perder o que foi digitado"
+      ],
+      "aiInstructions": "Criar feedback já gera automaticamente um evento na timeline do membro.",
+      "labels": [
+        "area: feedback",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "FB-003",
+      "epic": "EPIC-4",
+      "title": "Histórico",
+      "description": "Feedbacks de um membro, do mais recente para o mais antigo.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "FB-002"
+      ],
+      "branch": "feat/feedback-history",
+      "acceptanceCriteria": [
+        "useFeedbacksByMember(), mais recente primeiro",
+        "Tipo visível com Badge",
+        "Quatro estados tratados"
+      ],
+      "aiInstructions": "Escolha o tom do Badge por significado, não por estética.",
+      "labels": [
+        "area: feedback",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "FB-004",
+      "epic": "EPIC-4",
+      "title": "Visualização",
+      "description": "Detalhe completo de um feedback.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "FB-003"
+      ],
+      "branch": "feat/feedback-detail",
+      "acceptanceCriteria": [
+        "Mostra conteúdo completo, tipo, data e quem registrou"
+      ],
+      "aiInstructions": "registeredById é um id de membro: busque o nome com useMember.",
+      "labels": [
+        "area: feedback",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "FB-005",
+      "epic": "EPIC-4",
+      "title": "Edição quando apropriado",
+      "description": "Corrigir um feedback registrado.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Baixa",
+      "status": "Ready",
+      "dependencies": [
+        "FB-004"
+      ],
+      "branch": "feat/feedback-edit",
+      "acceptanceCriteria": [
+        "Salva com useUpdateFeedback()",
+        "Editar corrige o registro e não apaga histórico"
+      ],
+      "aiInstructions": "Não implemente exclusão de feedback. O histórico é preservado.",
+      "labels": [
+        "area: feedback",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "FB-006",
+      "epic": "EPIC-4",
+      "title": "Quadro consolidado",
+      "description": "Todos os feedbacks de todos os membros em /feedbacks.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "FB-003"
+      ],
+      "branch": "feat/feedback-board",
+      "acceptanceCriteria": [
+        "Usa useAllFeedbacks()",
+        "Quadro com uma linha por membro e contagem por tipo: Informais, Formais e Cartas de Ajuste",
+        "Clicar em uma contagem ou no membro abre os registros correspondentes",
+        "Filtro por tipo e busca por membro",
+        "Quatro estados tratados"
+      ],
+      "aiInstructions": "O formato do quadro está definido em docs/PROJECT_CONTEXT.md secao 9.1 — é uma tabela de contagens por tipo, não uma lista corrida. Use ROUTES.memberProfile(id).",
+      "labels": [
+        "area: feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "FB-007",
+      "epic": "EPIC-4",
+      "title": "Integração com Perfil",
+      "description": "A aba de Feedbacks dentro do Perfil do Membro.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "PERFIL-003",
+        "FB-003"
+      ],
+      "branch": "feat/feedback-in-profile",
+      "acceptanceCriteria": [
+        "Aba de Feedbacks mostra histórico e permite registrar novo",
+        "Visual consistente com o resto do Perfil"
+      ],
+      "aiInstructions": "Combine com a Gabi. Não reescreva a estrutura do Perfil.",
+      "labels": [
+        "area: feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-001",
+      "epic": "EPIC-5",
+      "title": "Formulário externo",
+      "description": "Página pública onde qualquer pessoa envia feedback anônimo, sem login.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/anonymous-feedback-form",
+      "acceptanceCriteria": [
+        "Escolha do alvo: membro, subárea, diretoria ou CITi",
+        "Campo de texto obrigatório",
+        "Não pede nome, e-mail, matrícula nem qualquer identificação",
+        "Envia com useSubmitAnonymousFeedback()",
+        "Confirmação após enviar, sem link para a área interna",
+        "Deixa explícito que o envio é anônimo"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: anonimato absoluto. Não adicione NENHUM campo de identificação, nem opcional.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-002",
+      "epic": "EPIC-5",
+      "title": "Recebimento",
+      "description": "O envio chega à fila com status pendente.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "ANON-001"
+      ],
+      "branch": "feat/anonymous-feedback-intake",
+      "acceptanceCriteria": [
+        "Envio chega com status pendente",
+        "Nenhum dado de origem é gravado"
+      ],
+      "aiInstructions": "O adapter já garante isso. Verifique com o teste existente em mockAdapter.test.ts.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-003",
+      "epic": "EPIC-5",
+      "title": "Fila de moderação",
+      "description": "Lista dos feedbacks anônimos aguardando decisão.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "ANON-002"
+      ],
+      "branch": "feat/feedback-moderation",
+      "acceptanceCriteria": [
+        "useAnonymousFeedbacks('pendente'), mais recente primeiro",
+        "Mostra data, alvo e início do conteúdo",
+        "Contador de pendentes",
+        "Quatro estados tratados"
+      ],
+      "aiInstructions": "Use ANONYMOUS_TARGET_LABEL e ANONYMOUS_STATUS_LABEL para os rótulos.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-004",
+      "epic": "EPIC-5",
+      "title": "Detalhes",
+      "description": "Detalhe completo de um feedback anônimo.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "ANON-003"
+      ],
+      "branch": "feat/anonymous-feedback-detail",
+      "acceptanceCriteria": [
+        "Detalhe em Drawer com alvo e conteúdo inteiro"
+      ],
+      "aiInstructions": "Nunca exiba informação de quem enviou — ela não existe no modelo, e não deve ser criada.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-005",
+      "epic": "EPIC-5",
+      "title": "Moderação",
+      "description": "Aprovar, rejeitar ou arquivar um feedback anônimo.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [
+        "ANON-004"
+      ],
+      "branch": "feat/anonymous-feedback-moderate",
+      "acceptanceCriteria": [
+        "Aprovar, rejeitar e arquivar com useModerateAnonymousFeedback()",
+        "ConfirmDialog antes de rejeitar",
+        "Campo opcional de observação da moderação",
+        "O item sai da fila de pendentes",
+        "Não cria Feedback de acompanhamento em nenhuma hipótese"
+      ],
+      "aiInstructions": "REGRA CRÍTICA: feedback anônimo NÃO vira Feedback Informal, Formal nem Carta de Ajuste. Não crie botão de conversão. A decisão é humana.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ANON-006",
+      "epic": "EPIC-5",
+      "title": "Associação de contexto",
+      "description": "Mostrar a que o feedback se refere quando houver contexto.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "ANON-004"
+      ],
+      "branch": "feat/anonymous-feedback-context",
+      "acceptanceCriteria": [
+        "Alvo membro mostra qual e permite ir ao Perfil",
+        "Alvo subárea/diretoria/CITi mostra o rótulo",
+        "Continua sem qualquer informação de quem enviou"
+      ],
+      "aiInstructions": "targetMemberId só existe quando targetType é 'membro'.",
+      "labels": [
+        "area: anonymous-feedback",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "ADM-001",
+      "epic": "EPIC-6",
+      "title": "Periodicidade padrão de X1",
+      "description": "Configurar de quantos em quantos dias o X1 deve acontecer.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/admin-x1-periodicity",
+      "acceptanceCriteria": [
+        "Campo numérico em dias, lendo de useSettings()",
+        "Salva com useUpdateSettings() e confirma o sucesso",
+        "Não aceita zero nem número negativo"
+      ],
+      "aiInstructions": "Desbloqueia X1-007. O padrão do CITi é 30 dias.",
+      "labels": [
+        "area: admin",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "ADM-002",
+      "epic": "EPIC-6",
+      "title": "Periodicidade específica por membro",
+      "description": "Exceção de periodicidade para um membro.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [
+        "ADM-001"
+      ],
+      "branch": "feat/admin-x1-member-periodicity",
+      "acceptanceCriteria": [
+        "Define e remove exceção com useSetMemberX1Periodicity()",
+        "Lista quem tem exceção configurada"
+      ],
+      "aiInstructions": "Passar days=null remove a exceção.",
+      "labels": [
+        "area: admin",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "ADM-003",
+      "epic": "EPIC-6",
+      "title": "Estrutura inicial da Administração",
+      "description": "Organização da página de Administração.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Média",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/admin-structure",
+      "acceptanceCriteria": [
+        "Página organizada em seções, pronta para receber mais configurações",
+        "Não cria configuração fora do escopo da Fase 1"
+      ],
+      "aiInstructions": "Não implemente gestão de subáreas, cargos, papéis ou notificações — é Fase 2/3.",
+      "labels": [
+        "area: admin",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "IMPORT-001",
+      "epic": "EPIC-7",
+      "title": "Mapear CITi Pessoas",
+      "description": "Abrir a planilha real e documentar sua estrutura de verdade.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Ready",
+      "dependencies": [],
+      "branch": "feat/citi-pessoas-mapping",
+      "acceptanceCriteria": [
+        "Colunas reais documentadas com exemplo de valor",
+        "Casos problemáticos identificados (datas, subáreas, campos faltando, duplicidades)",
+        "Documentado em docs/DATA_MODEL.md ou anexo",
+        "Nenhum dado real vai para o repositório"
+      ],
+      "aiInstructions": "BLOQUEIA TODO O EPIC 7. O COLUMN_ALIASES atual em src/data/import/membersImport.ts é um palpite — confirme contra o arquivo real.",
+      "labels": [
+        "area: data",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "IMPORT-002",
+      "epic": "EPIC-7",
+      "title": "Mapear campos",
+      "description": "Ajustar o mapeamento de colunas ao formato real.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-001"
+      ],
+      "branch": "feat/import-field-mapping",
+      "acceptanceCriteria": [
+        "COLUMN_ALIASES corrigido com os nomes reais",
+        "Testes cobrindo os formatos encontrados de verdade"
+      ],
+      "aiInstructions": "Atualize também membersImport.test.ts com exemplos reais anonimizados.",
+      "labels": [
+        "area: data",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "IMPORT-003",
+      "epic": "EPIC-7",
+      "title": "Validar dados",
+      "description": "Tela de importação com relatório antes de gravar.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-002"
+      ],
+      "branch": "feat/import-validation",
+      "acceptanceCriteria": [
+        "Escolher arquivo e ver o relatório antes de gravar",
+        "previewMembersCsv() alimenta o relatório",
+        "Erros listados com linha, campo e motivo"
+      ],
+      "aiInstructions": "previewMembersCsv() não escreve nada — é seguro chamar para pré-visualizar.",
+      "labels": [
+        "area: data",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "IMPORT-004",
+      "epic": "EPIC-7",
+      "title": "Importar membros",
+      "description": "Gravar os membros válidos.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-003"
+      ],
+      "branch": "feat/member-import",
+      "acceptanceCriteria": [
+        "Grava com createMembers() após confirmação explícita",
+        "Resultado mostra quantos entraram e quantos foram pulados"
+      ],
+      "aiInstructions": "Use ConfirmDialog antes de gravar — é uma operação que afeta a base inteira.",
+      "labels": [
+        "area: data",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "IMPORT-005",
+      "epic": "EPIC-7",
+      "title": "Evitar duplicações",
+      "description": "Garantir que reimportar não duplica ninguém.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-003"
+      ],
+      "branch": "feat/import-deduplication",
+      "acceptanceCriteria": [
+        "Duplicidade dentro do arquivo é detectada",
+        "Membro que já existe é pulado e reportado, nunca sobrescrito",
+        "Importar o mesmo arquivo duas vezes não cria membro repetido"
+      ],
+      "aiInstructions": "A deduplicação por e-mail já existe nos dois adapters. Escreva um teste que importa o mesmo arquivo duas vezes.",
+      "labels": [
+        "area: data",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "IMPORT-006",
+      "epic": "EPIC-7",
+      "title": "Relatório de inconsistências",
+      "description": "Relatório legível do que impediu a importação.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-003"
+      ],
+      "branch": "feat/import-report",
+      "acceptanceCriteria": [
+        "Relatório agrupado por tipo de problema",
+        "Colunas não reconhecidas listadas",
+        "Dá para exportar ou copiar o relatório"
+      ],
+      "aiInstructions": "previewMembersCsv() já devolve issues, duplicatesInFile e unknownColumns.",
+      "labels": [
+        "area: data",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "epic": "EPIC-8",
+      "title": "QA — Login",
+      "description": "Testar o fluxo completo de autenticação.",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "BASE-005"
+      ],
+      "branch": "test/qa-login",
+      "acceptanceCriteria": [
+        "Login, logout, senha errada, sessão persistente e redirecionamento testados"
+      ],
+      "aiInstructions": "Registre cada problema encontrado como uma issue fix/ separada.",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-002",
+      "epic": "EPIC-8",
+      "title": "QA — Membros",
+      "description": "Testar listagem, busca e filtros.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "MEM-001",
+        "MEM-002",
+        "MEM-003",
+        "MEM-004",
+        "MEM-005"
+      ],
+      "branch": "test/qa-membros",
+      "acceptanceCriteria": [
+        "Fluxo completo testado, incluindo os quatro estados"
+      ],
+      "aiInstructions": "QA cruzado: quem testa não é quem implementou.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-003",
+      "epic": "EPIC-8",
+      "title": "QA — Perfil",
+      "description": "Testar o Perfil do Membro.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "PERFIL-001",
+        "PERFIL-002",
+        "PERFIL-003",
+        "PERFIL-004"
+      ],
+      "branch": "test/qa-perfil",
+      "acceptanceCriteria": [
+        "Todas as abas e a timeline testadas"
+      ],
+      "aiInstructions": "Teste também com um membro sem X1 e sem feedback.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-004",
+      "epic": "EPIC-8",
+      "title": "QA — X1",
+      "description": "Testar registro, histórico e situação de X1.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "X1-001",
+        "X1-002",
+        "X1-003",
+        "X1-004",
+        "X1-005",
+        "X1-006"
+      ],
+      "branch": "test/qa-x1",
+      "acceptanceCriteria": [
+        "Fluxo completo testado",
+        "Confirmado que membro novo aparece como Primeiro X1 pendente, não atrasado"
+      ],
+      "aiInstructions": "Verifique explicitamente a regra de produto do primeiro X1.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-005",
+      "epic": "EPIC-8",
+      "title": "QA — Feedback",
+      "description": "Testar registro, histórico e quadro consolidado.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "guiada",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "FB-001",
+        "FB-002",
+        "FB-003",
+        "FB-004",
+        "FB-006"
+      ],
+      "branch": "test/qa-feedback",
+      "acceptanceCriteria": [
+        "Fluxo completo testado",
+        "Confirmado que não há limite de feedbacks por membro"
+      ],
+      "aiInstructions": "Registre mais de dois feedbacks no mesmo membro para confirmar que não há limite.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-006",
+      "epic": "EPIC-8",
+      "title": "QA — Feedback Anônimo",
+      "description": "Testar envio externo e moderação.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "ANON-001",
+        "ANON-003",
+        "ANON-005"
+      ],
+      "branch": "test/qa-anonimo",
+      "acceptanceCriteria": [
+        "Envio sem login funciona",
+        "Confirmado que nenhuma informação de quem enviou aparece em lugar nenhum",
+        "Confirmado que aprovar não cria Feedback de acompanhamento"
+      ],
+      "aiInstructions": "Estas duas confirmações são regras de produto. Se falharem, é bug crítico.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-007",
+      "epic": "EPIC-8",
+      "title": "QA — Importação",
+      "description": "Testar a importação com arquivo real anonimizado.",
+      "owner": "Clara",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "IMPORT-004",
+        "IMPORT-005",
+        "IMPORT-006"
+      ],
+      "branch": "test/qa-importacao",
+      "acceptanceCriteria": [
+        "Importar duas vezes não duplica",
+        "Relatório de erros é compreensível"
+      ],
+      "aiInstructions": "Use um arquivo de teste anonimizado, nunca a base real.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-008",
+      "epic": "EPIC-8",
+      "title": "QA — Responsividade",
+      "description": "Testar todas as telas no celular.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "guiada",
+      "priority": "Média",
+      "status": "Blocked",
+      "dependencies": [
+        "MEM-001",
+        "PERFIL-001",
+        "X1-003",
+        "FB-003",
+        "ANON-003"
+      ],
+      "branch": "test/qa-responsividade",
+      "acceptanceCriteria": [
+        "Nenhuma tela rola horizontalmente",
+        "Navegação funciona no celular"
+      ],
+      "aiInstructions": "Teste em 375px de largura (F12 → iPhone SE).",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "QA-009",
+      "epic": "EPIC-8",
+      "title": "QA — Estados e erros",
+      "description": "Conferir os quatro estados em todas as telas.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "MEM-005",
+        "PERFIL-001",
+        "X1-003",
+        "FB-003",
+        "ANON-003"
+      ],
+      "branch": "test/qa-estados",
+      "acceptanceCriteria": [
+        "Toda tela que carrega dados trata carregando, erro, vazio e conteúdo"
+      ],
+      "aiInstructions": "Para simular erro, desligue a internet ou aponte para um Supabase inválido.",
+      "functionalReviewer": "Cauan",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "QA-010",
+      "epic": "EPIC-8",
+      "title": "Correções para release",
+      "description": "Resolver o que o QA encontrou e fechar a Fase 1.",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Blocked",
+      "dependencies": [
+        "QA-001",
+        "QA-002",
+        "QA-003",
+        "QA-004",
+        "QA-005",
+        "QA-006",
+        "QA-007",
+        "QA-008",
+        "QA-009"
+      ],
+      "branch": "fix/correcoes-release",
+      "acceptanceCriteria": [
+        "Todos os bugs bloqueantes resolvidos",
+        "npm run check passa limpo",
+        "Documentação atualizada"
+      ],
+      "aiInstructions": "Priorize bugs que quebram regra de produto acima de ajustes visuais.",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    }
+  ],
+  "projectColumns": [
+    "Backlog",
+    "Ready",
+    "In Progress",
+    "Review",
+    "Testing",
+    "Done"
+  ],
+  "reviewMatrix": {
+    "nota": "Reviewer técnico por autor (Plano de Execução secao 36). Features também têm reviewer funcional, que testa como GG.",
+    "Cauan": "Sofia",
+    "Sofia": "Cauan",
+    "Gabi": "Cauan",
+    "Bia": "Cauan/Sofia",
+    "Clara": "Cauan/Sofia"
+  }
+}

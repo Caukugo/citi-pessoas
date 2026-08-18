@@ -1,0 +1,10 @@
+{
+  // Extensões recomendadas. O VS Code oferece instalar ao abrir o projeto —
+  // aceite. Elas mostram os erros enquanto você escreve, em vez de só no build.
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer"
+  ]
+}
