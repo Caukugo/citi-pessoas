@@ -645,6 +645,31 @@ informação de quem enviou — ela não existe.
 
 ---
 
+## EPIC 9 — Projeto e decisões em aberto
+
+Coisas que o projeto **precisa ter** e que não são feature de ninguém. Saem dos
+"Pontos ainda em aberto" do documento de contexto e das etapas do Plano de
+Execução. Sem dono fixo — quem estiver livre pega.
+
+| ID | O que precisamos ter | Prioridade | Status |
+| --- | --- | --- | --- |
+| GERAL-001 | Ratificar a stack técnica escolhida | Alta | Ready |
+| GERAL-002 | Definir hospedagem e deploy da aplicação | Alta | Bloqueada por GERAL-001 |
+| GERAL-003 | Definir onde o formulário de feedback anônimo fica público | Alta | Bloqueada por GERAL-002 |
+| GERAL-004 | Convidar o time como colaboradores do repositório | Alta | Ready |
+| GERAL-005 | Configurar o GitHub Project com as colunas do Plano | Média | Bloqueada por GERAL-004 |
+| GERAL-006 | Sessão de onboarding do time | Alta | Bloqueada por GERAL-004 |
+| GERAL-007 | Definir o nome final da plataforma | Baixa | Ready |
+| GERAL-008 | Cadastrar a gestão corrente e as subáreas reais do CITi | Alta | Bloqueada por BASE-006 |
+| GERAL-009 | Definir a política de retenção de dados | Média | Ready |
+| GERAL-010 | Decidir se o repositório vai para uma organização do CITi | Média | Ready |
+| GERAL-011 | Definir a estratégia de sincronização com a planilha CITi Pessoas | Média | Bloqueada por IMPORT-001 |
+
+> ⚠️ **GERAL-001 é o mais urgente.** A stack foi decidida por necessidade (ADR-011)
+> e precisa do aval do time **antes** de `BASE-006` — depois que houver dado real
+> no banco, trocar de provedor deixa de ser barato.
+
+---
 ## EPIC 8 — QA
 
 Cada item: testar o fluxo completo, registrar o que encontrou como issue de

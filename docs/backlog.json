@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-08-18",
+  "updatedAt": "2026-08-19",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -87,6 +87,11 @@
     {
       "id": "EPIC-8",
       "name": "QA",
+      "owner": "Time"
+    },
+    {
+      "id": "EPIC-9",
+      "name": "Projeto e decisões em aberto",
       "owner": "Time"
     }
   ],
@@ -1789,6 +1794,290 @@
         "area: infra",
         "difficulty: assisted",
         "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-001",
+      "title": "Ratificar a stack técnica escolhida",
+      "description": "O documento de contexto listava framework, banco e autenticação como pontos em aberto. A fundação precisou decidir para existir, e registrou a escolha em ADR-011. Falta o aval do time antes de haver dado real.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "ADR-001 a ADR-005 lidos pelo time técnico",
+        "Decisão confirmada ou contestada por escrito no comentário desta issue",
+        "ADR-011 atualizado com o status final"
+      ],
+      "aiInstructions": "Decisão humana, não tarefa de código. Leia docs/DECISIONS.md antes de opinar. Trocar de banco depois de BASE-006 deixa de ser barato.",
+      "note": "Bloqueia BASE-006 na prática — decida antes de provisionar.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-002",
+      "title": "Definir hospedagem e deploy da aplicação",
+      "description": "A aplicação é um site estático (Vite build). Falta decidir onde ela vai rodar e como o deploy acontece a cada merge na main.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "dependencies": [
+        "GERAL-001"
+      ],
+      "acceptanceCriteria": [
+        "Provedor de hospedagem escolhido e registrado em DECISIONS.md",
+        "Deploy automático a cada merge na main funcionando",
+        "Variáveis de ambiente configuradas no provedor (nunca no repositório)",
+        "URL da aplicação compartilhada com o time"
+      ],
+      "aiInstructions": "O build gera uma pasta dist/ estática. Como é uma SPA com rotas, o provedor precisa redirecionar todas as rotas para index.html, senão abrir /membros direto dá 404.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-003",
+      "title": "Definir onde o formulário de feedback anônimo fica público",
+      "description": "O formulário anônimo é a única tela pública da plataforma e precisa de uma URL que os membros do CITi acessem sem login. Falta decidir se fica no mesmo domínio da aplicação ou separado, e como será divulgado.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "dependencies": [
+        "GERAL-002"
+      ],
+      "acceptanceCriteria": [
+        "URL pública definida e acessível sem login",
+        "Divulgação combinada com a GG (onde o link será compartilhado)",
+        "Confirmado que a rota não expõe nada da área interna",
+        "Confirmado que a RLS permite inserir mas não ler a fila"
+      ],
+      "aiInstructions": "A rota já existe: /feedback-anonimo, fora do ProtectedRoute. A policy de RLS que permite inserção pública está na migration 0001. Não crie atalho da tela pública para a área interna.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-004",
+      "title": "Convidar o time como colaboradores do repositório",
+      "description": "Sofia, Gabi, Bia e Clara precisam de acesso de escrita para criar branches e abrir PRs. Sem isso as issues também não podem ser atribuídas a elas.",
+      "priority": "Alta",
+      "difficulty": "guiada",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "As quatro convidadas com permissão de escrita",
+        "Convites aceitos",
+        "Issues atribuídas às responsáveis sugeridas",
+        "Cada pessoa consegue clonar e criar uma branch"
+      ],
+      "aiInstructions": "Tarefa de administração do GitHub. Não requer código.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-005",
+      "title": "Configurar o GitHub Project com as colunas do Plano",
+      "description": "O Plano de Execução define o quadro Backlog → Ready → In Progress → Review → Testing → Done. Sem ele, ninguém enxerga o andamento.",
+      "priority": "Média",
+      "difficulty": "guiada",
+      "dependencies": [
+        "GERAL-004"
+      ],
+      "acceptanceCriteria": [
+        "Project criado com as seis colunas",
+        "Todas as issues adicionadas ao Project",
+        "Issues prontas movidas para Ready e as bloqueadas em Backlog",
+        "Automação: issue fechada vai para Done"
+      ],
+      "aiInstructions": "Ver docs/CONTRIBUTING.md secao 1b para as colunas e labels.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-006",
+      "title": "Sessão de onboarding do time",
+      "description": "Etapa 2 do Plano de Execução. Antes das features, cada pessoa precisa ver o fluxo completo funcionando uma vez: clonar, rodar, alterar, branch, commit, PR.",
+      "priority": "Alta",
+      "difficulty": "guiada",
+      "dependencies": [
+        "GERAL-004"
+      ],
+      "acceptanceCriteria": [
+        "Sessão de ~30 min realizada com Gabi, Bia e Clara",
+        "Todas com o projeto rodando na própria máquina",
+        "ONB-001, ONB-002 e ONB-003 concluídas",
+        "Dúvidas recorrentes registradas em docs/SETUP.md"
+      ],
+      "aiInstructions": "Use docs/SETUP.md como roteiro e docs/AI_DEVELOPMENT_GUIDE.md para a parte de Claude Code. Deixe cada pessoa digitar — não faça por ela.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-007",
+      "title": "Definir o nome final da plataforma",
+      "description": "O documento de contexto lista o nome como ponto em aberto. Hoje o repositório usa \"CITi Pessoas\" como nome de trabalho.",
+      "priority": "Baixa",
+      "difficulty": "guiada",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Nome decidido com a GG",
+        "Atualizado no README, no index.html e no package.json se mudar"
+      ],
+      "aiInstructions": "Decisão de produto. Não mude o nome no código sem a decisão fechada.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-008",
+      "title": "Cadastrar a gestão corrente e as subáreas reais do CITi",
+      "description": "O sistema nasce com uma gestão de exemplo e uma lista de subáreas inferida do protótipo. Precisa refletir a realidade antes do uso.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "dependencies": [
+        "BASE-006"
+      ],
+      "acceptanceCriteria": [
+        "Gestão corrente cadastrada com o período correto",
+        "Lista de subáreas conferida com a GG e corrigida em src/data/types.ts",
+        "Lista de cargos conferida com a GG",
+        "Confirmado que a importação reconhece os nomes reais das subáreas"
+      ],
+      "aiInstructions": "AREAS está em src/data/types.ts e os apelidos aceitos na importação em COLUMN_ALIASES/parseArea. Mudar a lista de subáreas mexe no enum do banco também — combine com quem cuida de dados.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "GERAL-009",
+      "title": "Definir a política de retenção de dados",
+      "description": "O documento de contexto define o ciclo: perfil arquivado → histórico detalhado por período configurável → registro resumido de alumni. Só o arquivamento foi implementado; falta decidir os prazos.",
+      "priority": "Média",
+      "difficulty": "assistida",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Prazo de retenção detalhada decidido com a GG",
+        "Definido quais campos sobrevivem como registro de alumni",
+        "Decisão registrada em DECISIONS.md",
+        "Issue de implementação criada, se o time decidir implementar agora"
+      ],
+      "aiInstructions": "O motivo é governança e privacidade, não espaço em disco — ver docs/PROJECT_CONTEXT.md secao 12. Não implemente exclusão automática sem a política fechada.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-010",
+      "title": "Decidir se o repositório vai para uma organização do CITi",
+      "description": "O repositório está sob conta pessoal. Uma organização preserva o acesso entre gestões — que é um requisito estrutural do produto.",
+      "priority": "Média",
+      "difficulty": "guiada",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Verificado se existe organização do CITi no GitHub",
+        "Decisão tomada: transferir ou manter",
+        "Se transferir: feito antes de o time acumular trabalho"
+      ],
+      "aiInstructions": "A transferência preserva issues, PRs e histórico. Quanto antes, menos gente precisa reconfigurar o remote local.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: guided",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-011",
+      "title": "Definir a estratégia de sincronização com a planilha CITi Pessoas",
+      "description": "Ponto em aberto do documento de contexto: a planilha será apenas origem de importação inicial, ou vai coexistir por um tempo? A visão de produto é que a plataforma se torne a fonte de verdade.",
+      "priority": "Média",
+      "difficulty": "assistida",
+      "dependencies": [
+        "IMPORT-001"
+      ],
+      "acceptanceCriteria": [
+        "Decidido: importação única ou período de coexistência",
+        "Se houver coexistência: definido quem é a fonte de verdade de cada campo",
+        "Data combinada para a planilha deixar de ser usada no acompanhamento",
+        "Decisão registrada em DECISIONS.md"
+      ],
+      "aiInstructions": "Duas fontes concorrentes é exatamente o problema que a plataforma existe para resolver — evite desenhar sincronização permanente.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: normal"
       ]
     }
   ],
