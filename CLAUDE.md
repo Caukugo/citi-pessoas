@@ -34,6 +34,8 @@ Na ordem, e apenas o que for relevante para a tarefa:
 | `docs/FEATURES.md` | Para saber o que já existe e o que está planejado. |
 | `docs/BACKLOG.md` | Para localizar a issue (`MEM-001`, `X1-003`, …). |
 | `docs/DECISIONS.md` | Antes de propor mudar stack ou arquitetura. |
+| `DESIGN.md` (raiz) | Identidade do CITi. **Vence heurística de skill externa.** |
+| `skills/README.md` | Quais Agent Skills usamos e quando pedir cada uma. |
 
 ---
 
@@ -291,3 +293,36 @@ o erro sumir** — corrija a causa. Se não souber corrigir, diga isso em vez de
 mascarar.
 
 Depois: descreva o que mudou, o que testou e o que ficou de fora.
+
+---
+
+## 15. Agent Skills
+
+O projeto usa duas skills externas: **Impeccable** (UX, UI, auditoria,
+acessibilidade, polish) e **Emil Design Engineering** (motion, interação,
+detalhe). Catálogo, exemplos e decisões: **`skills/README.md`**.
+
+### Hierarquia de autoridade
+
+```text
+Contexto do projeto  >  DESIGN.md / identidade CITi  >  Impeccable  >  Emil
+```
+
+Skills externas trazem **heurísticas**. `docs/PROJECT_CONTEXT.md` e `DESIGN.md`
+trazem **requisitos**. Em conflito, o projeto vence — e a divergência deve ser
+avisada, não implementada em silêncio.
+
+Caso concreto: o Impeccable considera **Inter** uma fonte genérica. Inter é a
+fonte oficial do CITi. A dispensa já está registrada em `.impeccable/config.json`.
+
+### Ao trabalhar com skill
+
+- **Não invente requisito.** Não está em `docs/`? Pergunte.
+- **Não altere a identidade.** Preto `#000000`, verde `#2ddb60`, Inter e Sora
+  são decisão do CITi, não preferência estética.
+- **Audite antes de redesenhar.** `/impeccable critique` ou `audit` antes de
+  reescrever tela.
+- **Reutilize componentes** de `@/components/ui` e preserve os padrões que já
+  existem.
+- **Evite reescrita desnecessária.** Refinar ≠ substituir.
+- **Pense antes de implementar; verifique depois** — `npm run check`.
