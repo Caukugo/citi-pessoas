@@ -42,8 +42,9 @@ Isto é o que a fundação entregou e já funciona.
 - Regras de negócio implementadas e testadas: situação de X1 do membro,
   periodicidade com exceção por membro, arquivamento em vez de exclusão,
   histórico automático de eventos.
-- Dados fictícios de desenvolvimento — 17 membros, X1, feedbacks, fila de
-  moderação (`src/data/mock/fixtures.ts`).
+- Dados fictícios de desenvolvimento — 18 membros, 13 X1, feedbacks, fila de
+  moderação (`src/data/mock/fixtures.ts`), incluindo casos propositalmente
+  imperfeitos (cadastro incompleto, nome e resumo longos, X1 cancelado).
 - Schema SQL completo com RLS (`supabase/migrations/0001_fase1_schema.sql`).
 
 ### Fundação da importação (DATA-006)
@@ -53,16 +54,57 @@ Isto é o que a fundação entregou e já funciona.
   (`src/data/import/membersImport.ts`).
 - ⚠️ Falta o mapeamento contra a planilha real (`IMPORT-001`).
 
+### EPIC 1 — Membros (MEM-001 a MEM-005)
+
+- `/membros` com faixa de contexto operacional (ativos, X1 atrasados, primeiro
+  X1 pendente) — cada número filtra a lista.
+- Busca por nome, cargo e e-mail, ignorando acento e maiúscula.
+- Filtros por subárea, cargo, GG responsável, situação de X1 e situação no CITi.
+  Tudo vive na URL (`?busca=&subarea=&x1=`), então o recorte é compartilhável.
+- Tabela no desktop, cartões no celular — mesma informação nas duas visões.
+- Quatro estados tratados, com estados vazios distintos para "ninguém
+  cadastrado" e "nada neste recorte".
+
+### EPIC 2 — Perfil do Membro (PERFIL-001 a PERFIL-004)
+
+- `/membros/:id` com cabeçalho de identificação, situação de X1 e último X1.
+- Dados cadastrais agrupados (No CITi · Acadêmico · Contato); campo vazio vira
+  "—", nunca em branco.
+- Abas Visão geral · X1 · Feedbacks, com a aba ativa na URL (`?aba=x1`) e
+  navegação por setas do teclado.
+- Atividade recente lendo `member_events` — modelo extensível: quando Feedbacks
+  entrar, aparece aqui sem mudar o componente.
+- Membro inexistente tem tela própria, não erro.
+- A aba Feedbacks está **preparada**, não implementada — é o EPIC 4.
+
+### EPIC 3 — X1 (X1-001, X1-002, X1-003, X1-006, X1-008)
+
+- Aba de X1 no Perfil: resumo do acompanhamento + histórico expansível.
+- Registro de X1 em gaveta lateral: data, quem conduziu, link do documento,
+  resumo, pontos discutidos, hard/soft/desired skills, encaminhamentos
+  múltiplos, valores do CITi e observações.
+- Situação, último X1, próximo recomendado e contagem **todos derivados** do
+  histórico — nada gravado, nada podendo divergir.
+- Estado "nenhum X1" tratado como marco (primeiro X1 pendente), não como erro.
+
+### Design System — adições
+
+- `ToastProvider` / `useToast()` — confirmação de sucesso.
+- `TagInput` — etiquetas de habilidades.
+- `FormSection` — divisão de formulário longo.
+- `Drawer` com `size`, motion de 200ms e foco preso; `Tabs` com `aria-controls`
+  e navegação por setas.
+
 ### Testes
 
-- 37 testes cobrindo regras de X1, importação, camada de dados e o fluxo
-  completo de autenticação e navegação.
+- 64 testes cobrindo regras de X1, listagem de membros, validação de X1,
+  importação, camada de dados e o fluxo de autenticação e navegação.
 
 ---
 
 ## 🚧 Em desenvolvimento
 
-Nada ainda. As features abaixo estão prontas para começar.
+Nada ainda.
 
 ---
 
@@ -75,34 +117,34 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 
 | ID | Item | Status |
 | --- | --- | --- |
-| MEM-001 | Listagem de membros | Ready |
-| MEM-002 | Busca | Ready |
-| MEM-003 | Filtros | Ready |
-| MEM-004 | Acesso ao Perfil | Ready |
-| MEM-005 | Loading, vazio e erro | Ready |
+| MEM-001 | Listagem de membros | ✅ Implementado |
+| MEM-002 | Busca | ✅ Implementado |
+| MEM-003 | Filtros | ✅ Implementado |
+| MEM-004 | Acesso ao Perfil | ✅ Implementado |
+| MEM-005 | Loading, vazio e erro | ✅ Implementado |
 
 ### EPIC 2 — Perfil do Membro · Gabi
 
 | ID | Item | Status |
 | --- | --- | --- |
-| PERFIL-001 | Estrutura do Perfil | Ready |
-| PERFIL-002 | Dados cadastrais | Ready |
-| PERFIL-003 | Tabs/seções | Ready |
-| PERFIL-004 | Timeline inicial | Ready |
-| PERFIL-005 | Integração de X1 e Feedback | Bloqueado por X1-008 e FB-007 |
+| PERFIL-001 | Estrutura do Perfil | ✅ Implementado |
+| PERFIL-002 | Dados cadastrais | ✅ Implementado |
+| PERFIL-003 | Tabs/seções | ✅ Implementado |
+| PERFIL-004 | Timeline inicial | ✅ Implementado |
+| PERFIL-005 | Integração de X1 e Feedback | Parcial — X1 integrado; falta Feedbacks (FB-007) |
 
 ### EPIC 3 — X1 · Bia
 
 | ID | Item | Status |
 | --- | --- | --- |
-| X1-001 | Novo X1 | Ready |
-| X1-002 | Persistir X1 | Ready |
-| X1-003 | Histórico de X1 | Ready |
-| X1-004 | Visualizar X1 | Ready |
-| X1-005 | Editar X1 | Ready |
-| X1-006 | Status do X1 | Ready |
-| X1-007 | Periodicidade | Bloqueado por ADM-001 |
-| X1-008 | Integração com Perfil | Bloqueado por PERFIL-003 |
+| X1-001 | Novo X1 | ✅ Implementado |
+| X1-002 | Persistir X1 | ✅ Implementado |
+| X1-003 | Histórico de X1 | ✅ Implementado |
+| X1-004 | Visualizar X1 | ✅ Implementado (detalhe expansível no histórico) |
+| X1-005 | Editar X1 | Ready — o formulário já é reaproveitável |
+| X1-006 | Status do X1 | ✅ Implementado |
+| X1-007 | Periodicidade | Parcial — já é respeitada e exibida; falta a tela de Administração (ADM-001) |
+| X1-008 | Integração com Perfil | ✅ Implementado |
 
 ### EPIC 4 — Feedbacks · Clara
 

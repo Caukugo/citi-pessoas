@@ -222,6 +222,52 @@ npm run check     # tudo acima, em sequência — rode antes de abrir PR
 
 ---
 
+## 8.1. Membros + X1 é a referência arquitetural
+
+`src/features/members/` e `src/features/x1/` são a **primeira implementação
+completa** da Fase 1 e foram escritas para servir de modelo. Antes de começar
+Feedbacks, Moderação ou Administração, leia essas duas pastas.
+
+**Siga o mesmo desenho. Não invente um paralelo.**
+
+```
+src/features/<sua-feature>/
+├── pages/          A tela. Compõe e decide o que mostrar. NÃO calcula regra.
+├── components/     Pedaços da tela. Só usa @/components/ui por dentro.
+├── hooks/          Junta hooks de @/data e entrega dados prontos.
+├── model/          Regras PURAS — sem React, sem fetch. É o que tem teste.
+└── schemas/        zod + conversão formulário → modelo de domínio.
+```
+
+Concretamente, isso quer dizer:
+
+- **Nada derivado é gravado.** Situação de X1, último X1 e próximo recomendado
+  são calculados do histórico, sempre. Se você sentir vontade de guardar um
+  campo derivado "para ficar mais rápido", pare — é assim que duas telas passam
+  a discordar. Ver `ARCHITECTURE.md §4.1`.
+- **`model/` não importa React nem `db`.** É o que faz o teste rodar rápido e
+  testar regra de produto, não marcação de tela.
+- **Formulário sempre**: `react-hook-form` + `zod` + `<FormField>` +
+  `<FormSection>`, com uma função `toXCreateInput()` que converte string de
+  formulário em modelo. Campo vazio vira `null`, nunca `''`.
+- **Sucesso usa `useToast()`**; erro que exige decisão fica na tela com
+  `role="alert"` e **não fecha o formulário**.
+- **Filtro de tela vive na URL** (`useSearchParams`), para o recorte ser
+  compartilhável.
+- **Não crie repository, store nem padrão de mock novo.** Já existe um.
+
+Modelos prontos para copiar:
+
+| Você vai fazer | Copie de |
+| --- | --- |
+| Listagem com busca e filtros | `features/members/pages/MembersPage.tsx` |
+| Regras puras + teste | `features/members/model/membersList.ts` |
+| Formulário em gaveta | `features/x1/components/CreateX1Drawer.tsx` |
+| Validação e conversão | `features/x1/schemas/x1Schema.ts` |
+| Composição de consultas | `features/x1/hooks/useMemberX1.ts` |
+
+---
+
 ## 9. Política para novas features
 
 - Implemente **apenas o escopo da issue**. Não faça features vizinhas "de brinde".

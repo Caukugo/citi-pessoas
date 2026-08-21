@@ -146,6 +146,119 @@ src/
 
 ---
 
+## 4.1. Como uma feature se organiza por dentro — Membros + X1 é a referência
+
+Membros, Perfil e X1 são a **primeira implementação completa** da Fase 1, e
+foram escritos para servir de modelo. Feedbacks, Moderação e Administração
+devem seguir a mesma divisão em vez de inventar outra.
+
+```
+src/features/<feature>/
+├── pages/          A tela. Compõe, decide o que mostrar. Não calcula regra.
+├── components/     Pedaços da tela. Só componentes de @/components/ui dentro.
+├── hooks/          Composição: junta hooks de @/data e entrega dados prontos.
+├── model/          Regras PURAS: sem React, sem fetch. É o que tem teste.
+└── schemas/        Validação com zod + conversão formulário → modelo.
+```
+
+A ordem em que as coisas se chamam:
+
+```mermaid
+flowchart LR
+    P["pages/<br/>MembersPage"] --> H["hooks/<br/>useMembersList"]
+    H --> D["@/data<br/>useMembers · useLastCompletedX1ByMember"]
+    D --> DB["db → mockAdapter | supabaseAdapter"]
+    H --> M["model/<br/>regras puras"]
+    P --> C["components/"]
+    C --> UI["@/components/ui"]
+```
+
+**A regra que faz isso valer a pena:** `model/` não importa React nem `@/data/db`.
+É por isso que `membersList.test.ts` e `x1Schema.test.ts` rodam em milissegundos
+e testam regra de produto de verdade, sem montar tela nenhuma.
+
+### Onde cada tipo de lógica mora
+
+| Tipo | Onde | Exemplo |
+| --- | --- | --- |
+| Regra de domínio compartilhada | `src/data/x1.ts` | `getMemberX1Status`, `nextRecommendedX1Date` |
+| Regra só de uma tela | `features/<f>/model/` | `summarizeMembers`, `applyDerivedFilters` |
+| Composição de consultas | `features/<f>/hooks/` | `useMembersList`, `useMemberX1` |
+| Validação de formulário | `features/<f>/schemas/` | `memberFormSchema`, `x1FormSchema` |
+| Como aparece na tela | `features/<f>/components/` | `MemberCard`, `X1HistoryItem` |
+
+### Nada derivado é gravado
+
+O ponto mais importante da feature de X1: **situação, último X1, próximo
+recomendado e contagem de conversas são todos calculados a partir do histórico**,
+sempre. Não existe `member.lastX1Date` nem `member.x1Status` no modelo.
+
+Consequência prática: registrar um X1 atualiza o histórico, a timeline, o
+resumo, a listagem e a situação de uma vez só — porque as cinco coisas leem a
+mesma fonte. Se alguém adicionar um campo derivado ao banco "para ficar mais
+rápido", esta garantia acaba e as telas passam a discordar entre si.
+
+### Dois filtros, dois lugares — e por quê
+
+Na listagem de membros:
+
+| Filtro | Resolvido em | Motivo |
+| --- | --- | --- |
+| busca · subárea · situação no CITi · GG responsável | camada de dados (`MemberFilters`) | um banco filtra isso melhor do que o navegador |
+| cargo · situação de X1 | camada derivada (`applyDerivedFilters`) | situação de X1 **não existe no banco** — é calculada. Cargo ainda não está em `MemberFilters` |
+
+A tela não sabe dessa divisão: ela entrega um objeto de filtros para
+`useMembersList` e recebe a lista. Se um dia cargo virar coluna filtrável,
+some uma linha de `applyDerivedFilters` e **nenhum componente muda**.
+
+---
+
+## 4.2. Quando o backend real chegar
+
+A troca de mock por API acontece **dentro de `src/data/`**, e só ali.
+
+### Hoje
+
+```text
+Página (features/)  →  hooks da feature  →  hooks de @/data  →  db  →  mockAdapter
+                                                                       ↓
+                                                          mock/store.ts (localStorage)
+```
+
+### Depois
+
+```text
+Página (features/)  →  hooks da feature  →  hooks de @/data  →  db  →  apiAdapter
+                                                                       ↓
+                                                              backend → banco
+```
+
+**O que NÃO muda** — nenhuma linha:
+
+- `src/features/**` inteiro: páginas, componentes, hooks de composição, model, schemas
+- `src/components/ui/**`
+- `src/data/types.ts`, `adapter.ts`, `queryKeys.ts`, `errors.ts`
+- os hooks de domínio (`useMembers`, `useX1sByMember`, `useCreateX1`, …)
+- as regras puras (`getMemberX1Status`, `nextRecommendedX1Date`, `applyDerivedFilters`)
+- os testes de regra
+
+**O que muda:**
+
+| Arquivo | O que acontece |
+| --- | --- |
+| `src/data/supabase/supabaseAdapter.ts` | já é a implementação real; ou nasce um `api/apiAdapter.ts` irmão |
+| `src/data/db.ts` | uma linha: qual adapter `VITE_DATA_SOURCE` escolhe |
+| `src/data/mock/**` | continua existindo, para desenvolver tela sem banco |
+
+**O que some:** nada. O modo mock é a forma de trabalhar sem depender de
+infraestrutura, não um andaime a ser jogado fora.
+
+**Por que a conta fecha:** as telas nunca importaram `mockAdapter`, `fixtures`
+nem `localStorage`. Elas importam de `@/data`. Confira com
+`grep -r "mock/" src/features/` — o resultado tem que continuar vazio.
+
+---
+
 ## 5. Fronteiras — quem mexe em quê
 
 Esta tabela existe para evitar que cinco branches briguem pelo mesmo arquivo.

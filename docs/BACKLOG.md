@@ -66,7 +66,7 @@ review → merge. 🟢 guiada.
 ### MEM-001 — Listagem de membros
 
 - **Épico:** Membros · **Responsável:** Gabi · **Reviewer:** Cauan
-- **Dificuldade:** 🟢 guiada · **Prioridade:** Alta · **Status:** Ready
+- **Dificuldade:** 🟢 guiada · **Prioridade:** Alta · **Status:** ✅ Done
 - **Dependências:** nenhuma
 - **Branch:** `feat/members-list`
 
@@ -75,70 +75,70 @@ uma tabela, com o essencial para decidir quem precisa de atenção.
 
 **Critérios de aceite**
 
-- [ ] A tabela mostra nome (com avatar), cargo, subárea e situação de X1.
-- [ ] Os dados vêm de `useMembers()`.
-- [ ] A situação de X1 usa `getMemberX1Status()` — quem nunca teve X1 aparece
+- [x] A tabela mostra nome (com avatar), cargo, subárea e situação de X1.
+- [x] Os dados vêm de `useMembers()`.
+- [x] A situação de X1 usa `getMemberX1Status()` — quem nunca teve X1 aparece
       como "Primeiro X1 pendente", **não** como atrasado.
-- [ ] Funciona no celular sem a página rolar para o lado.
-- [ ] Usa apenas componentes de `@/components/ui`.
+- [x] Funciona no celular sem a página rolar para o lado.
+- [x] Usa apenas componentes de `@/components/ui`.
 
 ---
 
 ### MEM-002 — Busca
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** MEM-001 · **Branch:** `feat/members-search`
 
 **Objetivo.** Encontrar uma pessoa digitando parte do nome ou do e-mail.
 
 **Critérios de aceite**
 
-- [ ] `<SearchInput>` acima da tabela.
-- [ ] Busca ignora acento e maiúsculas ("iris" encontra "Íris").
-- [ ] O termo fica na URL (`?busca=`), para o link poder ser compartilhado.
-- [ ] Sem resultado → `EmptyState` citando o termo buscado.
+- [x] `<SearchInput>` acima da tabela.
+- [x] Busca ignora acento e maiúsculas ("iris" encontra "Íris").
+- [x] O termo fica na URL (`?busca=`), para o link poder ser compartilhado.
+- [x] Sem resultado → `EmptyState` citando o termo buscado.
 
 ---
 
 ### MEM-003 — Filtros
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Média · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Média · ✅ Done
 - **Dependências:** MEM-001 · **Branch:** `feat/members-filters`
 
 **Objetivo.** Filtrar por subárea e por situação, combinando com a busca.
 
 **Critérios de aceite**
 
-- [ ] Filtro por subárea usando a constante `AREAS`.
-- [ ] Filtro por status (ativo / desligado / arquivado); o padrão mostra ativos.
-- [ ] Filtros combinam com a busca.
-- [ ] Dá para limpar todos de uma vez.
+- [x] Filtro por subárea usando a constante `AREAS`.
+- [x] Filtro por status (ativo / desligado / arquivado); o padrão mostra ativos.
+- [x] Filtros combinam com a busca.
+- [x] Dá para limpar todos de uma vez.
 
 ---
 
 ### MEM-004 — Acesso ao Perfil
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** MEM-001, PERFIL-001 · **Branch:** `feat/member-profile-link`
 
 **Critérios de aceite**
 
-- [ ] Clicar na linha abre `/membros/:id`.
-- [ ] Usa `ROUTES.memberProfile(id)`, nunca string escrita à mão.
-- [ ] Funciona com Enter pelo teclado.
+- [x] Clicar na linha abre `/membros/:id`.
+- [x] Usa `ROUTES.memberProfile(id)`, nunca string escrita à mão.
+- [x] Funciona com Enter pelo teclado.
 
 ---
 
 ### MEM-005 — Loading, vazio e erro
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** MEM-001 · **Branch:** `feat/members-states`
 
 **Critérios de aceite**
 
-- [ ] `LoadingState` enquanto carrega.
-- [ ] `ErrorState` com "Tentar novamente" em caso de falha.
-- [ ] `EmptyState` explicando o porquê quando não há resultado.
+- [x] `LoadingState` enquanto carrega.
+- [x] `ErrorState` com "Tentar novamente" em caso de falha.
+- [x] `EmptyState` explicando o porquê quando não há resultado.
 
 > Pode ser feito junto com MEM-001. Está separado porque é o item mais esquecido.
 
@@ -148,7 +148,7 @@ uma tabela, com o essencial para decidir quem precisa de atenção.
 
 ### PERFIL-001 — Estrutura do Perfil
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Alta · ✅ Done
 - **Dependências:** nenhuma · **Branch:** `feat/member-profile`
 
 **Objetivo.** A página do membro, com cabeçalho de identificação e a estrutura
@@ -156,40 +156,40 @@ onde as demais seções vão encaixar.
 
 **Critérios de aceite**
 
-- [ ] Carrega com `useMember(memberId)`.
-- [ ] Cabeçalho: avatar, nome, cargo, subárea, squad, situação de X1.
-- [ ] Membro inexistente → mensagem clara, não tela quebrada.
-- [ ] Link de voltar para `/membros`.
-- [ ] Quatro estados tratados.
+- [x] Carrega com `useMember(memberId)`.
+- [x] Cabeçalho: avatar, nome, cargo, subárea, squad, situação de X1.
+- [x] Membro inexistente → mensagem clara, não tela quebrada.
+- [x] Link de voltar para `/membros`.
+- [x] Quatro estados tratados.
 
 ---
 
 ### PERFIL-002 — Dados cadastrais
 
-- **Responsável:** Gabi · **Reviewer:** Sofia · 🟢 guiada · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Sofia · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** PERFIL-001 · **Branch:** `feat/member-profile-data`
 
 **Critérios de aceite**
 
-- [ ] Mostra e-mails, telefone, curso, período, universidade, data de entrada,
+- [x] Mostra e-mails, telefone, curso, período, universidade, data de entrada,
       tempo de casa, gerente e responsável de GG.
-- [ ] Campo vazio aparece como "—", nunca como `null` ou espaço em branco.
-- [ ] Datas formatadas com `formatDate()`.
+- [x] Campo vazio aparece como "—", nunca como `null` ou espaço em branco.
+- [x] Datas formatadas com `formatDate()`.
 
 ---
 
 ### PERFIL-003 — Tabs/seções
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Alta · Ready
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Alta · ✅ Done
 - **Dependências:** PERFIL-001 · **Branch:** `feat/member-profile-tabs`
 
 **Objetivo.** Abas: Visão geral · X1 · Feedbacks · Timeline.
 
 **Critérios de aceite**
 
-- [ ] Usa `<Tabs>` do design system.
-- [ ] A aba ativa fica na URL (`?aba=x1`), para poder ser compartilhada.
-- [ ] Abas de X1 e Feedbacks ficam com um aviso de "em construção" — Bia e Clara
+- [x] Usa `<Tabs>` do design system.
+- [x] A aba ativa fica na URL (`?aba=x1`), para poder ser compartilhada.
+- [x] Abas de X1 e Feedbacks ficam com um aviso de "em construção" — Bia e Clara
       preenchem em X1-008 e FB-007.
 
 > ⚠️ Desbloqueia X1-008 e FB-007. **Priorize.**
@@ -198,24 +198,24 @@ onde as demais seções vão encaixar.
 
 ### PERFIL-004 — Timeline inicial
 
-- **Responsável:** Gabi · **Reviewer:** Sofia · 🟡 assistida · Média · Ready
+- **Responsável:** Gabi · **Reviewer:** Sofia · 🟡 assistida · Média · ✅ Done
 - **Dependências:** PERFIL-003 · **Branch:** `feat/member-timeline`
 
 **Critérios de aceite**
 
-- [ ] Usa `useMemberEvents(memberId)`, do mais recente para o mais antigo.
-- [ ] Cada evento mostra data, título e descrição, com ícone por tipo.
-- [ ] Estado vazio quando não há eventos.
+- [x] Usa `useMemberEvents(memberId)`, do mais recente para o mais antigo.
+- [x] Cada evento mostra data, título e descrição, com ícone por tipo.
+- [x] Estado vazio quando não há eventos.
 
 ---
 
 ### PERFIL-005 — Integração de X1 e Feedback
 
-- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Média · **Blocked**
-- **Dependências:** X1-008, FB-007 · **Branch:** `feat/member-profile-integration`
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Média · **Parcial**
+- **Dependências:** ~~X1-008~~, FB-007 · **Branch:** `feat/member-profile-integration`
 
-Fechamento do Perfil depois que Bia e Clara entregarem suas seções. Combine as
-três antes de começar.
+A aba de X1 já está integrada ao Perfil. Falta a seção de Feedbacks (FB-007),
+que hoje mostra um estado "preparado" explicando o que vai aparecer ali.
 
 ---
 
@@ -226,7 +226,7 @@ três antes de começar.
 
 ### X1-001 — Novo X1
 
-- **Responsável:** Bia · **Reviewer:** Cauan · 🟡 assistida · Alta · Ready
+- **Responsável:** Bia · **Reviewer:** Cauan · 🟡 assistida · Alta · ✅ Done
 - **Dependências:** nenhuma · **Branch:** `feat/x1-form`
 
 **Objetivo.** Registrar um X1 que aconteceu: membro, data, resumo, principais
@@ -234,56 +234,56 @@ pontos e encaminhamentos.
 
 **Critérios de aceite**
 
-- [ ] Formulário em `<Modal>`, com `react-hook-form` + `zod`.
-- [ ] Campos: membro, data, quem conduziu, link do Google Docs, resumo,
+- [x] Formulário em `<Modal>`, com `react-hook-form` + `zod`.
+- [x] Campos: membro, data, quem conduziu, link do Google Docs, resumo,
       encaminhamentos.
-- [ ] **Hard skills**, **soft skills** e **habilidades que a pessoa quer
+- [x] **Hard skills**, **soft skills** e **habilidades que a pessoa quer
       desenvolver** (alimentam o futuro PDI).
-- [ ] **Avaliação dos quatro valores do CITi** (`CITI_VALUES`), opcional.
-- [ ] Campo de comentários relevantes.
-- [ ] Erros de validação em português.
-- [ ] **Nenhum campo de nota de desempenho.** A avaliação de valores é percepção
+- [x] **Avaliação dos quatro valores do CITi** (`CITI_VALUES`), opcional.
+- [x] Campo de comentários relevantes.
+- [x] Erros de validação em português.
+- [x] **Nenhum campo de nota de desempenho.** A avaliação de valores é percepção
       humana registrada, não score.
-- [ ] Botão mostra `loading` ao salvar.
-- [ ] Carimba `gestaoId` com `useCurrentGestao()`.
+- [x] Botão mostra `loading` ao salvar.
+- [x] Carimba `gestaoId` com `useCurrentGestao()`.
 
 ---
 
 ### X1-002 — Persistir X1
 
-- **Responsável:** Bia · **Reviewer:** Sofia · 🟢 guiada · Alta · Ready
+- **Responsável:** Bia · **Reviewer:** Sofia · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** X1-001 · **Branch:** `feat/x1-persist`
 
 **Critérios de aceite**
 
-- [ ] Salva com `useCreateX1()`.
-- [ ] A lista atualiza sozinha depois de salvar.
-- [ ] Erro ao salvar aparece na tela, sem fechar o formulário nem perder o texto.
+- [x] Salva com `useCreateX1()`.
+- [x] A lista atualiza sozinha depois de salvar.
+- [x] Erro ao salvar aparece na tela, sem fechar o formulário nem perder o texto.
 
 ---
 
 ### X1-003 — Histórico de X1
 
-- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Alta · Ready
+- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Alta · ✅ Done
 - **Dependências:** X1-002 · **Branch:** `feat/x1-history`
 
 **Critérios de aceite**
 
-- [ ] `useX1sByMember()`, do mais recente para o mais antigo.
-- [ ] Cada item mostra data, quem conduziu, status e início do resumo.
-- [ ] Quatro estados tratados.
+- [x] `useX1sByMember()`, do mais recente para o mais antigo.
+- [x] Cada item mostra data, quem conduziu, status e início do resumo.
+- [x] Quatro estados tratados.
 
 ---
 
 ### X1-004 — Visualizar X1
 
-- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Média · Ready
+- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Média · ✅ Done
 - **Dependências:** X1-003 · **Branch:** `feat/x1-detail`
 
 **Critérios de aceite**
 
-- [ ] Detalhe completo em `<Drawer>` ou `<Modal>`.
-- [ ] Link do documento externo abre em nova aba, quando existir.
+- [x] Detalhe completo em `<Drawer>` ou `<Modal>`.
+- [x] Link do documento externo abre em nova aba, quando existir.
 
 ---
 
@@ -303,22 +303,26 @@ pontos e encaminhamentos.
 
 ### X1-006 — Status do X1
 
-- **Responsável:** Bia · **Reviewer:** Cauan · 🟡 assistida · Alta · Ready
+- **Responsável:** Bia · **Reviewer:** Cauan · 🟡 assistida · Alta · ✅ Done
 - **Dependências:** X1-003 · **Branch:** `feat/x1-status`
 
 **Critérios de aceite**
 
-- [ ] Registro: agendado / realizado / cancelado, com `Badge` no tom certo.
-- [ ] Situação do membro vem de `getMemberX1Status()`.
-- [ ] **Nunca grava "atrasado" no banco.**
-- [ ] Membro recém-chegado aparece como "Primeiro X1 pendente".
+- [x] Registro: agendado / realizado / cancelado, com `Badge` no tom certo.
+- [x] Situação do membro vem de `getMemberX1Status()`.
+- [x] **Nunca grava "atrasado" no banco.**
+- [x] Membro recém-chegado aparece como "Primeiro X1 pendente".
 
 ---
 
 ### X1-007 — Periodicidade
 
-- **Responsável:** Bia · **Reviewer:** Sofia · 🟡 assistida · Média · **Blocked**
+- **Responsável:** Bia · **Reviewer:** Sofia · 🟡 assistida · Média · **Parcial**
 - **Dependências:** ADM-001 · **Branch:** `feat/x1-periodicity`
+
+> A periodicidade já é respeitada (`x1PeriodicityFor`) e exibida no resumo de X1
+> do Perfil, com aviso quando o membro tem exceção. Falta só a tela da
+> Administração para editá-la (ADM-001).
 
 **Critérios de aceite**
 

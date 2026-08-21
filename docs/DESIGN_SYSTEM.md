@@ -146,6 +146,8 @@ import { Button, Panel, FormField, Input } from '@/components/ui';
 | `Input` `Textarea` `Select` | Campos |
 | `Checkbox` `Radio` | Escolhas |
 | `SearchInput` | Busca com ícone e botão de limpar |
+| `TagInput` | Lista curta de termos livres (hard/soft skills) — Enter adiciona, Backspace remove a última |
+| `FormSection` | `<fieldset>`/`<legend>` para dividir formulário longo em seções nomeadas |
 | `Toggle` | Liga/desliga para configurações |
 
 ### Exibição
@@ -156,6 +158,7 @@ import { Button, Panel, FormField, Input } from '@/components/ui';
 | `Avatar` | Foto ou iniciais em cor estável derivada do nome |
 | `Tooltip` | Apoio curto — nunca esconda informação essencial aqui |
 | `Meter` | Barra de progresso |
+| `ToastProvider` + `useToast()` | Aviso passageiro de confirmação ("X1 registrado") |
 
 ### Estados
 
@@ -176,11 +179,31 @@ import { Button, Panel, FormField, Input } from '@/components/ui';
 | Componente | Para quê |
 | --- | --- |
 | `Modal` | Janela centralizada — formulários curtos, detalhes |
-| `Drawer` | Painel lateral — conteúdo longo ao lado de uma lista |
+| `Drawer` | Painel lateral — formulário longo; `size` `md`/`lg`/`xl` |
 | `ConfirmDialog` | Confirmação antes de ação irreversível |
 
-Todas fecham com **Esc** e clique fora, travam o scroll do fundo e devolvem o
-foco. Não reimplemente isso.
+Todas fecham com **Esc** e clique fora, travam o scroll do fundo, **prendem o
+foco** enquanto abertas e devolvem o foco a quem as abriu. Não reimplemente isso.
+
+**Motion.** Entrada e saída de 200ms: o modal cresce a partir do centro, a
+gaveta desliza da borda direita — de onde ela literalmente vem. Sem bounce.
+`prefers-reduced-motion` anula a transição pela regra global de `theme.css`.
+
+**Modal ou Drawer?** Pela altura do conteúdo, não pelo gosto. Formulário que
+não cabe em uma tela de notebook vai para `Drawer`: rodapé fixo, rolagem
+interna e a lista de origem continua visível atrás. Foi por isso que "Novo
+membro" (12 campos) e "Registrar X1" (6 seções) são gavetas.
+
+### Avisos (toast)
+
+```tsx
+const { showToast } = useToast();
+showToast({ message: 'X1 registrado', tone: 'success' });
+```
+
+Toast **confirma o que já aconteceu**. Nunca é o único lugar onde uma
+informação importante aparece — ele some sozinho em 5s. Erro que exige decisão
+fica na tela (`role="alert"`), não em toast.
 
 ---
 
@@ -284,6 +307,13 @@ Não remova o `outline` de foco. Ele é como quem navega por teclado se localiza
 
 **Nunca duplique** um componente que já existe. Duas versões de botão = duas
 versões da identidade visual.
+
+### Toast, TagInput e FormSection
+
+Os três foram criados junto com Membros + X1 e já nasceram compartilhados: o
+formulário de Feedbacks vai precisar dos mesmos. Se a sua feature precisar de
+etiquetas, seção de formulário ou confirmação de sucesso, use estes — não
+escreva uma versão própria dentro da feature.
 
 ### E o Combobox?
 
