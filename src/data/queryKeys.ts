@@ -20,6 +20,8 @@ export const queryKeys = {
     all: ['x1'] as const,
     byMember: (memberId: ID) => ['x1', 'byMember', memberId] as const,
     detail: (id: ID) => ['x1', 'detail', id] as const,
+    /** Último X1 realizado de cada membro — alimenta a listagem de membros. */
+    lastCompletedByMember: ['x1', 'lastCompletedByMember'] as const,
   },
   feedbacks: {
     all: ['feedbacks'] as const,

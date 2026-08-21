@@ -1,13 +1,16 @@
 import {
   forwardRef,
   useId,
+  useState,
   type InputHTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
-import { Search, X } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { normalizeText } from '@/lib/format';
 
 /**
  * Campos de formulário da plataforma.
@@ -284,5 +287,151 @@ export function Toggle({
         )}
       />
     </button>
+  );
+}
+
+/**
+ * Campo de etiquetas: uma lista curta de termos livres (hard skills, soft
+ * skills, habilidades desejadas).
+ *
+ * POR QUE NÃO É UM `<select>`: os termos não são um catálogo fechado. A GG
+ * escreve o que apareceu na conversa; padronizar isso é decisão futura da
+ * Administração, não da tela.
+ *
+ * Teclado: Enter ou vírgula adiciona · Backspace no campo vazio remove a última
+ * · Tab alcança o "x" de cada etiqueta. Cada remoção tem rótulo próprio, então
+ * quem usa leitor de tela sabe o que está apagando.
+ */
+export function TagInput({
+  value,
+  onChange,
+  describedBy,
+  invalid,
+  id,
+  placeholder = 'Escreva e pressione Enter',
+  emptyHint = 'Nenhuma etiqueta ainda.',
+  disabled,
+}: FieldSlot & {
+  value: string[];
+  onChange: (value: string[]) => void;
+  id?: string;
+  placeholder?: string;
+  /** Texto mostrado quando a lista está vazia. Explique, não deixe em branco. */
+  emptyHint?: string;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState('');
+
+  const add = (raw: string) => {
+    const tag = raw.trim();
+    if (!tag) return;
+    // Compara sem acento e sem caixa para não guardar "Liderança" e "lideranca".
+    const duplicated = value.some((existing) => normalizeText(existing) === normalizeText(tag));
+    if (!duplicated) onChange([...value, tag]);
+    setDraft('');
+  };
+
+  const removeAt = (index: number) => onChange(value.filter((_, i) => i !== index));
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' || event.key === ',') {
+      // Enter aqui adiciona uma etiqueta; sem isto ele enviaria o formulário.
+      event.preventDefault();
+      add(draft);
+      return;
+    }
+    if (event.key === 'Backspace' && draft === '' && value.length > 0) {
+      removeAt(value.length - 1);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input
+          id={id}
+          type="text"
+          value={draft}
+          disabled={disabled}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKeyDown}
+          // Perder o texto digitado ao sair do campo é a falha mais comum
+          // deste controle: ao sair, o que está escrito vira etiqueta.
+          onBlur={() => add(draft)}
+          placeholder={placeholder}
+          className={cn(CONTROL, 'h-10 px-3.5', invalid && CONTROL_ERROR)}
+        />
+        <button
+          type="button"
+          onClick={() => add(draft)}
+          disabled={disabled || !draft.trim()}
+          aria-label="Adicionar etiqueta"
+          className={cn(
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-control border border-border',
+            'text-muted-foreground transition-colors hover:border-border-hover hover:text-foreground',
+            'disabled:pointer-events-none disabled:opacity-40',
+          )}
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+
+      {value.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{emptyHint}</p>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {value.map((tag, index) => (
+            <li key={`${tag}-${index}`}>
+              <span className="inline-flex items-center gap-1 rounded-control border border-border bg-foreground/[0.04] py-1 pr-1 pl-2.5 text-xs font-semibold text-foreground-secondary">
+                <span className="max-w-[16rem] truncate">{tag}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAt(index)}
+                  disabled={disabled}
+                  aria-label={`Remover ${tag}`}
+                  className="rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-bad"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Seção de um formulário longo.
+ *
+ * Um formulário com quinze campos seguidos é uma parede: quem preenche não sabe
+ * onde está nem quanto falta. Agrupar em seções nomeadas resolve isso sem
+ * esconder nada — diferente de um passo-a-passo, tudo continua visível.
+ *
+ * Usa `<fieldset>` e `<legend>` de verdade: leitor de tela anuncia a seção ao
+ * entrar em cada campo, sem precisar de aria nenhum.
+ */
+export function FormSection({
+  title,
+  description,
+  children,
+  className,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <fieldset className={cn('flex flex-col gap-4 border-0 p-0', className)}>
+      <legend className="mb-1 flex flex-col gap-0.5 p-0">
+        <span className="text-sm font-semibold text-foreground">{title}</span>
+        {description && <span className="text-xs text-muted-foreground">{description}</span>}
+      </legend>
+      {children}
+    </fieldset>
   );
 }

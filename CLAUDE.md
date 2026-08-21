@@ -34,6 +34,8 @@ Na ordem, e apenas o que for relevante para a tarefa:
 | `docs/FEATURES.md` | Para saber o que já existe e o que está planejado. |
 | `docs/BACKLOG.md` | Para localizar a issue (`MEM-001`, `X1-003`, …). |
 | `docs/DECISIONS.md` | Antes de propor mudar stack ou arquitetura. |
+| `DESIGN.md` (raiz) | Identidade do CITi. **Vence heurística de skill externa.** |
+| `skills/README.md` | Quais Agent Skills usamos e quando pedir cada uma. |
 
 ---
 
@@ -220,6 +222,52 @@ npm run check     # tudo acima, em sequência — rode antes de abrir PR
 
 ---
 
+## 8.1. Membros + X1 é a referência arquitetural
+
+`src/features/members/` e `src/features/x1/` são a **primeira implementação
+completa** da Fase 1 e foram escritas para servir de modelo. Antes de começar
+Feedbacks, Moderação ou Administração, leia essas duas pastas.
+
+**Siga o mesmo desenho. Não invente um paralelo.**
+
+```
+src/features/<sua-feature>/
+├── pages/          A tela. Compõe e decide o que mostrar. NÃO calcula regra.
+├── components/     Pedaços da tela. Só usa @/components/ui por dentro.
+├── hooks/          Junta hooks de @/data e entrega dados prontos.
+├── model/          Regras PURAS — sem React, sem fetch. É o que tem teste.
+└── schemas/        zod + conversão formulário → modelo de domínio.
+```
+
+Concretamente, isso quer dizer:
+
+- **Nada derivado é gravado.** Situação de X1, último X1 e próximo recomendado
+  são calculados do histórico, sempre. Se você sentir vontade de guardar um
+  campo derivado "para ficar mais rápido", pare — é assim que duas telas passam
+  a discordar. Ver `ARCHITECTURE.md §4.1`.
+- **`model/` não importa React nem `db`.** É o que faz o teste rodar rápido e
+  testar regra de produto, não marcação de tela.
+- **Formulário sempre**: `react-hook-form` + `zod` + `<FormField>` +
+  `<FormSection>`, com uma função `toXCreateInput()` que converte string de
+  formulário em modelo. Campo vazio vira `null`, nunca `''`.
+- **Sucesso usa `useToast()`**; erro que exige decisão fica na tela com
+  `role="alert"` e **não fecha o formulário**.
+- **Filtro de tela vive na URL** (`useSearchParams`), para o recorte ser
+  compartilhável.
+- **Não crie repository, store nem padrão de mock novo.** Já existe um.
+
+Modelos prontos para copiar:
+
+| Você vai fazer | Copie de |
+| --- | --- |
+| Listagem com busca e filtros | `features/members/pages/MembersPage.tsx` |
+| Regras puras + teste | `features/members/model/membersList.ts` |
+| Formulário em gaveta | `features/x1/components/CreateX1Drawer.tsx` |
+| Validação e conversão | `features/x1/schemas/x1Schema.ts` |
+| Composição de consultas | `features/x1/hooks/useMemberX1.ts` |
+
+---
+
 ## 9. Política para novas features
 
 - Implemente **apenas o escopo da issue**. Não faça features vizinhas "de brinde".
@@ -291,3 +339,36 @@ o erro sumir** — corrija a causa. Se não souber corrigir, diga isso em vez de
 mascarar.
 
 Depois: descreva o que mudou, o que testou e o que ficou de fora.
+
+---
+
+## 15. Agent Skills
+
+O projeto usa duas skills externas: **Impeccable** (UX, UI, auditoria,
+acessibilidade, polish) e **Emil Design Engineering** (motion, interação,
+detalhe). Catálogo, exemplos e decisões: **`skills/README.md`**.
+
+### Hierarquia de autoridade
+
+```text
+Contexto do projeto  >  DESIGN.md / identidade CITi  >  Impeccable  >  Emil
+```
+
+Skills externas trazem **heurísticas**. `docs/PROJECT_CONTEXT.md` e `DESIGN.md`
+trazem **requisitos**. Em conflito, o projeto vence — e a divergência deve ser
+avisada, não implementada em silêncio.
+
+Caso concreto: o Impeccable considera **Inter** uma fonte genérica. Inter é a
+fonte oficial do CITi. A dispensa já está registrada em `.impeccable/config.json`.
+
+### Ao trabalhar com skill
+
+- **Não invente requisito.** Não está em `docs/`? Pergunte.
+- **Não altere a identidade.** Preto `#000000`, verde `#2ddb60`, Inter e Sora
+  são decisão do CITi, não preferência estética.
+- **Audite antes de redesenhar.** `/impeccable critique` ou `audit` antes de
+  reescrever tela.
+- **Reutilize componentes** de `@/components/ui` e preserve os padrões que já
+  existem.
+- **Evite reescrita desnecessária.** Refinar ≠ substituir.
+- **Pense antes de implementar; verifique depois** — `npm run check`.

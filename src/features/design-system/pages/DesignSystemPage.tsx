@@ -29,12 +29,14 @@ import {
   Table,
   TableWrapper,
   Tabs,
+  TagInput,
   TBody,
   TD,
   Textarea,
   TH,
   THead,
   Toggle,
+  useToast,
   Tooltip,
   TR,
 } from '@/components/ui';
@@ -66,6 +68,7 @@ export function DesignSystemPage() {
       <StatesSection />
       <TableSection />
       <OverlaysSection />
+      <ToastSection />
       <LiveExampleSection />
     </>
   );
@@ -326,7 +329,7 @@ function OverlaysSection() {
   return (
     <Panel
       title="Camadas sobrepostas"
-      subtitle="Todas fecham com Esc e clique fora, e devolvem o foco ao abrir e fechar."
+      subtitle="Fecham com Esc e clique fora, prendem o foco enquanto abertas e o devolvem ao fechar. Entrada e saída de 200ms."
     >
       <Row label="Abrir">
         <Button onClick={() => setModal(true)}>Modal</Button>
@@ -355,10 +358,16 @@ function OverlaysSection() {
         </p>
       </Modal>
 
-      <Drawer open={drawer} onClose={() => setDrawer(false)} title="Detalhe do feedback">
+      <Drawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        size="lg"
+        title="Detalhe do feedback"
+        subtitle="`size` aceita md, lg e xl — escolha pela altura do conteúdo."
+      >
         <p className="text-sm text-muted-foreground">
-          Use o Drawer para conteúdo longo ao lado de uma lista — por exemplo, o detalhe de um
-          item da fila de moderação.
+          Use o Drawer para formulário longo: rodapé fixo, rolagem interna e a lista de origem
+          continua visível atrás. É o padrão de "Novo membro" e "Registrar X1".
         </p>
       </Drawer>
 
@@ -371,6 +380,54 @@ function OverlaysSection() {
         confirmLabel="Arquivar"
         destructive
       />
+    </Panel>
+  );
+}
+
+function ToastSection() {
+  const { showToast } = useToast();
+  const [tags, setTags] = useState<string[]>(['React', 'Comunicação']);
+
+  return (
+    <Panel
+      title="Avisos e etiquetas"
+      subtitle="Toast confirma o que já aconteceu; erro que exige decisão fica na tela."
+    >
+      <Row label="Toast">
+        <Button
+          onClick={() => showToast({ message: 'X1 registrado', tone: 'success' })}
+        >
+          Sucesso
+        </Button>
+        <Button
+          onClick={() =>
+            showToast({ message: 'Não foi possível salvar', tone: 'error' })
+          }
+        >
+          Erro
+        </Button>
+        <Button
+          onClick={() =>
+            showToast({
+              message: 'Membro cadastrado',
+              description: 'Primeiro X1 pendente.',
+              tone: 'success',
+              action: { label: 'Abrir perfil', onClick: () => {} },
+            })
+          }
+        >
+          Com descrição e ação
+        </Button>
+      </Row>
+
+      <div className="mt-6">
+        <FormField
+          label="Etiquetas"
+          hint="Enter ou vírgula adiciona · Backspace no campo vazio remove a última."
+        >
+          {(field) => <TagInput {...field} value={tags} onChange={setTags} />}
+        </FormField>
+      </div>
     </Panel>
   );
 }

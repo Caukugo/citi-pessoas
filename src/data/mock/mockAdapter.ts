@@ -6,6 +6,7 @@ import type {
   AnonymousFeedbackStatus,
   AuthUser,
   Feedback,
+  ID,
   Member,
   MemberCreateInput,
   X1,
@@ -182,6 +183,21 @@ export const mockAdapter: DataAdapter = {
         mockDb().x1s.filter((x) => x.memberId === memberId),
         (x) => x.occurredAt ?? x.scheduledFor,
       );
+    },
+
+    async listLastCompletedByMember() {
+      await delay();
+      const latest: Record<ID, X1> = {};
+
+      for (const x1 of mockDb().x1s) {
+        if (x1.status !== 'realizado' || !x1.occurredAt) continue;
+        const current = latest[x1.memberId];
+        if (!current || (current.occurredAt ?? '') < x1.occurredAt) {
+          latest[x1.memberId] = x1;
+        }
+      }
+
+      return latest;
     },
 
     async getById(id) {

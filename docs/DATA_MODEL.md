@@ -183,6 +183,38 @@ const status = getMemberX1Status(member, x1s, settings);
 **Nunca grave "atrasado" em uma coluna.** Isso ficaria desatualizado no dia
 seguinte e faria a plataforma mentir sobre a situação de uma pessoa.
 
+#### Na listagem, sem uma consulta por pessoa
+
+O Perfil tem o histórico completo de uma pessoa e usa `getMemberX1Status()`. A
+listagem precisa da situação de todo mundo ao mesmo tempo — pedir o histórico de
+cada um seria uma consulta por linha (N+1).
+
+Para isso existe uma leitura dedicada:
+
+```ts
+import { memberX1StatusFrom, useLastCompletedX1ByMember, useSettings } from '@/data';
+
+const { data: lastX1 } = useLastCompletedX1ByMember(); // uma consulta só
+const status = memberX1StatusFrom(lastX1?.[member.id], periodicidade);
+```
+
+`db.x1.listLastCompletedByMember()` devolve o último X1 **realizado** de cada
+membro. No Postgres é um `distinct on (member_id)`; no mock é uma varredura.
+
+`getMemberX1Status()` delega para `memberX1StatusFrom()`, então as duas telas
+aplicam literalmente a mesma regra e não podem divergir.
+
+#### Outras coisas derivadas do mesmo histórico
+
+| Derivado | Função | Observação |
+| --- | --- | --- |
+| Último X1 | `lastCompletedX1(x1s)` | só `realizado` com `occurredAt` |
+| Próximo agendado | `nextScheduledX1(x1s)` | `null` = não agendado |
+| Próximo recomendado | `nextRecommendedX1Date(x1s, dias)` | `null` quando o próximo é o primeiro |
+| Periodicidade da pessoa | `x1PeriodicityFor(id, settings)` | exceção ou padrão |
+
+Nenhum deles tem coluna no banco. **Não crie.**
+
 ### Os seis estados do produto, no código
 
 O documento de contexto lista seis estados relevantes. Eles vivem em dois eixos

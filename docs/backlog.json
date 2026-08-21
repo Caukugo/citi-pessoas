@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-08-19",
+  "updatedAt": "2026-08-20",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -479,7 +479,7 @@
       "reviewer": "Cauan",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/members-list",
       "acceptanceCriteria": [
@@ -505,7 +505,7 @@
       "reviewer": "Cauan",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "MEM-001"
       ],
@@ -532,7 +532,7 @@
       "reviewer": "Cauan",
       "difficulty": "assistida",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "MEM-001"
       ],
@@ -559,7 +559,7 @@
       "reviewer": "Cauan",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "MEM-001",
         "PERFIL-001"
@@ -586,7 +586,7 @@
       "reviewer": "Cauan",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "MEM-001"
       ],
@@ -612,7 +612,7 @@
       "reviewer": "Cauan",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/member-profile",
       "acceptanceCriteria": [
@@ -638,7 +638,7 @@
       "reviewer": "Cauan",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "PERFIL-001"
       ],
@@ -664,7 +664,7 @@
       "reviewer": "Cauan",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "PERFIL-001"
       ],
@@ -690,7 +690,7 @@
       "reviewer": "Cauan",
       "difficulty": "assistida",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "PERFIL-003"
       ],
@@ -716,7 +716,7 @@
       "reviewer": "Cauan",
       "difficulty": "assistida",
       "priority": "Média",
-      "status": "Blocked",
+      "status": "In Progress",
       "dependencies": [
         "X1-008",
         "FB-007"
@@ -731,7 +731,8 @@
         "area: profile",
         "difficulty: assisted",
         "priority: normal"
-      ]
+      ],
+      "note": "X1 integrado ao Perfil; falta a seção de Feedbacks (FB-007)."
     },
     {
       "id": "X1-001",
@@ -742,7 +743,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/x1-form",
       "acceptanceCriteria": [
@@ -771,7 +772,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "X1-001"
       ],
@@ -797,7 +798,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "X1-002"
       ],
@@ -823,7 +824,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "X1-003"
       ],
@@ -874,7 +875,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "X1-003"
       ],
@@ -901,7 +902,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Média",
-      "status": "Blocked",
+      "status": "In Progress",
       "dependencies": [
         "ADM-001"
       ],
@@ -915,7 +916,8 @@
         "area: x1",
         "difficulty: assisted",
         "priority: normal"
-      ]
+      ],
+      "note": "Periodicidade já é respeitada e exibida no Perfil; falta a tela de Administração (ADM-001)."
     },
     {
       "id": "X1-008",
@@ -926,7 +928,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Blocked",
+      "status": "Done",
       "dependencies": [
         "PERFIL-003",
         "X1-003"

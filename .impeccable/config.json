@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-08-20T02:31:03.675Z",
+        "reason": "Fonte oficial da identidade do CITi (docs/DESIGN_SYSTEM.md). Decisao de marca, nao heuristica."
+      }
+    ]
+  }
+}

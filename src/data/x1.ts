@@ -1,8 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { addDays, format, parseISO } from 'date-fns';
 import { daysSince } from '@/lib/format';
 import { db } from './db';
 import { queryKeys } from './queryKeys';
-import type { ID, Member, MemberX1Status, Settings, X1, X1CreateInput, X1UpdateInput } from './types';
+import type {
+  ID,
+  ISODate,
+  Member,
+  MemberX1Status,
+  Settings,
+  X1,
+  X1CreateInput,
+  X1UpdateInput,
+} from './types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -24,6 +34,14 @@ export function getX1sByMember(memberId: ID): Promise<X1[]> {
 
 export function getX1ById(id: ID): Promise<X1 | null> {
   return db.x1.getById(id);
+}
+
+/**
+ * Último X1 realizado de cada membro, indexado por `memberId`.
+ * Uma consulta só — a listagem de membros precisa disso para todo mundo.
+ */
+export function getLastCompletedX1ByMember(): Promise<Record<ID, X1>> {
+  return db.x1.listLastCompletedByMember();
 }
 
 export function createX1(input: X1CreateInput): Promise<X1> {
@@ -69,11 +87,38 @@ export function getMemberX1Status(
   settings: Settings,
   now: Date = new Date(),
 ): MemberX1Status {
-  const last = lastCompletedX1(x1s);
-  if (!last) return 'primeiro_pendente';
+  return memberX1StatusFrom(lastCompletedX1(x1s), x1PeriodicityFor(member.id, settings), now);
+}
 
-  const elapsed = daysSince(last.occurredAt, now) ?? 0;
-  return elapsed > x1PeriodicityFor(member.id, settings) ? 'atrasado' : 'em_dia';
+/**
+ * Data recomendada para o próximo X1: último realizado + periodicidade.
+ *
+ * Devolve `null` quando ainda não houve nenhum X1. Isso é deliberado: para quem
+ * nunca conversou, o próximo X1 não é "daqui a 30 dias" — é o primeiro, e a
+ * recomendação é "assim que possível". Quem exibe decide como dizer isso.
+ */
+export function nextRecommendedX1Date(x1s: X1[], periodicityDays: number): ISODate | null {
+  const last = lastCompletedX1(x1s);
+  if (!last?.occurredAt) return null;
+  return format(addDays(parseISO(last.occurredAt), periodicityDays), 'yyyy-MM-dd');
+}
+
+/**
+ * A mesma regra de `getMemberX1Status`, a partir do último X1 já resolvido.
+ *
+ * Existe para a listagem, que recebe um mapa de últimos X1 (uma consulta só) em
+ * vez do histórico completo de cada pessoa. As duas funções precisam concordar
+ * sempre — por isso `getMemberX1Status` delega para esta.
+ */
+export function memberX1StatusFrom(
+  lastCompleted: X1 | null | undefined,
+  periodicityDays: number,
+  now: Date = new Date(),
+): MemberX1Status {
+  if (!lastCompleted?.occurredAt) return 'primeiro_pendente';
+
+  const elapsed = daysSince(lastCompleted.occurredAt, now) ?? 0;
+  return elapsed > periodicityDays ? 'atrasado' : 'em_dia';
 }
 
 export const MEMBER_X1_STATUS_LABEL: Record<MemberX1Status, string> = {
@@ -81,6 +126,19 @@ export const MEMBER_X1_STATUS_LABEL: Record<MemberX1Status, string> = {
   em_dia: 'Em dia',
   atrasado: 'X1 atrasado',
 };
+
+/**
+ * Tom semântico de cada situação, para `<Badge>`.
+ *
+ * Vive aqui, junto da regra, para que listagem e perfil nunca discordem sobre
+ * a cor de uma situação. Regra do significado (DESIGN.md): `warn` = pendente,
+ * `bad` = atrasado, `ok` = em dia. Nunca escolha por estética.
+ */
+export const MEMBER_X1_STATUS_TONE = {
+  primeiro_pendente: 'warn',
+  em_dia: 'ok',
+  atrasado: 'bad',
+} as const;
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +148,19 @@ export function useX1sByMember(memberId: ID | undefined) {
     queryKey: queryKeys.x1.byMember(memberId ?? ''),
     queryFn: () => getX1sByMember(memberId as ID),
     enabled: Boolean(memberId),
+  });
+}
+
+/**
+ * Último X1 realizado de cada membro. Uma consulta que serve a lista inteira.
+ *
+ *   const { data: lastX1 } = useLastCompletedX1ByMember();
+ *   const status = memberX1StatusFrom(lastX1?.[member.id], periodicidade);
+ */
+export function useLastCompletedX1ByMember() {
+  return useQuery({
+    queryKey: queryKeys.x1.lastCompletedByMember,
+    queryFn: getLastCompletedX1ByMember,
   });
 }
 
@@ -106,7 +177,10 @@ export function useCreateX1() {
   return useMutation({
     mutationFn: createX1,
     onSuccess: (x1) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.x1.byMember(x1.memberId) });
+      // `x1.all` cobre o histórico do membro E o mapa de últimos X1 da
+      // listagem: as duas visões derivam do mesmo registro e não podem
+      // discordar depois de salvar.
+      queryClient.invalidateQueries({ queryKey: queryKeys.x1.all });
       // A timeline do perfil também muda quando um X1 é registrado.
       queryClient.invalidateQueries({ queryKey: queryKeys.members.events(x1.memberId) });
     },
@@ -118,8 +192,7 @@ export function useUpdateX1() {
   return useMutation({
     mutationFn: ({ id, input }: { id: ID; input: X1UpdateInput }) => updateX1(id, input),
     onSuccess: (x1) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.x1.byMember(x1.memberId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.x1.detail(x1.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.x1.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.members.events(x1.memberId) });
     },
   });
