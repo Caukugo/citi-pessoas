@@ -1,44 +1,125 @@
-import { PageHeader } from '@/components/ui';
-import { FeatureStub } from '@/app/components/FeatureStub';
+import { useState } from 'react';
+import { Plus, SearchX, UserPlus } from 'lucide-react';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  Surface,
+} from '@/components/ui';
+import { hasActiveFilters } from '../model/membersList';
+import { useMemberDirectory, useMembersList } from '../hooks/useMembersList';
+import { useMembersFilters } from '../hooks/useMembersFilters';
+import { MembersOverviewBar } from '../components/MembersOverviewBar';
+import { MembersToolbar } from '../components/MembersToolbar';
+import { MembersTable } from '../components/MembersTable';
+import { MemberCard } from '../components/MemberCard';
+import { CreateMemberDrawer } from '../components/CreateMemberDrawer';
 
 /**
- * EPIC 1 — MEMBROS · Feature Owner: Gabi
+ * EPIC 1 — MEMBROS (MEM-001 a MEM-005)
  *
- * Esta página é sua. Substitua o `<FeatureStub />` pela listagem real.
+ * A pergunta desta tela: **quem são os membros atuais e quem precisa da
+ * atenção de GG?**
+ *
+ * Ordem de leitura, de cima para baixo: panorama (quantos, quantos atrasados)
+ * → recorte (busca e filtros) → as pessoas. A ação principal — cadastrar
+ * alguém — fica no canto superior direito, onde ela está em toda a plataforma.
+ *
+ * Esta página não conhece adapter, mock, cache nem localStorage. Ela entrega
+ * filtros para `useMembersList` e recebe linhas prontas.
  */
 export function MembersPage() {
+  const { filters, setFilter, clear } = useMembersFilters();
+  const { items, summary, isLoading, isError, refetch } = useMembersList(filters);
+  const directory = useMemberDirectory();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const filtering = hasActiveFilters(filters);
+
   return (
     <>
       <PageHeader
         title="Membros"
-        subtitle="Todas as pessoas do CITi e o estado de acompanhamento de cada uma."
+        subtitle="Acompanhe as pessoas e suas jornadas no CITi."
+        actions={
+          <Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreateOpen(true)}>
+            Novo membro
+          </Button>
+        }
       />
 
-      <FeatureStub
-        issue="MEM-001"
-        owner="Gabi"
-        goal="Listagem de membros"
-        steps={[
-          'Buscar os membros com o hook useMembers() e mostrar em uma tabela.',
-          'Tratar os quatro estados: carregando, erro, vazio e lista com dados (MEM-005).',
-          'Adicionar busca por nome/e-mail (MEM-002) e filtro por subárea (MEM-003).',
-          'Cada linha leva ao Perfil do Membro (MEM-004) usando ROUTES.memberProfile(id).',
-        ]}
-        files={[
-          'src/features/members/pages/MembersPage.tsx  ← esta tela',
-          'src/features/members/components/  ← crie os componentes só desta feature aqui',
-        ]}
-        dataHooks={[
-          'useMembers({ search, area, status })',
-          'useMember(id)',
-          'AREAS  — lista de subáreas para o filtro',
-        ]}
-        doNotTouch={[
-          'src/data/  — camada de dados (Sofia)',
-          'src/app/  — shell, rotas e navegação (Cauan)',
-          'src/components/ui/  — design system (mudanças combinadas com Cauan)',
-        ]}
-        docs={['docs/FEATURES.md', 'docs/DESIGN_SYSTEM.md', 'docs/AI_DEVELOPMENT_GUIDE.md']}
+      <MembersOverviewBar
+        summary={summary}
+        activeX1Status={filters.x1Status}
+        onSelectX1Status={(status) => setFilter('x1Status', status)}
+      />
+
+      <MembersToolbar
+        filters={filters}
+        options={directory.options}
+        onChange={setFilter}
+        onClear={clear}
+      />
+
+      <Surface>
+        {isLoading ? (
+          <LoadingState label="Carregando membros…" />
+        ) : isError ? (
+          <ErrorState
+            title="Não foi possível carregar os membros"
+            description="A lista não chegou. Pode ter sido uma falha momentânea de conexão."
+            onRetry={refetch}
+          />
+        ) : items.length === 0 ? (
+          filtering ? (
+            <EmptyState
+              icon={<SearchX size={20} aria-hidden />}
+              title="Nenhuma pessoa neste recorte"
+              description={
+                filters.search
+                  ? `Ninguém corresponde a “${filters.search}” com os filtros atuais. Tente um nome mais curto ou limpe os filtros.`
+                  : 'Os filtros atuais não deixaram ninguém na lista. Limpe-os para ver todo mundo.'
+              }
+              action={<Button onClick={clear}>Limpar filtros</Button>}
+            />
+          ) : (
+            <EmptyState
+              icon={<UserPlus size={20} aria-hidden />}
+              title="Nenhum membro cadastrado ainda"
+              description="Cadastre a primeira pessoa aqui, ou traga a base inteira de uma vez pela Importação."
+              action={
+                <Button
+                  variant="primary"
+                  icon={<Plus size={15} />}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Cadastrar primeiro membro
+                </Button>
+              }
+            />
+          )
+        ) : (
+          <>
+            {/* Tabela para varrer muita gente; cartões quando a largura não
+                comporta uma linha inteira sem rolar para o lado. */}
+            <div className="hidden md:block">
+              <MembersTable items={items} directory={directory.byId} />
+            </div>
+            <div className="flex flex-col gap-3 p-3 md:hidden">
+              {items.map((item) => (
+                <MemberCard key={item.member.id} item={item} directory={directory.byId} />
+              ))}
+            </div>
+          </>
+        )}
+      </Surface>
+
+      <CreateMemberDrawer
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        ggPeople={directory.options.ggPeople}
       />
     </>
   );
