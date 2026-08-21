@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '@/components/ui';
 import { AuthProvider } from '@/features/auth/AuthProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 /**
  * Contextos globais da aplicação, em uma ordem que importa:
  *
- *   ErrorBoundary → QueryClientProvider → AuthProvider → aplicação
+ *   ErrorBoundary → QueryClientProvider → AuthProvider → ToastProvider → aplicação
  *
  * ARQUIVO COMPARTILHADO. Adicionar um provider novo afeta todo mundo —
  * combine com Cauan antes.
@@ -31,7 +32,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

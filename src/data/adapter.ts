@@ -65,6 +65,18 @@ export interface MembersRepository {
 
 export interface X1Repository {
   listByMember(memberId: ID): Promise<X1[]>;
+  /**
+   * O último X1 REALIZADO de cada membro, indexado por `memberId`.
+   *
+   * POR QUE ISTO EXISTE: a listagem de membros precisa da situação de X1 de
+   * todo mundo ao mesmo tempo. Sem este método, calcular isso para 80 pessoas
+   * exigiria uma consulta por pessoa (N+1). No Postgres isto é uma única
+   * consulta com `distinct on (member_id)`.
+   *
+   * Devolve só X1 com `status === 'realizado'` e `occurredAt` preenchido —
+   * agendamento não conta como acompanhamento feito.
+   */
+  listLastCompletedByMember(): Promise<Record<ID, X1>>;
   getById(id: ID): Promise<X1 | null>;
   create(input: X1CreateInput): Promise<X1>;
   update(id: ID, input: X1UpdateInput): Promise<X1>;

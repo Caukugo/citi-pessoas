@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { DataAdapter } from '../adapter';
 import { DataError } from '../errors';
-import type { AuthUser, Member, MemberCreateInput } from '../types';
+import type { AuthUser, ID, Member, MemberCreateInput, X1 } from '../types';
 import { supabase } from './client';
 import {
   fromAnonymousFeedbackRow,
@@ -145,6 +145,25 @@ export const supabaseAdapter: DataAdapter = {
         .order('scheduled_for', { ascending: false });
       if (error) fail(error, 'Erro ao listar X1');
       return (data ?? []).map(fromX1Row);
+    },
+
+    async listLastCompletedByMember() {
+      // Uma consulta só, ordenada do mais recente para o mais antigo: o
+      // primeiro registro de cada membro já é o último X1 dele.
+      const { data, error } = await supabase()
+        .from('x1s')
+        .select('*')
+        .eq('status', 'realizado')
+        .not('occurred_at', 'is', null)
+        .order('occurred_at', { ascending: false });
+      if (error) fail(error, 'Erro ao listar o último X1 de cada membro');
+
+      const latest: Record<ID, X1> = {};
+      for (const row of data ?? []) {
+        const x1 = fromX1Row(row);
+        if (!latest[x1.memberId]) latest[x1.memberId] = x1;
+      }
+      return latest;
     },
 
     async getById(id) {

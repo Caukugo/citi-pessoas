@@ -19,18 +19,24 @@ export type { ButtonProps, ButtonVariant, ButtonSize } from './button';
 
 export {
   FormField,
+  FormSection,
   Input,
   Textarea,
   Select,
   Checkbox,
   Radio,
   SearchInput,
+  TagInput,
   Toggle,
 } from './form';
 export type { FormFieldProps, SelectOption } from './form';
 
 export { Modal, Drawer, ConfirmDialog } from './overlay';
-export type { ModalProps, ModalSize } from './overlay';
+export type { ModalProps, ModalSize, DrawerSize } from './overlay';
+
+export { ToastProvider } from './toast';
+export { useToast } from './use-toast';
+export type { ToastOptions, ToastTone } from './toast-context';
 
 export { Badge, Avatar, Tooltip, Meter } from './display';
 export type { Tone, AvatarSize } from './display';
@@ -41,5 +47,6 @@ export { TableWrapper, Table, THead, TBody, TR, TH, TD } from './table';
 
 export { Tabs } from './tabs';
 export type { TabItem } from './tabs';
+export { tabId, tabPanelId, tabPanelProps } from './tab-ids';
 
 export { PageHeader } from './page-header';
