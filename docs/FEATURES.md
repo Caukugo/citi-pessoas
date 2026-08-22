@@ -87,6 +87,35 @@ Isto é o que a fundação entregou e já funciona.
   histórico — nada gravado, nada podendo divergir.
 - Estado "nenhum X1" tratado como marco (primeiro X1 pendente), não como erro.
 
+### EPIC 4 — Feedbacks de acompanhamento (FB-001 a FB-004, FB-006, FB-007)
+
+- `/feedbacks` → aba **Acompanhamento**: uma linha por membro com a contagem de
+  Informais, Formais e Cartas de Ajuste, e o último registro.
+- **As contagens são derivadas dos registros**, nunca gravadas. Clicar em uma
+  contagem abre exatamente aquele recorte do histórico.
+- Registro em gaveta lateral, reutilizada tal e qual na aba do Perfil — o mesmo
+  formulário nos dois lugares, com o membro travado quando vem do Perfil.
+- Busca por nome/cargo/subárea e filtros por subárea, GG responsável e tipo,
+  todos vivendo na URL.
+- Aba **Feedbacks** do Perfil implementada, com recorte por tipo em chips.
+  Registrar alimenta tabela, gaveta, Perfil e timeline de uma vez só.
+- Quem saiu do CITi continua na tabela quando tem histórico: o passado não some
+  junto com a pessoa.
+
+### EPIC 5 — Moderação de feedback anônimo (ANON-003 a ANON-006)
+
+- Quadro de moderação em `/moderacao` e na aba **Feedback Anônimo** de
+  `/feedbacks` — o mesmo componente, lendo a mesma fonte.
+- Três colunas — Pendentes, Direcionados, Cientes — **derivadas** de
+  `status` + `resolution`. Não existe campo "coluna" no modelo.
+- **Sem arrastar e soltar, de propósito:** moderar é decisão humana e acontece
+  pelas ações da gaveta, nunca por um gesto que pode escapar da mão. Como
+  consequência, o quadro funciona igual por teclado.
+- Gaveta de moderação com o relato inteiro, observação interna opcional e as
+  duas decisões: **Ciente** e **Direcionar para membro** (com escolha da pessoa
+  em passo separado).
+- Nada aqui cria Feedback de acompanhamento. Há teste de fluxo que garante isso.
+
 ### Design System — adições
 
 - `ToastProvider` / `useToast()` — confirmação de sucesso.
@@ -97,8 +126,10 @@ Isto é o que a fundação entregou e já funciona.
 
 ### Testes
 
-- 64 testes cobrindo regras de X1, listagem de membros, validação de X1,
-  importação, camada de dados e o fluxo de autenticação e navegação.
+- 122 testes cobrindo regras de X1, listagem de membros, agregação e filtros de
+  feedback, derivação das colunas de moderação, validação de formulários,
+  importação, camada de dados e os fluxos de ponta a ponta de Membros→X1 e
+  Feedbacks→Moderação.
 
 ---
 
@@ -150,24 +181,24 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 
 | ID | Item | Status |
 | --- | --- | --- |
-| FB-001 | Registrar Feedback | Ready |
-| FB-002 | Persistir Feedback | Ready |
-| FB-003 | Histórico | Ready |
-| FB-004 | Visualização | Ready |
+| FB-001 | Registrar Feedback | ✅ Implementado (em `<Drawer>`, não `<Modal>`) |
+| FB-002 | Persistir Feedback | ✅ Implementado |
+| FB-003 | Histórico | ✅ Implementado |
+| FB-004 | Visualização | ✅ Implementado (registro completo no histórico) |
 | FB-005 | Edição quando apropriado | Ready |
-| FB-006 | Quadro consolidado | Ready |
-| FB-007 | Integração com Perfil | Bloqueado por PERFIL-003 |
+| FB-006 | Quadro consolidado | ✅ Implementado |
+| FB-007 | Integração com Perfil | ✅ Implementado |
 
 ### EPIC 5 — Feedback Anônimo · Clara
 
 | ID | Item | Status |
 | --- | --- | --- |
 | ANON-001 | Formulário externo | Ready |
-| ANON-002 | Recebimento | Ready |
-| ANON-003 | Fila de moderação | Ready |
-| ANON-004 | Detalhes | Ready |
-| ANON-005 | Moderação | Ready |
-| ANON-006 | Associação de contexto | Ready |
+| ANON-002 | Recebimento | Ready (adapter pronto; falta o formulário) |
+| ANON-003 | Fila de moderação | ✅ Implementado (quadro de três colunas) |
+| ANON-004 | Detalhes | ✅ Implementado |
+| ANON-005 | Moderação | ✅ Implementado (Ciente / Direcionar — ver ADR-013) |
+| ANON-006 | Associação de contexto | ✅ Implementado |
 
 ### EPIC 6 — Administração · Bia / Cauan
 

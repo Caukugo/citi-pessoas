@@ -1,6 +1,7 @@
 import type { DataAdapter } from '../adapter';
 import { DataError } from '../errors';
 import { normalizeText } from '@/lib/format';
+import { FEEDBACK_TYPE_LABEL } from '../types';
 import type {
   AnonymousFeedback,
   AnonymousFeedbackStatus,
@@ -292,7 +293,9 @@ export const mockAdapter: DataAdapter = {
         memberId: feedback.memberId,
         type: 'feedback',
         occurredAt: feedback.givenAt,
-        title: 'Feedback registrado',
+        // O tipo entra no título porque "Feedback registrado" e "Carta de
+        // Ajuste registrada" não pesam a mesma coisa para quem lê a atividade.
+        title: `Feedback ${FEEDBACK_TYPE_LABEL[feedback.type]} registrado`,
         description: feedback.content.slice(0, 160),
         sourceId: feedback.id,
         createdAt: nowISO(),
@@ -339,6 +342,8 @@ export const mockAdapter: DataAdapter = {
         targetLabel: input.targetLabel ?? null,
         submittedAt: nowISO(),
         status: 'pendente',
+        resolution: null,
+        directedMemberId: null,
         moderatedById: null,
         moderatedAt: null,
         moderationNote: null,
@@ -354,11 +359,23 @@ export const mockAdapter: DataAdapter = {
       const index = db.anonymousFeedbacks.findIndex((f) => f.id === id);
       if (index < 0) throw new DataError('not_found', 'Feedback anônimo não encontrado.');
 
+      if (decision.resolution === 'direcionado' && !decision.directedMemberId) {
+        throw new DataError(
+          'invalid',
+          'Direcionar exige escolher o membro para quem o contexto vai.',
+        );
+      }
+
       // Moderar registra a decisão e nada mais. NÃO cria Feedback de
       // acompanhamento: são fluxos independentes (ver types.ts).
       db.anonymousFeedbacks[index] = {
         ...db.anonymousFeedbacks[index],
-        status: decision.status,
+        status: 'moderado',
+        resolution: decision.resolution,
+        // Só "direcionado" aponta para alguém. Tomar ciência de um relato sobre
+        // uma pessoa não é direcioná-lo a ela.
+        directedMemberId:
+          decision.resolution === 'direcionado' ? (decision.directedMemberId ?? null) : null,
         moderatedById: decision.moderatedById ?? null,
         moderatedAt: nowISO(),
         moderationNote: decision.moderationNote ?? null,

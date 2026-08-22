@@ -296,7 +296,7 @@ Issue: ANON-003 — Fila de moderação
 Sou a Clara, Feature Owner de Feedbacks e Feedback Anônimo.
 
 Objetivo: a pessoa da GG vê os feedbacks anônimos pendentes, abre o detalhe
-e decide: aprovar, rejeitar ou arquivar.
+e decide: tomar ciencia ou direcionar o contexto para um membro.
 
 REGRAS QUE NÃO PODEM SER QUEBRADAS:
 - feedback anônimo é um fluxo independente
@@ -307,8 +307,8 @@ REGRAS QUE NÃO PODEM SER QUEBRADAS:
 Critérios de aceite:
 - lista os pendentes, do mais recente para o mais antigo
 - detalhe abre em Drawer
-- aprovar/rejeitar/arquivar funciona e some da fila
-- confirmação antes de rejeitar
+- tomar ciencia e direcionar funcionam, e o item sai da fila de pendentes
+- direcionar exige escolher o membro em um passo separado
 - trata carregando, erro e fila vazia
 
 Limites: não mexer em src/data/, src/app/ nem src/features/feedbacks/.

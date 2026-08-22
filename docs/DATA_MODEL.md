@@ -79,8 +79,10 @@ erDiagram
         uuid id PK
         text content
         enum target_type "membro | subarea | diretoria | citi"
-        uuid target_member_id FK "opcional"
-        enum status "pendente | aprovado | rejeitado | arquivado"
+        uuid target_member_id FK "sobre quem QUEM ENVIOU disse falar"
+        enum status "pendente | moderado"
+        enum resolution "ciente | direcionado"
+        uuid directed_member_id FK "decisão da GG — não cria Feedback"
         uuid moderated_by_id FK "quem moderou — nunca quem enviou"
     }
 
@@ -285,13 +287,47 @@ Criar um feedback gera automaticamente um evento na timeline do membro.
 ```mermaid
 flowchart LR
     A[Formulário externo<br/>sem login] --> B[status: pendente]
-    B --> C[Fila de moderação<br/>só GG vê]
+    B --> C[Quadro de moderação<br/>só GG vê]
     C --> D{Decisão HUMANA}
-    D --> E[aprovado]
-    D --> F[rejeitado]
-    D --> G[arquivado]
-    E -.->|NUNCA| H[["Feedback de acompanhamento"]]
+    D --> E["moderado<br/>resolution: ciente"]
+    D --> F["moderado<br/>resolution: direcionado<br/>+ directed_member_id"]
+    F -.->|NUNCA| H[["Feedback de acompanhamento"]]
 ```
+
+### Dois eixos, não três estados
+
+O erro mais fácil de cometer aqui é achatar tudo em uma lista de estados. São
+duas perguntas diferentes:
+
+| Pergunta | Onde vive |
+| --- | --- |
+| Isto ainda precisa da GG? | `status` — `pendente` ou `moderado` |
+| O que a GG decidiu? | `resolution` — `ciente` ou `direcionado` |
+
+O quadro de moderação **deriva** suas três colunas dessa combinação
+(`features/anonymous-feedback/model/moderationBoard.ts`). Não existe coluna
+"coluna" no banco, e não deve passar a existir — é o que garante que o quadro
+nunca discorde do registro.
+
+```text
+status 'pendente'         → Pendentes
+resolution 'direcionado'  → Direcionados
+resolution 'ciente'       → Cientes
+```
+
+### `target_member_id` ≠ `directed_member_id`
+
+Confundir os dois é o segundo erro fácil.
+
+| Campo | Significa | Quem preencheu |
+| --- | --- | --- |
+| `target_member_id` | sobre quem o relato diz falar | quem **enviou**, no formulário |
+| `directed_member_id` | a quem o contexto foi levado | a **GG**, ao moderar |
+
+Um relato sobre a subárea pode acabar direcionado à gerência dela; um relato
+sobre uma pessoa pode acabar apenas como "ciente", sem direcionamento nenhum.
+O banco garante que `directed_member_id` só existe quando
+`resolution = 'direcionado'`.
 
 Regras estruturais:
 
@@ -299,11 +335,14 @@ Regras estruturais:
    O anonimato vem da ausência do campo, não de uma regra de exibição.
    `moderated_by_id` é quem **moderou**, nunca quem enviou.
 2. **Não existe conversão.** Nenhuma função em `src/data/anonymousFeedback.ts`
-   cria um `Feedback`, e nenhuma deve passar a existir. Há um teste que garante
-   isso (`mockAdapter.test.ts`).
-3. **A decisão é humana.** Nada aprova ou classifica sozinho.
+   cria um `Feedback`, e nenhuma deve passar a existir. Dois testes garantem
+   isso: `mockAdapter.test.ts` (camada de dados) e `feedbacksFlow.test.tsx`
+   (fluxo completo — direcionar não muda contagem de acompanhamento nenhuma).
+3. **A decisão é humana.** Nada toma ciência nem direciona sozinho, e
+   direcionar exige escolher a pessoa em um passo explícito.
 4. O alvo pode ser um membro, uma subárea, a diretoria ou o CITi.
    O banco garante que `target_member_id` só é preenchido quando o alvo é membro.
+5. **Não é "aprovar/rejeitar".** Não existe publicação a aprovar — ver ADR-013.
 
 Acesso no Supabase (RLS): **qualquer pessoa insere**, **só GG lê e modera**.
 

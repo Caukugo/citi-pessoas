@@ -456,6 +456,74 @@ descobrir depois a que gestão pertencia cada registro é alto e impreciso.
 
 ---
 
+## ADR-013 — Moderação de feedback anônimo é "Ciente / Direcionado", não "Aprovar / Rejeitar"
+
+- **Data:** 2026-08-21
+- **Status:** Aceita
+- **Substitui:** o vocabulário de `anon_status` definido na migration `0001` e o
+  enunciado original de ANON-005.
+
+**Contexto.** O schema inicial modelou a moderação como
+`pendente | aprovado | rejeitado | arquivado`. Esse vocabulário vem de sistemas
+de **publicação**: aprova-se o que vai aparecer, rejeita-se o que não vai.
+
+Não é o que a GG faz. O relato anônimo não é publicado em lugar nenhum — ele já
+está na plataforma, e só a GG o lê. Ao terminar de ler, a pergunta real é outra:
+
+> Isto precisa chegar a alguém, ou eu só preciso saber?
+
+Com o vocabulário antigo, "aprovado" não queria dizer nada (aprovado para quê?)
+e "rejeitado" descrevia mal tanto o envio vazio quanto o relato legítimo que
+simplesmente não exigia ação. Pior: nada no modelo registrava **a quem** um
+relato tinha sido levado, que é a informação que a GG precisa reencontrar
+depois.
+
+**Decisão.** Separar em dois eixos:
+
+```ts
+status:     'pendente' | 'moderado'      // isto ainda precisa de mim?
+resolution: 'ciente'   | 'direcionado'   // o que eu decidi?
+```
+
+mais `directed_member_id`, preenchido apenas quando `resolution` é
+`direcionado`. O quadro de moderação **deriva** suas três colunas dessa
+combinação; nenhuma coluna de "coluna" existe no banco.
+
+**Alternativas consideradas.**
+
+- **Manter `aprovado/rejeitado/arquivado` e mapear para as colunas.** Rejeitado:
+  os rótulos da tela mentiriam sobre o que o dado significa, e "aprovado" teria
+  que virar "direcionado" sem que o registro guardasse para quem.
+- **Adicionar `resolution` sem mexer no enum de `status`.** Rejeitado: dois
+  vocabulários convivendo é como duas telas passam a discordar. Um registro
+  seria `aprovado` **e** `ciente` ao mesmo tempo, e a próxima pessoa teria que
+  adivinhar qual dos dois vale.
+- **Três estados planos (`pendente | direcionado | ciente`).** Rejeitado por
+  pouco: funciona, mas mistura "precisa de mim?" com "o que decidi?" em um
+  campo só, e é justamente essa mistura que já causa confusão em `X1.status`
+  vs. `getMemberX1Status()` (ver ADR-008).
+
+**Migração.** `0002_moderacao_anonimo.sql` traduz o que existia:
+`aprovado`, `rejeitado` e `arquivado` viram `moderado` + `ciente`. **Nenhum
+registro antigo vira `direcionado`** — direcionar é uma decisão que ninguém
+pôde tomar antes desta migration existir, e inventá-la seria fabricar uma
+decisão humana que nunca aconteceu.
+
+**Consequências.**
+
+- ✅ O nome do botão passa a descrever o que a ação faz.
+- ✅ Passa a existir registro de **a quem** o contexto foi levado.
+- ✅ Duas `check constraint` no banco impedem "moderado sem decisão" e
+  "direcionado para ninguém" — a coluna do quadro nunca fica indefinida.
+- ⚠️ **Isto NÃO enfraquece a ADR-009.** `directed_member_id` é decisão da GG,
+  não identidade de quem enviou, e continua não existindo conversão em
+  `Feedback`. Direcionar leva **contexto** a uma pessoa; transformar isso em um
+  feedback de acompanhamento seria outra ação, humana e separada.
+- ⚠️ Migration destrutiva de enum (o tipo é reconstruído). Precisa rodar antes
+  de qualquer deploy que use o modo `supabase`.
+
+---
+
 ## Como registrar uma decisão nova
 
 Copie o formato acima. Uma decisão merece um ADR quando afeta mais de uma

@@ -157,6 +157,8 @@ export function fromAnonymousFeedbackRow(row: Row): AnonymousFeedback {
     targetLabel: row.target_label,
     submittedAt: row.submitted_at,
     status: row.status,
+    resolution: row.resolution,
+    directedMemberId: row.directed_member_id,
     moderatedById: row.moderated_by_id,
     moderatedAt: row.moderated_at,
     moderationNote: row.moderation_note,

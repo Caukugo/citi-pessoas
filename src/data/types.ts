@@ -288,8 +288,27 @@ export type FeedbackUpdateInput = Partial<FeedbackCreateInput>;
  */
 export type AnonymousFeedbackTarget = 'membro' | 'subarea' | 'diretoria' | 'citi';
 
-/** Decisão da moderação. */
-export type AnonymousFeedbackStatus = 'pendente' | 'aprovado' | 'rejeitado' | 'arquivado';
+/**
+ * Situação de um feedback anônimo na fila de moderação.
+ *
+ * São só dois estados porque só existem duas perguntas operacionais: isto
+ * ainda precisa da GG, ou a GG já olhou? O QUE a GG decidiu é outra coisa, e
+ * vive em `resolution`.
+ */
+export type AnonymousFeedbackStatus = 'pendente' | 'moderado';
+
+/**
+ * A decisão que a GG tomou ao moderar.
+ *
+ * ⚠️ Nenhuma delas cria, converte ou classifica um Feedback de acompanhamento.
+ * Direcionar significa "o contexto deste relato foi levado a esta pessoa" —
+ * não "isto virou um Feedback Informal". Ver a regra 1 em `AnonymousFeedback`.
+ */
+export type AnonymousFeedbackResolution =
+  /** GG leu, tomou ciência e encerrou. Não foi preciso direcionar a ninguém. */
+  | 'ciente'
+  /** GG analisou e associou o contexto ao acompanhamento de um membro. */
+  | 'direcionado';
 
 /**
  * Feedback enviado de fora da plataforma, sem identificação.
@@ -299,14 +318,16 @@ export type AnonymousFeedbackStatus = 'pendente' | 'aprovado' | 'rejeitado' | 'a
  * 1. É um FLUXO INDEPENDENTE. Um feedback anônimo NÃO vira automaticamente
  *    Feedback Informal, Formal ou Carta de Ajuste. Nunca escreva código que
  *    crie um `Feedback` a partir de um `AnonymousFeedback`.
- * 2. Permanece anônimo no fluxo normal. Não existe — e não deve ser criado —
- *    campo de autor, e-mail, IP ou qualquer rastro de quem enviou.
- * 3. A decisão é humana. Aprovar/rejeitar é ação de uma pessoa da GG.
+ * 2. Permanece anônimo. Não existe — e não deve ser criado — campo de autor,
+ *    e-mail, IP ou qualquer rastro de quem enviou. O anonimato vem da ausência
+ *    do campo, não de uma regra de exibição.
+ * 3. A decisão é humana. Nada aqui toma ciência ou direciona sozinho.
  */
 export interface AnonymousFeedback {
   id: ID;
   content: string;
 
+  /** Sobre o que o relato fala, segundo QUEM ENVIOU. Não é decisão da GG. */
   targetType: AnonymousFeedbackTarget;
   /** Preenchido apenas quando `targetType === 'membro'`. */
   targetMemberId?: ID | null;
@@ -316,6 +337,18 @@ export interface AnonymousFeedback {
   submittedAt: ISODate;
 
   status: AnonymousFeedbackStatus;
+
+  /** O que a GG decidiu. `null` enquanto `status === 'pendente'`. */
+  resolution?: AnonymousFeedbackResolution | null;
+
+  /**
+   * Membro a quem a GG direcionou o contexto — decisão da moderação.
+   *
+   * NÃO confunda com `targetMemberId`, que é sobre quem o relato dizia falar.
+   * Só é preenchido quando `resolution === 'direcionado'`.
+   */
+  directedMemberId?: ID | null;
+
   /** Quem moderou. Nunca guarda quem ENVIOU. */
   moderatedById?: ID | null;
   moderatedAt?: ISODate | null;
@@ -329,9 +362,16 @@ export type AnonymousFeedbackCreateInput = Pick<
   'content' | 'targetType' | 'targetMemberId' | 'targetLabel'
 >;
 
-/** Decisão de moderação (ANON-005). */
+/**
+ * Decisão de moderação (ANON-005).
+ *
+ * Não existe `status` aqui de propósito: moderar sempre leva a `moderado`.
+ * Quem chama escolhe a DECISÃO, não o estado da fila.
+ */
 export interface AnonymousFeedbackModeration {
-  status: Exclude<AnonymousFeedbackStatus, 'pendente'>;
+  resolution: AnonymousFeedbackResolution;
+  /** Obrigatório quando `resolution === 'direcionado'`; ignorado nos demais. */
+  directedMemberId?: ID | null;
   moderatedById?: ID | null;
   moderationNote?: string | null;
 }

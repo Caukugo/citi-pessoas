@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Plus, UserX } from 'lucide-react';
+import { Plus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -17,6 +17,9 @@ import { ROUTES } from '@/app/routes';
 import { CreateX1Drawer } from '@/features/x1/components/CreateX1Drawer';
 import { X1Tab } from '@/features/x1/components/X1Tab';
 import { useMemberX1 } from '@/features/x1/hooks/useMemberX1';
+import { CreateFeedbackDrawer } from '@/features/feedbacks/components/CreateFeedbackDrawer';
+import { MemberFeedbackTab } from '@/features/feedbacks/components/MemberFeedbackTab';
+import { useMemberFeedbacks } from '@/features/feedbacks/hooks/useMemberFeedbacks';
 import { useMemberDirectory } from '../hooks/useMembersList';
 import { MemberActivityTimeline } from '../components/MemberActivityTimeline';
 import { MemberInfoGrid } from '../components/MemberInfoGrid';
@@ -44,10 +47,12 @@ export function MemberProfilePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const memberQuery = useMember(memberId);
   const directory = useMemberDirectory();
   const overview = useMemberX1(memberId);
+  const feedbacks = useMemberFeedbacks(memberId);
 
   // A aba fica na URL para poder ser compartilhada ("olha a aba de X1 dela").
   const rawTab = searchParams.get('aba') as TabId | null;
@@ -123,7 +128,7 @@ export function MemberProfilePage() {
   const tabs: TabItem<TabId>[] = [
     { id: 'visao-geral', label: 'Visão geral' },
     { id: 'x1', label: 'X1', count: overview.completed.length },
-    { id: 'feedbacks', label: 'Feedbacks' },
+    { id: 'feedbacks', label: 'Feedbacks', count: feedbacks.total },
   ];
 
   return (
@@ -162,16 +167,19 @@ export function MemberProfilePage() {
 
       {activeTab === 'feedbacks' && (
         <div {...tabPanelProps(TAB_PREFIX, 'feedbacks')}>
-          <Surface>
-            {/* Preparada, não implementada: o domínio de Feedbacks é o EPIC 4
-                (Clara). O aviso diz o que existirá, para que a aba vazia não
-                seja lida como "esta pessoa não tem feedback nenhum". */}
-            <EmptyState
-              icon={<MessageSquare size={20} aria-hidden />}
-              title="Feedbacks ainda não estão nesta tela"
-              description="Aqui vão aparecer os feedbacks de acompanhamento desta pessoa — Informal, Formal e Carta de Ajuste —, cada um como um registro independente. É outra entrega da Fase 1."
-            />
-          </Surface>
+          {/* Fronteira entre as features, igual à aba de X1: o Perfil (members)
+              monta a página e entrega o membro; Feedbacks sabe tudo sobre
+              registros de acompanhamento. Members importa de feedbacks, nunca
+              o contrário.
+
+              ⚠️ Só aparecem aqui os feedbacks de ACOMPANHAMENTO. Relato anônimo
+              direcionado a esta pessoa é outro fluxo e não entra nesta lista. */}
+          <MemberFeedbackTab
+            member={member}
+            directory={directory.byId}
+            overview={feedbacks}
+            onRegister={() => setFeedbackOpen(true)}
+          />
         </div>
       )}
 
@@ -182,6 +190,15 @@ export function MemberProfilePage() {
         memberName={member.fullName}
         conductors={conductors}
         isFirstX1={isFirstX1}
+      />
+
+      {/* A MESMA gaveta usada na área de Feedbacks, com o membro já definido.
+          Não existe um segundo formulário. */}
+      <CreateFeedbackDrawer
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        members={[]}
+        member={member}
       />
     </>
   );

@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-08-20",
+  "updatedAt": "2026-08-21",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -954,7 +954,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/feedback-form",
       "acceptanceCriteria": [
@@ -979,7 +979,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "FB-001"
       ],
@@ -1004,7 +1004,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "FB-002"
       ],
@@ -1030,7 +1030,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "FB-003"
       ],
@@ -1079,7 +1079,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "FB-003"
       ],
@@ -1107,7 +1107,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Blocked",
+      "status": "Done",
       "dependencies": [
         "PERFIL-003",
         "FB-003"
@@ -1185,7 +1185,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "ANON-002"
       ],
@@ -1212,7 +1212,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "ANON-003"
       ],
@@ -1231,22 +1231,22 @@
       "id": "ANON-005",
       "epic": "EPIC-5",
       "title": "Moderação",
-      "description": "Aprovar, rejeitar ou arquivar um feedback anônimo.",
+      "description": "Registrar a decisao humana da GG: tomar ciencia ou direcionar o contexto para um membro. Ver ADR-013.",
       "owner": "Clara",
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "ANON-004"
       ],
       "branch": "feat/anonymous-feedback-moderate",
       "acceptanceCriteria": [
-        "Aprovar, rejeitar e arquivar com useModerateAnonymousFeedback()",
-        "ConfirmDialog antes de rejeitar",
-        "Campo opcional de observação da moderação",
+        "Tomar ciencia e direcionar com useModerateAnonymousFeedback()",
+        "Direcionar exige escolher o membro em passo separado",
+        "Campo opcional de observacao interna da moderacao",
         "O item sai da fila de pendentes",
-        "Não cria Feedback de acompanhamento em nenhuma hipótese"
+        "NAO cria Feedback de acompanhamento em nenhuma hipotese"
       ],
       "aiInstructions": "REGRA CRÍTICA: feedback anônimo NÃO vira Feedback Informal, Formal nem Carta de Ajuste. Não crie botão de conversão. A decisão é humana.",
       "labels": [
@@ -1264,7 +1264,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "ANON-004"
       ],
@@ -1667,7 +1667,7 @@
       "acceptanceCriteria": [
         "Envio sem login funciona",
         "Confirmado que nenhuma informação de quem enviou aparece em lugar nenhum",
-        "Confirmado que aprovar não cria Feedback de acompanhamento"
+        "Confirmado que moderar (ciente ou direcionado) nao cria Feedback de acompanhamento"
       ],
       "aiInstructions": "Estas duas confirmações são regras de produto. Se falharem, é bug crítico.",
       "functionalReviewer": "Cauan",

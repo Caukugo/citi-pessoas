@@ -111,23 +111,70 @@ describe('feedback anônimo', () => {
     expect(created.status).toBe('pendente');
   });
 
-  it('moderar registra a decisão e NÃO cria um feedback de acompanhamento', async () => {
+  it('tomar ciência registra a decisão e NÃO cria um feedback de acompanhamento', async () => {
     const before = await mockAdapter.feedbacks.listAll();
 
     const pending = await mockAdapter.anonymousFeedbacks.list('pendente');
     await mockAdapter.anonymousFeedbacks.moderate(pending[0].id, {
-      status: 'aprovado',
+      resolution: 'ciente',
       moderatedById: 'mbr-001',
       moderationNote: 'Levado para a reunião de GG.',
     });
 
     const after = await mockAdapter.feedbacks.listAll();
-    // Fluxos independentes: aprovar um anônimo não gera Feedback nenhum.
+    // Fluxos independentes: moderar um anônimo não gera Feedback nenhum.
     expect(after).toHaveLength(before.length);
 
     const moderated = await mockAdapter.anonymousFeedbacks.getById(pending[0].id);
-    expect(moderated?.status).toBe('aprovado');
+    expect(moderated?.status).toBe('moderado');
+    expect(moderated?.resolution).toBe('ciente');
     expect(moderated?.moderatedAt).toBeTruthy();
+  });
+
+  it('direcionar guarda o membro e continua sem criar feedback de acompanhamento', async () => {
+    const before = await mockAdapter.feedbacks.listAll();
+
+    const pending = await mockAdapter.anonymousFeedbacks.list('pendente');
+    await mockAdapter.anonymousFeedbacks.moderate(pending[0].id, {
+      resolution: 'direcionado',
+      directedMemberId: 'mbr-003',
+      moderatedById: 'mbr-001',
+    });
+
+    // A regra mais importante do fluxo: direcionar leva CONTEXTO a uma pessoa.
+    // Não vira Informal, não vira Formal, não vira Carta.
+    expect(await mockAdapter.feedbacks.listAll()).toHaveLength(before.length);
+    expect(await mockAdapter.feedbacks.listByMember('mbr-003')).toHaveLength(
+      before.filter((f) => f.memberId === 'mbr-003').length,
+    );
+
+    const moderated = await mockAdapter.anonymousFeedbacks.getById(pending[0].id);
+    expect(moderated?.resolution).toBe('direcionado');
+    expect(moderated?.directedMemberId).toBe('mbr-003');
+  });
+
+  it('recusa direcionar sem escolher o membro', async () => {
+    const pending = await mockAdapter.anonymousFeedbacks.list('pendente');
+    await expect(
+      mockAdapter.anonymousFeedbacks.moderate(pending[0].id, {
+        resolution: 'direcionado',
+        directedMemberId: null,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('tomar ciência de um relato sobre alguém não o direciona àquela pessoa', async () => {
+    // `targetType: 'membro'` é o que QUEM ENVIOU disse. Direcionar é decisão
+    // da GG — uma coisa não implica a outra.
+    const pending = await mockAdapter.anonymousFeedbacks.list('pendente');
+    const aboutMember = pending.find((f) => f.targetMemberId);
+    expect(aboutMember).toBeDefined();
+
+    await mockAdapter.anonymousFeedbacks.moderate(aboutMember!.id, { resolution: 'ciente' });
+
+    const moderated = await mockAdapter.anonymousFeedbacks.getById(aboutMember!.id);
+    expect(moderated?.directedMemberId).toBeNull();
+    expect(moderated?.targetMemberId).toBe(aboutMember!.targetMemberId);
   });
 });
 

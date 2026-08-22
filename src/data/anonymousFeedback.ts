@@ -5,6 +5,7 @@ import type {
   AnonymousFeedback,
   AnonymousFeedbackCreateInput,
   AnonymousFeedbackModeration,
+  AnonymousFeedbackResolution,
   AnonymousFeedbackStatus,
   AnonymousFeedbackTarget,
   ID,
@@ -23,6 +24,10 @@ import type {
  *    existir. Se alguém pedir isso, é mudança de produto: fale com Clara/Cauan.
  * 3. A decisão de moderação é HUMANA. Nada aqui aprova ou classifica sozinho.
  * 4. Não guardamos autor, e-mail nem IP. Anonimato é por construção.
+ *
+ * Sobre o vocabulário: moderar leva de `pendente` a `moderado`, e a DECISÃO
+ * fica em `resolution` — `ciente` ou `direcionado`. Direcionar registra a quem
+ * o contexto foi levado; não gera registro de acompanhamento nenhum.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -35,9 +40,12 @@ export const ANONYMOUS_TARGET_LABEL: Record<AnonymousFeedbackTarget, string> = {
 
 export const ANONYMOUS_STATUS_LABEL: Record<AnonymousFeedbackStatus, string> = {
   pendente: 'Pendente',
-  aprovado: 'Aprovado',
-  rejeitado: 'Rejeitado',
-  arquivado: 'Arquivado',
+  moderado: 'Moderado',
+};
+
+export const ANONYMOUS_RESOLUTION_LABEL: Record<AnonymousFeedbackResolution, string> = {
+  ciente: 'Ciente',
+  direcionado: 'Direcionado',
 };
 
 // ─── Funções ──────────────────────────────────────────────────────────────────
@@ -59,7 +67,12 @@ export function submitAnonymousFeedback(
   return db.anonymousFeedbacks.submit(input);
 }
 
-/** Decisão da moderação: aprovar, rejeitar ou arquivar. */
+/**
+ * Registra a decisão humana da GG.
+ *
+ * É a ÚNICA porta de saída da fila: não existe caminho que mude a situação de
+ * um feedback anônimo sem alguém ter decidido.
+ */
 export function moderateAnonymousFeedback(
   id: ID,
   decision: AnonymousFeedbackModeration,
@@ -94,8 +107,15 @@ export function useModerateAnonymousFeedback() {
   return useMutation({
     mutationFn: ({ id, decision }: { id: ID; decision: AnonymousFeedbackModeration }) =>
       moderateAnonymousFeedback(id, decision),
-    onSuccess: () => {
+    onSuccess: (feedback) => {
+      // A fila inteira é invalidada porque o quadro lê as três colunas da mesma
+      // consulta: mover um card é o resultado de reler, não de mexer em estado
+      // local. Repare que NADA aqui invalida `feedbacks` — moderar um anônimo
+      // não toca no acompanhamento do membro, por regra de produto.
       queryClient.invalidateQueries({ queryKey: queryKeys.anonymousFeedbacks.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.anonymousFeedbacks.detail(feedback.id),
+      });
     },
   });
 }

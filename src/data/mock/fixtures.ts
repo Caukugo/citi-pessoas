@@ -689,7 +689,21 @@ export const X1S: X1[] = SEED_X1S.map((x) => ({ ...x, createdAt: NOW, updatedAt:
 
 type SeedFeedback = Omit<Feedback, 'createdAt' | 'updatedAt'>;
 
+/**
+ * Feedbacks de acompanhamento.
+ *
+ * A distribuição é proposital: a maior parte das pessoas não tem feedback
+ * nenhum, algumas têm um, e poucas acumulam vários. É assim na vida real, e é o
+ * que faz a visão consolidada valer a pena — se todo mundo tivesse a mesma
+ * quantidade, a tabela não responderia nada.
+ *
+ * Casos difíceis incluídos de propósito (não "arrume"):
+ *   • fb-011 — texto muito longo
+ *   • fb-012 — sem quem registrou (`registeredById: null`)
+ *   • mbr-006 — três informais + uma carta: é o caso de recorrência
+ */
 const SEED_FEEDBACKS: SeedFeedback[] = [
+  // Helena — reconhecimento, dois tipos diferentes.
   {
     id: 'fb-001',
     memberId: 'mbr-003',
@@ -707,7 +721,10 @@ const SEED_FEEDBACKS: SeedFeedback[] = [
       'Reconhecimento formal pela condução da entrega do projeto do semestre dentro do prazo.',
     givenAt: daysAgo(8),
     registeredById: 'mbr-001',
+    notes: 'Combinado com a gerência de Desenvolvimento na reunião de acompanhamento.',
   },
+
+  // Íris — o caso de recorrência: três informais em volta de uma carta.
   {
     id: 'fb-003',
     memberId: 'mbr-006',
@@ -724,21 +741,108 @@ const SEED_FEEDBACKS: SeedFeedback[] = [
       'Carta de ajuste registrada após conversa sobre presença e comunicação com a squad. Plano combinado de retomada acordado com a gerência.',
     givenAt: daysAgo(10),
     registeredById: 'mbr-001',
+    notes: 'Revisão do plano combinada para daqui a 30 dias.',
   },
   {
     id: 'fb-005',
+    memberId: 'mbr-006',
+    type: 'informal',
+    content:
+      'Retomou a presença nas dailies desde a conversa e avisou com antecedência a única falta do período.',
+    givenAt: daysAgo(3),
+    registeredById: 'mbr-002',
+  },
+  {
+    id: 'fb-006',
+    memberId: 'mbr-006',
+    type: 'informal',
+    content: 'Combinado que avisaria a squad com um dia de antecedência quando faltasse.',
+    givenAt: daysAgo(48),
+    registeredById: 'mbr-002',
+  },
+
+  // Solange — um informal só.
+  {
+    id: 'fb-007',
     memberId: 'mbr-008',
     type: 'informal',
     content: 'Apresentou os resultados do ciclo com muita clareza na reunião geral.',
     givenAt: daysAgo(15),
     registeredById: 'mbr-002',
   },
+
+  // Gilmar — um informal antigo.
   {
-    id: 'fb-006',
+    id: 'fb-008',
     memberId: 'mbr-013',
     type: 'informal',
     content: 'Precisa antecipar avisos quando uma entrega vai atrasar.',
     givenAt: daysAgo(40),
+    registeredById: 'mbr-001',
+  },
+
+  // Ricardo — só um formal, sem informal antes. Formal não é "degrau 2".
+  {
+    id: 'fb-009',
+    memberId: 'mbr-004',
+    type: 'formal',
+    content:
+      'Reconhecimento formal pela condução da transição de gerência sem perda de contexto para a squad.',
+    givenAt: daysAgo(21),
+    registeredById: 'mbr-001',
+  },
+
+  // Bernadete — só uma carta de ajuste, sem nada antes. Também acontece.
+  {
+    id: 'fb-010',
+    memberId: 'mbr-010',
+    type: 'carta_de_ajuste',
+    content:
+      'Carta de ajuste após ausência não comunicada em três reuniões de produto seguidas, incluindo a apresentação para o cliente.',
+    givenAt: daysAgo(35),
+    registeredById: 'mbr-001',
+  },
+
+  // Texto longo de propósito: prova que o card e a tabela truncam de verdade.
+  {
+    id: 'fb-011',
+    memberId: 'mbr-011',
+    type: 'informal',
+    content:
+      'Conversa longa sobre o momento do semestre. Contou que está com quatro cadeiras pesadas, duas delas com projeto final entregando na mesma semana, e que por isso reduziu a disponibilidade nas tardes de terça e quinta. Combinamos que as tarefas de descoberta ficam com ele e as de refinamento passam temporariamente para a dupla, retomando o volume normal depois da semana de provas. Reforcei que reduzir carga combinada não é problema e que avisar antes é exatamente o esperado. Ele também trouxe que gostaria de participar mais das conversas iniciais com cliente, e isso ficou registrado como interesse para o próximo ciclo de alocação.',
+    givenAt: daysAgo(6),
+    registeredById: 'mbr-002',
+    notes:
+      'Contexto acadêmico. Revisitar depois da semana de provas — a redução de carga é temporária e combinada.',
+  },
+
+  // Sem quem registrou: registro antigo ou importado. A tela não pode quebrar.
+  {
+    id: 'fb-012',
+    memberId: 'mbr-014',
+    type: 'informal',
+    content: 'Assumiu o contato com o cliente durante a ausência do gerente.',
+    givenAt: daysAgo(60),
+    registeredById: null,
+  },
+
+  // Pessoa com nome e cargo longos — o registro que estressa o layout.
+  {
+    id: 'fb-013',
+    memberId: 'mbr-018',
+    type: 'informal',
+    content: 'Primeira semana bem recebida pela squad de Marketing.',
+    givenAt: daysAgo(5),
+    registeredById: 'mbr-001',
+  },
+
+  // Pessoa desligada continua com histórico: não apagamos o passado.
+  {
+    id: 'fb-014',
+    memberId: 'mbr-017',
+    type: 'formal',
+    content: 'Reconhecimento formal pela entrega do aplicativo antes do desligamento.',
+    givenAt: daysAgo(100),
     registeredById: 'mbr-001',
   },
 ];
@@ -752,7 +856,26 @@ export const FEEDBACKS: Feedback[] = SEED_FEEDBACKS.map((f) => ({
 // ─── Feedbacks anônimos ───────────────────────────────────────────────────────
 // Repare: nenhum registro tem autor. É proposital — veja types.ts.
 
+/**
+ * Feedbacks anônimos.
+ *
+ * ⚠️ Repare no que NÃO existe em nenhum registro: autor, e-mail, IP. O
+ * anonimato vem da ausência do campo — não de uma regra de exibição. Há um
+ * teste que garante isso (`mockAdapter.test.ts`).
+ *
+ * `targetType` é sobre o que QUEM ENVIOU disse que o relato fala.
+ * `directedMemberId` é decisão da GG na moderação. São eixos diferentes, e a
+ * amostra abaixo tem casos em que eles divergem de propósito.
+ *
+ * Casos difíceis incluídos (não "arrume"):
+ *   • anon-006 — texto muito longo
+ *   • anon-007 — texto de uma linha só
+ *   • anon-012 — direcionado para uma pessoa já desligada
+ *   • anon-013 — alvo 'membro' sem `targetMemberId`: envio incompleto
+ *   • anon-016 — moderado sem observação interna
+ */
 export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
+  // ── Pendentes ────────────────────────────────────────────────────────────
   {
     id: 'anon-001',
     content:
@@ -760,8 +883,10 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
     targetType: 'citi',
     targetMemberId: null,
     targetLabel: null,
-    submittedAt: daysAgo(3),
+    submittedAt: daysAgo(1),
     status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
     moderatedById: null,
     moderatedAt: null,
     moderationNote: null,
@@ -769,12 +894,14 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
   {
     id: 'anon-002',
     content:
-      'Sinto que a squad de Dados não recebe retorno sobre o que acontece com as análises entregues.',
+      'Sinto que a squad de Dados não recebe retorno sobre o que acontece com as análises entregues. A gente manda, e depois não sabe se virou decisão ou se ficou parado.',
     targetType: 'subarea',
     targetMemberId: null,
     targetLabel: 'Dados',
-    submittedAt: daysAgo(5),
+    submittedAt: daysAgo(2),
     status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
     moderatedById: null,
     moderatedAt: null,
     moderationNote: null,
@@ -782,12 +909,14 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
   {
     id: 'anon-003',
     content:
-      'Queria registrar que a condução das últimas retros pela gerência de Desenvolvimento tem sido muito boa.',
+      'Queria registrar que a condução das últimas retros pela gerência de Desenvolvimento tem sido muito boa. As pessoas estão falando mais.',
     targetType: 'membro',
     targetMemberId: 'mbr-004',
     targetLabel: null,
-    submittedAt: daysAgo(6),
+    submittedAt: daysAgo(4),
     status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
     moderatedById: null,
     moderatedAt: null,
     moderationNote: null,
@@ -798,27 +927,201 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
     targetType: 'diretoria',
     targetMemberId: null,
     targetLabel: null,
-    submittedAt: daysAgo(22),
-    status: 'aprovado',
-    moderatedById: 'mbr-001',
-    moderatedAt: daysAgo(20),
-    moderationNote: 'Pauta levada para a reunião de diretoria.',
+    submittedAt: daysAgo(5),
+    status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
+    moderatedById: null,
+    moderatedAt: null,
+    moderationNote: null,
   },
   {
     id: 'anon-005',
+    content:
+      'O processo de alocação em squad não fica claro para quem entrou neste semestre. Não sei a quem perguntar sem parecer que estou reclamando.',
+    targetType: 'citi',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(7),
+    status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
+    moderatedById: null,
+    moderatedAt: null,
+    moderationNote: null,
+  },
+  // Texto longo de propósito: o card precisa truncar e a gaveta precisa caber.
+  {
+    id: 'anon-006',
+    content:
+      'Queria trazer uma coisa que venho sentindo há algumas semanas e que acho que não sou só eu. A carga combinada no começo do ciclo não bate com o que aparece depois. A gente combina uma coisa no planejamento, e no meio do ciclo aparecem pedidos fora do que foi acordado, sempre com urgência. Individualmente cada pedido é pequeno e faz sentido, então fica difícil dizer não sem parecer que você não está colaborando. Só que somados eles ocupam boa parte da semana, e aí a entrega que estava combinada atrasa — e é essa que aparece na retro. Não estou falando de ninguém específico, é mais um padrão de como as coisas chegam. Acho que ajudaria muito se pedido novo no meio do ciclo passasse pela mesma conversa que o planejamento passou, mesmo que fosse uma conversa de cinco minutos. Também acho que ajudaria se ficasse registrado em algum lugar que aquilo entrou fora do combinado, porque hoje some.',
+    targetType: 'citi',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(9),
+    status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
+    moderatedById: null,
+    moderatedAt: null,
+    moderationNote: null,
+  },
+  // Texto de uma linha: o card não pode ficar com buraco.
+  {
+    id: 'anon-007',
+    content: 'A copa está sempre sem café.',
+    targetType: 'citi',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(12),
+    status: 'pendente',
+    resolution: null,
+    directedMemberId: null,
+    moderatedById: null,
+    moderatedAt: null,
+    moderationNote: null,
+  },
+
+  // ── Direcionados ─────────────────────────────────────────────────────────
+  {
+    id: 'anon-008',
+    content:
+      'Nas reuniões de squad, quem fala mais alto acaba definindo a decisão. Já vi gente desistir de trazer ideia por causa disso.',
+    targetType: 'subarea',
+    targetMemberId: null,
+    targetLabel: 'Desenvolvimento',
+    submittedAt: daysAgo(16),
+    status: 'moderado',
+    resolution: 'direcionado',
+    // Repare: o relato falava da subárea, e a GG direcionou à gerência dela.
+    // `targetType` e `directedMemberId` são eixos diferentes de propósito.
+    directedMemberId: 'mbr-004',
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(14),
+    moderationNote: 'Levado na conversa de acompanhamento com a gerência da subárea.',
+  },
+  {
+    id: 'anon-009',
+    content:
+      'O retorno sobre as análises de dados costuma vir só quando dá problema. Quando dá certo, ninguém comenta.',
+    targetType: 'membro',
+    targetMemberId: 'mbr-007',
+    targetLabel: null,
+    submittedAt: daysAgo(20),
+    status: 'moderado',
+    resolution: 'direcionado',
+    directedMemberId: 'mbr-007',
+    moderatedById: 'mbr-002',
+    moderatedAt: daysAgo(18),
+    moderationNote: 'Contexto levado ao próximo X1.',
+  },
+  {
+    id: 'anon-010',
+    content: 'Combinados de horário da squad de Produto mudam sem aviso.',
+    targetType: 'subarea',
+    targetMemberId: null,
+    targetLabel: 'Produto',
+    submittedAt: daysAgo(26),
+    status: 'moderado',
+    resolution: 'direcionado',
+    directedMemberId: 'mbr-010',
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(24),
+    moderationNote: null,
+  },
+  {
+    id: 'anon-011',
+    content:
+      'Queria reconhecer o cuidado da pessoa que conduziu a integração dos novatos de Marketing. Fez diferença para quem chegou agora.',
+    targetType: 'membro',
+    targetMemberId: 'mbr-012',
+    targetLabel: null,
+    submittedAt: daysAgo(31),
+    status: 'moderado',
+    resolution: 'direcionado',
+    directedMemberId: 'mbr-012',
+    moderatedById: 'mbr-002',
+    moderatedAt: daysAgo(30),
+    moderationNote: 'Reconhecimento repassado na conversa individual.',
+  },
+  // Direcionado para quem já saiu: o histórico não some com a pessoa.
+  {
+    id: 'anon-012',
+    content: 'A passagem do app para a squad ficou sem documentação de contexto.',
+    targetType: 'membro',
+    targetMemberId: 'mbr-017',
+    targetLabel: null,
+    submittedAt: daysAgo(88),
+    status: 'moderado',
+    resolution: 'direcionado',
+    directedMemberId: 'mbr-017',
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(86),
+    moderationNote: 'Tratado antes do desligamento.',
+  },
+
+  // ── Cientes ──────────────────────────────────────────────────────────────
+  // Envio incompleto: disse que era sobre um membro e não escolheu quem.
+  {
+    id: 'anon-013',
+    content: 'Acho que a pessoa responsável pelo processo seletivo poderia responder mais rápido.',
+    targetType: 'membro',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(33),
+    status: 'moderado',
+    resolution: 'ciente',
+    directedMemberId: null,
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(32),
+    moderationNote: 'Sem indicação de quem — não dá para direcionar. GG está ciente.',
+  },
+  {
+    id: 'anon-014',
     content: 'teste teste teste',
     targetType: 'citi',
     targetMemberId: null,
     targetLabel: null,
-    submittedAt: daysAgo(28),
-    status: 'rejeitado',
+    submittedAt: daysAgo(38),
+    status: 'moderado',
+    resolution: 'ciente',
+    directedMemberId: null,
     moderatedById: 'mbr-002',
-    moderatedAt: daysAgo(27),
+    moderatedAt: daysAgo(37),
     moderationNote: 'Envio sem conteúdo.',
   },
+  {
+    id: 'anon-015',
+    content:
+      'O ar-condicionado da sala 2 fica muito frio e ninguém sabe quem pode mexer no controle.',
+    targetType: 'citi',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(44),
+    status: 'moderado',
+    resolution: 'ciente',
+    directedMemberId: null,
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(43),
+    moderationNote: 'Repassado para a Administração da sala. Não é caso de acompanhamento.',
+  },
+  // Moderado sem observação interna: a nota é opcional de verdade.
+  {
+    id: 'anon-016',
+    content:
+      'Senti falta de um espaço para falar sobre saúde mental sem que isso vire assunto de avaliação.',
+    targetType: 'diretoria',
+    targetMemberId: null,
+    targetLabel: null,
+    submittedAt: daysAgo(52),
+    status: 'moderado',
+    resolution: 'ciente',
+    directedMemberId: null,
+    moderatedById: 'mbr-001',
+    moderatedAt: daysAgo(50),
+    moderationNote: null,
+  },
 ];
-
-// ─── Eventos (timeline) ───────────────────────────────────────────────────────
 
 export const MEMBER_EVENTS: MemberEvent[] = [
   {

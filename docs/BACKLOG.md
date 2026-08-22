@@ -498,16 +498,20 @@ informação de quem enviou — ela não existe.
 
 ### ANON-005 — Moderação
 
-- **Responsável:** Clara · **Reviewer:** Cauan · 🟡 assistida · Alta · Ready
+- **Responsável:** Clara · **Reviewer:** Cauan · 🟡 assistida · Alta · ✅ Implementado
 - **Dependências:** ANON-004 · **Branch:** `feat/anonymous-feedback-moderate`
+
+> ⚠️ **O vocabulário mudou.** Aprovar/rejeitar/arquivar descrevia um fluxo de
+> publicação, que não é o que a GG faz. As decisões reais são **Ciente** e
+> **Direcionar para membro**. Registrado em ADR-013; modelo em DATA_MODEL.md §5.
 
 **Critérios de aceite**
 
-- [ ] Aprovar, rejeitar e arquivar com `useModerateAnonymousFeedback()`.
-- [ ] `ConfirmDialog` antes de rejeitar.
-- [ ] Campo opcional de observação da moderação.
-- [ ] O item sai da fila de pendentes.
-- [ ] **Não cria Feedback de acompanhamento em nenhuma hipótese.**
+- [x] Tomar ciência e direcionar com `useModerateAnonymousFeedback()`.
+- [x] Direcionar exige escolher o membro em passo separado — a decisão é explícita.
+- [x] Campo opcional de observação interna da moderação.
+- [x] O item sai da fila de pendentes.
+- [x] **Não cria Feedback de acompanhamento em nenhuma hipótese.**
 
 ---
 

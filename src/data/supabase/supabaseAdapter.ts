@@ -287,11 +287,23 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async moderate(id, decision) {
+      if (decision.resolution === 'direcionado' && !decision.directedMemberId) {
+        throw new DataError(
+          'invalid',
+          'Direcionar exige escolher o membro para quem o contexto vai.',
+        );
+      }
+
       // Registra a decisão humana. NÃO converte em Feedback de acompanhamento.
       const { data, error } = await supabase()
         .from('anonymous_feedbacks')
         .update({
-          status: decision.status,
+          status: 'moderado',
+          resolution: decision.resolution,
+          // Só "direcionado" aponta para alguém — a constraint no banco garante
+          // o mesmo, e aqui evitamos a ida ao servidor para descobrir isso.
+          directed_member_id:
+            decision.resolution === 'direcionado' ? (decision.directedMemberId ?? null) : null,
           moderated_by_id: decision.moderatedById ?? null,
           moderated_at: new Date().toISOString(),
           moderation_note: decision.moderationNote ?? null,
