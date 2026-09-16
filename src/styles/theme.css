@@ -1,8 +1,14 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Identidade visual do CITi — fonte de verdade dos tokens da plataforma.
 
-   Princípio: fundo preto real, verde CITi como destaque e ação, tipografia
-   clara e superfícies em vidro escuro.
+   Princípio: superfícies grafite, laranja CITi como destaque e ação,
+   tipografia clara e superfícies em vidro escuro.
+
+   NOTA DE TRANSIÇÃO (redesenho de Membros, 2026): a cor de ação passou de
+   verde (`--primary`) para laranja (`--accent`). A troca é ADITIVA — nenhuma
+   tela que ainda consome `--primary` mudou de aparência. Quem já foi
+   redesenhado consome `--accent`; o resto migra tela a tela.
+   DESIGN.md e docs/DESIGN_SYSTEM.md ainda descrevem a identidade anterior.
 
    ATENÇÃO: este arquivo é compartilhado por todas as features.
    Não altere valores aqui para resolver um caso específico de tela —
@@ -20,11 +26,75 @@
   --popover: #0f1011;
 
   /* ── Marca ─────────────────────────────────────────────────────────────── */
-  --primary: #2ddb60;
-  --primary-hover: #36e66a;
-  --primary-active: #24c856;
-  --primary-glow: #7af2a5;
-  --primary-foreground: #04180b;
+  /* MIGRAÇÃO CONCLUÍDA (2026): `--primary` deixou de ser o verde e passou a
+     apontar para o laranja. Durante o redesenho de Membros os dois conviveram
+     — laranja em quem já tinha sido redesenhado, verde no resto — e a barra
+     lateral chegou a acender em cores diferentes por rota. Isso acabou: a cor
+     de ação da plataforma é uma só.
+
+     Verde não sumiu; ele desceu para onde sempre deveria estar, em `--ok`:
+     significa "em dia", não "clicável". Nenhuma tela precisa trocar de token
+     para virar laranja — `variant="primary"`, `Chip`, `Tabs` e o anel de foco
+     seguem os mesmos nomes e mudam de cor sozinhos. */
+  --primary: #ff6a00;
+  --primary-hover: #ff7f24;
+  --primary-active: #e85f00;
+  --primary-glow: #ffa767;
+  --primary-foreground: #ffffff;
+
+  /* ── Acento laranja (redesenho de Membros, 2026) ────────────────────────
+     MUDANÇA DE IDENTIDADE, decidida pelo produto: o laranja passa a ser a cor
+     de AÇÃO e de SELEÇÃO. É uma camada ADITIVA — nada de verde foi removido,
+     e `--primary` continua sendo o verde CITi, que as telas ainda não
+     redesenhadas seguem consumindo sem mudar de aparência.
+
+     O laranja é ACENTO, não protagonista: no máximo quatro elementos laranja
+     em cena ao mesmo tempo, e o gradiente só em dois lugares (item de
+     navegação ativo e ação principal). Todo o resto usa laranja chapado.
+
+     CONTRASTE — decisão registrada: texto sobre laranja é branco, por decisão
+     de design. Branco sobre `--accent` dá 3.0:1 e sobre `--accent-strong`
+     3.46:1; nenhum dos dois alcança os 4.5:1 que a WCAG pede para texto
+     normal, e 13px/600 não conta como "texto grande" (o critério é 18.66px
+     bold). Por isso os rótulos pequenos usam `--accent-strong`, que é o
+     melhor disponível sem trair o desenho, e peso 600. Se um dia a regra
+     tiver que passar de verdade, `#c24e00` dá 4.79:1 com branco. */
+  --accent: #ff6a00;
+  /* Base escurecida para superfícies que CARREGAM TEXTO (aba ativa, chips). */
+  --accent-strong: #e85f00;
+  --accent-hover: #ff7f24;
+  --accent-soft: rgba(255, 106, 0, 0.09);
+  --accent-gradient: linear-gradient(100deg, #e85f00 0%, #ff8a3d 100%);
+  --accent-foreground: #ffffff;
+
+  /* ── Superfícies grafite ────────────────────────────────────────────────
+     A profundidade vem de CONTRASTE e de borda, não de sombra. Por isso as
+     camadas acima do palco são brancos translúcidos, e não cinzas opacos:
+     assim elas continuam funcionando por cima da escultura do fundo em vez
+     de recortá-la como um retângulo chapado. */
+  --surface-shell: #0e0e0e;
+  --surface-stage: #131313;
+  /* Os três valores abaixo vêm dos SVGs do design, não de estimativa:
+     `Rectangle 129` (cartão), `Rectangle 105` (painel) e `Ellipse 49` (disco).
+     O cartão é translúcido de propósito — é o que deixa a escultura aparecer
+     por trás dele sem virar vidro. */
+  --surface-card: rgba(37, 37, 37, 0.59);
+  --surface-panel: #252525;
+  /* Estados do cartão de indicador. O hover clareia a própria lâmina; o disco
+     da seta divide a superfície com ela, em vez de ter cor própria — antes ele
+     era um cinza quente (#4d4940) que lia como peça de outro sistema. */
+  --surface-card-hover: rgba(58, 58, 58, 0.66);
+  --surface-satellite: rgba(255, 255, 255, 0.09);
+  /* Fundo de controle que funciona nas DUAS camadas. Um tingido de branco
+     (o padrão do design system) some quando o controle não está sobre um
+     painel opaco — é o caso da barra de filtros do quadro anônimo, que fica
+     direto sobre o palco e sobre a escultura. Este é o palco escurecendo o
+     que estiver atrás: sobre o painel ele lê como poço, sobre a peça ele
+     devolve legibilidade ao texto. */
+  --control-well: color-mix(in srgb, var(--surface-stage) 78%, transparent);
+  /* Divisor de linha da tabela: um fio de luz, da mesma família das bordas.
+     Era #1b2d2c — um verde-escuro que sobrou do tema antigo e sujava o cinza. */
+  --divider: rgba(255, 255, 255, 0.05);
 
   /* ── Texto ─────────────────────────────────────────────────────────────── */
   --foreground: #ffffff;
@@ -32,16 +102,19 @@
   --muted-foreground: #8a93a0;
 
   /* ── Tons semânticos ───────────────────────────────────────────────────── */
-  --ok: #2ddb60;
-  --warn: #f4c152;
-  --bad: #ff8a8a;
+  /* O verde saiu da camada de AÇÃO e ficou só aqui: a partir do redesenho de
+     Membros, quem pinta o que se pode fazer é `--accent`. Verde agora quer
+     dizer uma coisa só — "em dia". */
+  --ok: #50e678;
+  --warn: #daaf4c;
+  --bad: #ff5859;
   --info: #7ab8f2;
 
   /* ── Bordas e campos ───────────────────────────────────────────────────── */
   --border: rgba(255, 255, 255, 0.06);
   --border-hover: rgba(255, 255, 255, 0.1);
   --input-background: rgba(255, 255, 255, 0.04);
-  --ring: #2ddb60;
+  --ring: #ff6a00;
 
   /* ── Superfície "liquid glass" ─────────────────────────────────────────── */
   --glass: linear-gradient(
@@ -88,6 +161,21 @@
   --color-primary-active: var(--primary-active);
   --color-primary-glow: var(--primary-glow);
   --color-primary-foreground: var(--primary-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-surface-shell: var(--surface-shell);
+  --color-surface-stage: var(--surface-stage);
+  --color-surface-panel: var(--surface-panel);
+  --color-surface-card: var(--surface-card);
+  --color-surface-card-hover: var(--surface-card-hover);
+  --color-surface-satellite: var(--surface-satellite);
+  --color-control-well: var(--control-well);
+  --color-divider: var(--divider);
 
   --color-ok: var(--ok);
   --color-warn: var(--warn);
@@ -199,11 +287,10 @@
       box-shadow 220ms ease,
       background-color 180ms ease;
   }
+  /* Sem brilho colorido: a superfície reage clareando a borda, e só. Sombra
+     tingida era resíduo do tema anterior e brigava com a escultura do fundo. */
   .glass-interactive:hover {
-    border-color: color-mix(in srgb, var(--primary) 38%, transparent);
-    box-shadow:
-      0 20px 46px -26px color-mix(in srgb, var(--primary) 45%, transparent),
-      var(--glass-shadow);
+    border-color: var(--border-hover);
   }
 }
 
@@ -214,5 +301,496 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Camadas visuais da área interna (shell + cartões com recorte).
+
+   Adicionadas em @layer components: são MATERIAIS reutilizáveis, não tokens.
+   Nenhum valor acima foi alterado — `bg-background` continua preto real e
+   qualquer tela que não use estas classes fica exatamente como estava.
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* A área interna é GRAFITE, em duas camadas: a barra lateral mais escura
+     que o palco do conteúdo. É essa diferença de meio tom — e não uma borda —
+     que separa navegação de conteúdo.
+
+     Continua sendo uma REDEFINIÇÃO LOCAL das variáveis, não uma troca de
+     token: só vale dentro do shell autenticado. Login e formulário anônimo
+     seguem no preto do `:root`. O grafite é neutro de propósito: funciona por
+     baixo do laranja de Membros e por baixo do verde das telas que ainda não
+     foram redesenhadas. */
+  .app-shell {
+    --background: var(--surface-stage);
+    --surface: #1a1a1a;
+    --surface-2: #1f1f1f;
+    --surface-3: #242424;
+    --card: #1a1a1a;
+  }
+
+  /* Fundo do shell: palco chapado, e nada mais.
+
+     Aqui moravam halos radiais e três "loops" de borda. Saíram todos: agora
+     quem dá profundidade ao topo da tela é a escultura 3D (um asset real,
+     `/bg-blob.webp`), e dois efeitos de luz disputando o mesmo canto viram
+     sujeira. Fica ATRÁS de tudo (`aria-hidden`, sem eventos de ponteiro). */
+  .app-backdrop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    /* Uma única fonte de luz fraca no canto superior esquerdo, do lado oposto
+       à escultura. Não é glow e não tem cor: é claridade neutra caindo sobre a
+       superfície escura, que é o que dá a ela leitura de material em vez de
+       fundo chapado. Se aparecer como mancha, é porque subiu.
+
+       O centro fica em 19%, e não em 0%: a barra lateral é opaca, então uma
+       luz ancorada na quina da janela morreria atrás dela. 19% de 1536 é
+       exatamente a aresta esquerda do conteúdo. */
+    background:
+      radial-gradient(46% 44% at 19% 0%, rgba(255, 255, 255, 0.055), transparent 72%),
+      var(--surface-stage);
+  }
+
+  /* A barra lateral é o grafite mais escuro, chapado. */
+  .sidebar-glow {
+    background: var(--surface-shell);
+  }
+
+  /* Preenchimento de ação/seleção. Existe como MATERIAL e não como token de
+     cor porque um gradiente não cabe em `bg-*`: ele precisa de
+     `background-image`. Usado em DOIS lugares apenas — item de navegação
+     ativo e ação principal. */
+  .accent-gradient {
+    background-image: var(--accent-gradient);
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     PEÇAS RECORTADAS — a geometria vem dos SVGs do design, não de border-radius.
+
+     Três superfícies do sistema têm ENTALHE CÔNCAVO de verdade: um pedaço da
+     lâmina é removido, e o que aparece no vazio é o fundo real (a escultura,
+     o palco) — não um círculo pintado por cima. Foi isso que os assets
+     `Rectangle 128/129/105.svg` definiram, e é o que separa "peça desenhada"
+     de "retângulo com raio".
+
+     COMO A MÁSCARA É MONTADA, nas três: uma imagem SVG de TAMANHO FIXO com o
+     canto/recesso, mais retângulos opacos cobrindo todo o resto. A união
+     (`mask-composite` fica no padrão, `add`) é a peça inteira menos o
+     entalhe. O tamanho fixo é o ponto: a peça estica em largura e altura sem
+     que o raio do entalhe estique junto — é o que faz a geometria continuar
+     idêntica em 1024 e em 1920.
+
+     ⚠️ MÁSCARA ATINGE OS FILHOS. Onde o conteúdo passa por cima do entalhe (o
+     painel, cujas abas ficam dentro do recesso), a lâmina mascarada precisa
+     ser uma CAMADA À PARTE, atrás do conteúdo. Ver `<MembersPage>`.
+
+     ⚠️ Os discos (`Ellipse 48/49.svg`, 37px) NÃO entram na máscara: eles são
+     irmãos da lâmina e se encaixam no vazio. O recorte já traz ~1,9px de folga
+     em volta deles — a folga está no path, não em CSS.
+     ───────────────────────────────────────────────────────────────────────── */
+
+  /* `Rectangle 129.svg` — cartão de indicador. Entalhe na quina superior
+     direita, em volta do disco da seta. Caixa do canto: 62×62. */
+  .notch-card {
+    background-image: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 0;
+    box-shadow: none;
+    background-color: var(--surface-card);
+    border-radius: 28px;
+    -webkit-mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2062%2062%22><path%20fill=%22black%22%20d=%22M0%200L0.5%200C11.96%20-0.03%2021.265%209.41%2021.265%2020.867C21.265%2032.116%2030.384%2041.399%2041.633%2041.399C52.881%2041.399%2062%2050.518%2062%2061.766L62%2062L0%2062Z%22/></svg>'),
+      linear-gradient(black, black), linear-gradient(black, black);
+    -webkit-mask-size:
+      62px 62px,
+      calc(100% - 61px) 100%,
+      62px calc(100% - 61px);
+    -webkit-mask-position:
+      top right,
+      top left,
+      bottom right;
+    -webkit-mask-repeat: no-repeat;
+    mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2062%2062%22><path%20fill=%22black%22%20d=%22M0%200L0.5%200C11.96%20-0.03%2021.265%209.41%2021.265%2020.867C21.265%2032.116%2030.384%2041.399%2041.633%2041.399C52.881%2041.399%2062%2050.518%2062%2061.766L62%2062L0%2062Z%22/></svg>'),
+      linear-gradient(black, black), linear-gradient(black, black);
+    mask-size:
+      62px 62px,
+      calc(100% - 61px) 100%,
+      62px calc(100% - 61px);
+    mask-position:
+      top right,
+      top left,
+      bottom right;
+    mask-repeat: no-repeat;
+  }
+
+  /* `Rectangle 128.svg` — ação principal. Entalhe na quina superior esquerda,
+     em volta do disco do "+". Caixa do canto: 64×63. */
+  .notch-action {
+    border-radius: 28px;
+    -webkit-mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2064%2063%22><path%20fill=%22black%22%20d=%22M64%200C52.1259%200%2042.5%209.62588%2042.5%2021.5C42.5%2032.5245%2033.5629%2041.4615%2022.5385%2041.4615L21.25%2041.4615C9.51395%2041.4615%200%2050.9755%200%2062.7115L0%2063L64%2063Z%22/></svg>'),
+      linear-gradient(black, black), linear-gradient(black, black);
+    -webkit-mask-size:
+      64px 63px,
+      calc(100% - 63px) 100%,
+      64px calc(100% - 62px);
+    -webkit-mask-position:
+      top left,
+      top right,
+      bottom left;
+    -webkit-mask-repeat: no-repeat;
+    mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2064%2063%22><path%20fill=%22black%22%20d=%22M64%200C52.1259%200%2042.5%209.62588%2042.5%2021.5C42.5%2032.5245%2033.5629%2041.4615%2022.5385%2041.4615L21.25%2041.4615C9.51395%2041.4615%200%2050.9755%200%2062.7115L0%2063L64%2063Z%22/></svg>'),
+      linear-gradient(black, black), linear-gradient(black, black);
+    mask-size:
+      64px 63px,
+      calc(100% - 63px) 100%,
+      64px calc(100% - 62px);
+    mask-position:
+      top left,
+      top right,
+      bottom left;
+    mask-repeat: no-repeat;
+  }
+
+  /* `Rectangle 105.svg` — painel da listagem. O recesso NÃO é uma quina: é um
+     vale de 53px de profundidade e 538px de largura no meio da aresta de
+     cima, onde as abas se encaixam. Fica centralizado em qualquer largura
+     porque as duas faixas laterais são `calc(50% - 269px)`. */
+  .notch-panel {
+    background-color: var(--surface-panel);
+    border-radius: 32px;
+    background-image: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  /* O recesso só existe a partir de 1280px, e por duas razões que apontam para
+     o mesmo lugar: abaixo disso a barra de controles quebra em duas linhas e as
+     abas deixam de estar centralizadas — o vale ficaria vazio, recortando
+     material à toa; e as faixas laterais da máscara (`calc(50% - 268px)`)
+     ficariam negativas num painel mais estreito que 536px, o que invalida a
+     camada e faria o recesso comer a aresta inteira.
+     Sem a máscara, `.notch-panel` continua sendo um painel de cantos 32px. */
+  @media (min-width: 1280px) {
+    .notch-panel {
+      -webkit-mask-image:
+        url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20538%2053%22><path%20fill=%22black%22%20d=%22M0%200C13.956%200%2026.337%209.11222%2030.501%2022.488L32.999%2030.512C37.163%2043.8878%2049.544%2053%2063.553%2053L474.3%2053C488.617%2053%20501.191%2043.4902%20505.09%2029.7143L506.91%2023.2857C510.809%209.5098%20523.383%200%20537.7%200L538%200L538%2053L0%2053Z%22/></svg>'),
+        linear-gradient(black, black), linear-gradient(black, black), linear-gradient(black, black);
+      -webkit-mask-size:
+        538px 53px,
+        calc(50% - 268px) 53px,
+        calc(50% - 268px) 53px,
+        100% calc(100% - 52px);
+      -webkit-mask-position:
+        top center,
+        top left,
+        top right,
+        bottom left;
+      -webkit-mask-repeat: no-repeat;
+      mask-image:
+        url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20538%2053%22><path%20fill=%22black%22%20d=%22M0%200C13.956%200%2026.337%209.11222%2030.501%2022.488L32.999%2030.512C37.163%2043.8878%2049.544%2053%2063.553%2053L474.3%2053C488.617%2053%20501.191%2043.4902%20505.09%2029.7143L506.91%2023.2857C510.809%209.5098%20523.383%200%20537.7%200L538%200L538%2053L0%2053Z%22/></svg>'),
+        linear-gradient(black, black), linear-gradient(black, black), linear-gradient(black, black);
+      mask-size:
+        538px 53px,
+        calc(50% - 268px) 53px,
+        calc(50% - 268px) 53px,
+        100% calc(100% - 52px);
+      mask-position:
+        top center,
+        top left,
+        top right,
+        bottom left;
+      mask-repeat: no-repeat;
+    }
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────────
+     CENA DO LOGIN — portada da implementação de referência (o pacote da
+     animação), adaptada à arquitetura deste projeto.
+
+     Ela é a ÚNICA tela com laranja no fundo, e isso é deliberado: é a primeira
+     impressão da marca, antes de a pessoa entrar na ferramenta. Dentro da
+     aplicação o laranja volta a ser só acento e a decoração volta a ser a peça
+     preta. Não estenda estas classes para nenhuma tela autenticada.
+
+     As animações não precisam de guarda própria: o bloco global de
+     `prefers-reduced-motion` no fim deste arquivo já zera a duração, e como
+     todas usam `forwards`, o estado final continua valendo.
+     ───────────────────────────────────────────────────────────────────────── */
+  .login-scene {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: radial-gradient(140% 130% at 80% 12%, #100d0b 0%, #0a0806 45%, #050403 100%);
+  }
+
+  /* A esfera laranja subindo do canto inferior esquerdo. */
+  .login-orb {
+    position: absolute;
+    left: -34%;
+    bottom: -46%;
+    width: min(95vw, 950px);
+    height: min(95vw, 950px);
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 50% 50%,
+      #ff8a3c 0%,
+      #ff6a1f 20%,
+      #f0480c 34%,
+      rgba(196, 52, 8, 0.62) 48%,
+      rgba(120, 34, 8, 0.22) 60%,
+      rgba(40, 18, 8, 0) 72%
+    );
+    filter: blur(22px);
+    transform-origin: 45% 55%;
+    opacity: 0;
+    animation:
+      loginOrbIn 1.8s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards,
+      loginBreathe 11s ease-in-out 1.9s infinite;
+  }
+
+  /* O halo esbranquiçado na borda superior da esfera. */
+  .login-orb-soft {
+    position: absolute;
+    left: -6%;
+    bottom: 32%;
+    width: min(52vw, 560px);
+    height: min(52vw, 560px);
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle at 55% 60%,
+      rgba(255, 244, 232, 0.5) 0%,
+      rgba(255, 214, 176, 0.26) 24%,
+      rgba(255, 170, 110, 0.1) 46%,
+      rgba(255, 150, 90, 0) 64%
+    );
+    filter: blur(44px);
+    mix-blend-mode: screen;
+    opacity: 0;
+    animation:
+      loginHaloIn 2.2s ease-out 0.2s forwards,
+      loginBreatheSoft 11s ease-in-out 1.9s infinite;
+  }
+
+  /* Grão de filme: é ele que tira o aspecto de degradê de CSS. */
+  .login-grain {
+    position: absolute;
+    inset: -50%;
+    opacity: 0.06;
+    mix-blend-mode: screen;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: loginGrain 6s steps(6) infinite;
+  }
+
+  @keyframes loginOrbIn {
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes loginHaloIn {
+    to {
+      opacity: 0.9;
+    }
+  }
+  @keyframes loginBreathe {
+    0%,
+    100% {
+      transform: translate(-6%, -6%) scale(1);
+    }
+    50% {
+      transform: translate(8%, 16%) scale(1.04);
+    }
+  }
+  @keyframes loginBreatheSoft {
+    0%,
+    100% {
+      transform: translate(-6%, -6%) scale(1);
+      opacity: 0.85;
+    }
+    50% {
+      transform: translate(8%, 16%) scale(1.04);
+      opacity: 0.95;
+    }
+  }
+  @keyframes loginGrain {
+    0% {
+      transform: translate(0, 0);
+    }
+    100% {
+      transform: translate(-6%, 4%);
+    }
+  }
+
+  /* A troca de etapa do campo único: o conteúdo antigo sai, o novo entra. */
+  @keyframes loginStepIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* A escultura do fundo.
+
+     Mora aqui, e não em classes do Tailwind na feature, por dois motivos: a
+     máscara precisa do par prefixado (`-webkit-mask-image`), que utilitário
+     arbitrário não gera; e a rotação é da PEÇA, não do layout — quem
+     posicionar a imagem não deve poder desalinhá-la sem querer.
+
+     A máscara é diagonal de propósito: ela apaga a peça justamente onde os
+     cartões começam, para que a escultura nunca dispute leitura com dado. */
+  .decor-blob {
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transform: rotate(-7deg);
+    -webkit-mask-image: linear-gradient(to bottom left, #000 30%, transparent 78%);
+    mask-image: linear-gradient(to bottom left, #000 30%, transparent 78%);
+  }
+
+  /* ── Cartão com recorte (notch) ────────────────────────────────────────────
+     Uma moeda apoiada no canto superior direito: a área do botão, mais uma
+     folga em volta, é REMOVIDA do cartão. O botão ocupa esse vazio.
+
+     A SILHUETA. Percorrendo a borda da esquerda para a direita:
+
+       reta → filete convexo → arco côncavo do recorte → filete convexo → reta
+
+     Os dois filetes são o ponto todo: sem eles o arco do recorte encontrava a
+     aresta de cima e a borda da direita em ângulo, e a virada lia como quina.
+     Cada filete é tangente à reta e tangente por fora ao círculo do recorte,
+     então a borda troca de curvatura sem nenhum canto. São eles, e não o
+     recorte, que dão a curva em S larga do desenho — por isso `rho` é grande.
+
+     Por que um path e não um `radial-gradient`: um gradiente só sabe desenhar
+     UM círculo. A silhueta acima tem três arcos de raios diferentes que
+     precisam se encontrar em tangência exata — isso é um caminho, não um
+     gradiente.
+
+     GEOMETRIA (espaço local do canto, 80×80, vértice do cartão em 80,0):
+
+       c   = 16   centro do recorte E do botão, a partir do vértice
+       r   = 30   raio do recorte (raio do botão 22 + 8 de folga)
+       rho = 20   raio dos filetes
+
+     Recorte e botão são CONCÊNTRICOS: é o que mantém a folga constante em
+     todo o arco. Daí saem os pontos do path — o filete de cima começa em
+     x = c − √((r+rho)² − (rho−c)²) = 14.16 e toca o recorte em
+     (34.1 · 18.4); por simetria o da direita vai de (61.6 · 45.9) até
+     y = 65.84. A mordida resultante mede 65.84×65.84.
+     MEXEU EM c, r OU rho? O path precisa ser recalculado — ele é fixo.
+     Condição a manter: hipotenusa(c, c) < r, senão sobra uma lasca de cartão
+     espremida no vértice.
+
+     COMO A MÁSCARA É MONTADA. Três camadas somadas (`mask-composite` fica no
+     padrão, que é `add`):
+
+       1. o path acima, 80×80, ancorado em `top right`
+       2. um retângulo opaco cobrindo tudo à esquerda desse quadrado
+       3. um retângulo opaco cobrindo tudo abaixo dele
+
+     A união é o cartão inteiro menos o recorte. Os outros três cantos
+     continuam vindo do `border-radius` do elemento, que a máscara não toca.
+
+     Por que máscara e não um pseudo-elemento tapando o canto: o fundo do shell
+     tem gradiente, então "tapar" com a cor do fundo apareceria. A máscara
+     recorta de verdade — o gradiente do shell aparece dentro do corte.
+
+     A BORDA. A máscara corta a borda de 1px do vidro junto com o resto, então
+     `::after` redesenha o traço ao longo da curva: ele é um retângulo pintado
+     com `--glass-border` e mascarado pelo MESMO caminho, agora com `stroke`.
+     O traço tem 2px e a máscara principal come a metade de fora, sobrando o
+     1px certo. A cor sai da variável — não há hex repetido aqui.
+
+     Quem usa: `<NotchSurface>` em @/components/ui. As medidas do botão ficam
+     no invólucro (`.notch-host`) porque ele vive FORA do elemento mascarado —
+     a máscara também o esconderia. */
+  .notch-host {
+    --notch-button: 44px;
+    /* Quanto o botão extravasa o vértice. Com o botão de 44 e c = 16, sai de
+       22 − c: mexer aqui sem mexer no path desalinha os dois. */
+    --notch-offset: 6px;
+    /* Lado do quadrado que o path do canto ocupa. Ver a geometria acima. */
+    --notch-corner: 80px;
+  }
+
+  /* O botão encaixado no vazio. */
+  .notch-slot {
+    position: absolute;
+    top: calc(var(--notch-offset) * -1);
+    right: calc(var(--notch-offset) * -1);
+    width: var(--notch-button);
+    height: var(--notch-button);
+  }
+
+  .notch-surface {
+    /* O cartão de recorte é mais escuro e tem a borda mais presente que o
+       resto do vidro — é assim que ele se separa da tabela logo abaixo. */
+    --surface: #040b0d;
+    --glass-border: rgba(255, 255, 255, 0.18);
+
+    position: relative;
+    /* Um pouco translúcido: é o que deixa a nuance do fundo atravessar o
+       vidro, como no desenho. Opaco, o cartão vira um bloco chapado. */
+    background-color: color-mix(in srgb, var(--surface) 86%, transparent);
+
+    -webkit-mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2080%2080%22><path%20fill=%22%23000%22%20d=%22M0%2C0L14.16%2C0A20%2C20%200%200%201%2034.1%2C18.4A30%2C30%200%200%200%2061.6%2C45.9A20%2C20%200%200%201%2080%2C65.84L80%2C80L0%2C80Z%22/></svg>'),
+      linear-gradient(#000, #000), linear-gradient(#000, #000);
+    -webkit-mask-size:
+      var(--notch-corner) var(--notch-corner),
+      calc(100% - var(--notch-corner)) 100%,
+      var(--notch-corner) calc(100% - var(--notch-corner));
+    -webkit-mask-position:
+      top right,
+      top left,
+      bottom right;
+    -webkit-mask-repeat: no-repeat;
+    mask-image:
+      url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2080%2080%22><path%20fill=%22%23000%22%20d=%22M0%2C0L14.16%2C0A20%2C20%200%200%201%2034.1%2C18.4A30%2C30%200%200%200%2061.6%2C45.9A20%2C20%200%200%201%2080%2C65.84L80%2C80L0%2C80Z%22/></svg>'),
+      linear-gradient(#000, #000), linear-gradient(#000, #000);
+    mask-size:
+      var(--notch-corner) var(--notch-corner),
+      calc(100% - var(--notch-corner)) 100%,
+      var(--notch-corner) calc(100% - var(--notch-corner));
+    mask-position:
+      top right,
+      top left,
+      bottom right;
+    mask-repeat: no-repeat;
+  }
+
+  /* Traço da curva do recorte — ver "A BORDA" acima. */
+  .notch-surface::after {
+    content: '';
+    position: absolute;
+    /* -1px = a espessura da borda do vidro. `inset: 0` mediria pelo padding
+       box, enquanto a máscara principal mede pelo border box; a diferença de
+       1px aparecia como um degrauzinho na emenda entre a borda reta e o
+       começo da curva. */
+    inset: -1px;
+    pointer-events: none;
+    background: var(--glass-border);
+    -webkit-mask-image: url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2080%2080%22><path%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222%22%20d=%22M14.16%2C0A20%2C20%200%200%201%2034.1%2C18.4A30%2C30%200%200%200%2061.6%2C45.9A20%2C20%200%200%201%2080%2C65.84%22/></svg>');
+    -webkit-mask-size: var(--notch-corner) var(--notch-corner);
+    -webkit-mask-position: top right;
+    -webkit-mask-repeat: no-repeat;
+    mask-image: url('data:image/svg+xml,<svg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2080%2080%22><path%20fill=%22none%22%20stroke=%22%23000%22%20stroke-width=%222%22%20d=%22M14.16%2C0A20%2C20%200%200%201%2034.1%2C18.4A30%2C30%200%200%200%2061.6%2C45.9A20%2C20%200%200%201%2080%2C65.84%22/></svg>');
+    mask-size: var(--notch-corner) var(--notch-corner);
+    mask-position: top right;
+    mask-repeat: no-repeat;
   }
 }

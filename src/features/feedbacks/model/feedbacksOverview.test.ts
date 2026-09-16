@@ -35,12 +35,7 @@ function member(id: string, overrides: Partial<Member> = {}): Member {
   };
 }
 
-function feedback(
-  id: string,
-  memberId: string,
-  type: FeedbackType,
-  givenAt: string,
-): Feedback {
+function feedback(id: string, memberId: string, type: FeedbackType, givenAt: string): Feedback {
   return {
     id,
     memberId,
@@ -71,9 +66,10 @@ describe('aggregateFeedbacksByMember', () => {
   });
 
   it('inclui quem não tem feedback nenhum, com contagem zero', () => {
-    const rows = aggregateFeedbacksByMember([member('a'), member('b')], [
-      feedback('f1', 'a', 'informal', '2026-01-10'),
-    ]);
+    const rows = aggregateFeedbacksByMember(
+      [member('a'), member('b')],
+      [feedback('f1', 'a', 'informal', '2026-01-10')],
+    );
 
     const b = rows.find((row) => row.member.id === 'b');
     expect(b?.total).toBe(0);
@@ -177,9 +173,7 @@ describe('applyFeedbackFilters', () => {
 
   it('reconhece quando há filtro ativo', () => {
     expect(hasActiveFeedbackFilters(DEFAULT_FEEDBACKS_FILTERS)).toBe(false);
-    expect(
-      hasActiveFeedbackFilters({ ...DEFAULT_FEEDBACKS_FILTERS, type: 'formal' }),
-    ).toBe(true);
+    expect(hasActiveFeedbackFilters({ ...DEFAULT_FEEDBACKS_FILTERS, type: 'formal' })).toBe(true);
   });
 });
 

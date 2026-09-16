@@ -48,7 +48,7 @@ export function FeatureStub({
           <h2 className="mt-1 text-foreground">{goal}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Responsável: <strong className="text-foreground-secondary">{owner}</strong>. Esta tela é
-            um espaço reservado — a implementação é sua.
+            um espaço reservado. A implementação é sua.
           </p>
         </div>
       </div>
@@ -128,7 +128,9 @@ function CodeList({ items, tone = 'neutral' }: { items: string[]; tone?: 'neutra
     <ul className="flex flex-col gap-1">
       {items.map((item) => (
         <li key={item}>
-          <code className={tone === 'bad' ? 'text-xs text-bad' : 'text-xs text-foreground-secondary'}>
+          <code
+            className={tone === 'bad' ? 'text-xs text-bad' : 'text-xs text-foreground-secondary'}
+          >
             {item}
           </code>
         </li>

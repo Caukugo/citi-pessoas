@@ -173,11 +173,7 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async create(input) {
-      const { data, error } = await supabase()
-        .from('x1s')
-        .insert(toX1Row(input))
-        .select()
-        .single();
+      const { data, error } = await supabase().from('x1s').insert(toX1Row(input)).select().single();
       if (error) fail(error, 'Erro ao criar X1');
       return fromX1Row(data);
     },

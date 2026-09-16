@@ -40,9 +40,9 @@ async function signIn(user: ReturnType<typeof userEvent.setup>) {
     </MemoryRouter>,
   );
 
-  await user.type(await screen.findByLabelText(/e-mail/i), 'gg@citi.org.br');
-  await user.type(screen.getByLabelText(/^Senha/), 'citi123');
-  await user.click(screen.getByRole('button', { name: /entrar/i }));
+  // O login é UM campo em duas etapas: usuário, Enter, senha, Enter.
+  await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+  await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
   await screen.findByRole('heading', { name: 'Membros' });
 }
@@ -137,10 +137,7 @@ describe('fluxo Membros → Perfil → X1', () => {
 
     const drawer = await screen.findByRole('dialog', { name: /registrar primeiro x1/i });
 
-    await user.selectOptions(
-      within(drawer).getByLabelText(/quem conduziu/i),
-      'mbr-001',
-    );
+    await user.selectOptions(within(drawer).getByLabelText(/quem conduziu/i), 'mbr-001');
     // `paste` em vez de `type`: digitar 40 caracteres um a um é o passo mais
     // lento do teste e não é o que está sendo verificado aqui.
     await user.click(within(drawer).getByLabelText(/^Resumo/));
@@ -151,9 +148,7 @@ describe('fluxo Membros → Perfil → X1', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     // O histórico passou a existir…
-    expect(
-      await screen.findByText('Primeira conversa. Boa adaptação ao squad.'),
-    ).toBeVisible();
+    expect(await screen.findByText('Primeira conversa. Boa adaptação ao squad.')).toBeVisible();
 
     // …e a situação derivou junto, sem ninguém gravar "em dia" em lugar nenhum.
     await waitFor(() => expect(screen.getAllByText(/em dia/i).length).toBeGreaterThan(0));
@@ -173,9 +168,8 @@ describe('fluxo Membros → Perfil → X1', () => {
       </MemoryRouter>,
     );
 
-    await user.type(await screen.findByLabelText(/e-mail/i), 'gg@citi.org.br');
-    await user.type(screen.getByLabelText(/^Senha/), 'citi123');
-    await user.click(screen.getByRole('button', { name: /entrar/i }));
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
     expect(await screen.findByText(/este membro não existe/i)).toBeVisible();
     // Lembrete da regra: membro nunca é apagado, então some da lista por

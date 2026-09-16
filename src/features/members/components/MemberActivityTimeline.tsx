@@ -59,10 +59,7 @@ export function MemberActivityTimeline({
       {isLoading ? (
         <LoadingState label="Carregando atividade…" />
       ) : isError ? (
-        <ErrorState
-          title="Não foi possível carregar a atividade"
-          onRetry={() => void refetch()}
-        />
+        <ErrorState title="Não foi possível carregar a atividade" onRetry={() => void refetch()} />
       ) : visible.length === 0 ? (
         <EmptyState
           title="Nada registrado ainda"

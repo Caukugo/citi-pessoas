@@ -43,8 +43,7 @@ export const mockAdapter: DataAdapter = {
       if (filters?.search) {
         const term = normalizeText(filters.search);
         result = result.filter(
-          (m) =>
-            normalizeText(m.fullName).includes(term) || normalizeText(m.email).includes(term),
+          (m) => normalizeText(m.fullName).includes(term) || normalizeText(m.email).includes(term),
         );
       }
       if (filters?.area) result = result.filter((m) => m.area === filters.area);
@@ -70,7 +69,12 @@ export const mockAdapter: DataAdapter = {
         throw new DataError('conflict', `Já existe um membro com o e-mail ${input.email}.`);
       }
 
-      const member: Member = { ...input, id: mockId('mbr'), createdAt: nowISO(), updatedAt: nowISO() };
+      const member: Member = {
+        ...input,
+        id: mockId('mbr'),
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      };
       db.members.push(member);
 
       // Toda entrada vira evento — é o que preserva o histórico.

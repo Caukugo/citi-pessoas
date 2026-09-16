@@ -39,12 +39,11 @@ export function X1EmptyState({
       <p className="text-sm font-semibold text-foreground">Nenhum X1 registrado ainda</p>
 
       <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-muted-foreground">
-        {firstName} está com o <strong className="text-foreground-secondary">primeiro X1 pendente</strong> —
-        isso não é atraso, é o começo da jornada.{' '}
+        {firstName} está com o{' '}
+        <strong className="text-foreground-secondary">primeiro X1 pendente</strong>, e isso não é
+        atraso, é o começo da jornada.{' '}
         {daysInCiti >= 0 && daysInCiti < 400 && (
-          <>
-            Entrou no CITi há {daysInCiti === 0 ? 'menos de um dia' : `${daysInCiti} dias`}.{' '}
-          </>
+          <>Entrou no CITi há {daysInCiti === 0 ? 'menos de um dia' : `${daysInCiti} dias`}. </>
         )}
         A primeira conversa é o que dá contexto para todo o acompanhamento seguinte.
       </p>

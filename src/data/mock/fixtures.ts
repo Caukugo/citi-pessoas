@@ -39,9 +39,27 @@ const NOW = new Date().toISOString();
 // ─── Gestões ──────────────────────────────────────────────────────────────────
 
 export const GESTOES: Gestao[] = [
-  { id: 'gst-2026-2', name: '2026.2', startDate: '2026-07-01', endDate: '2026-12-31', status: 'ativa' },
-  { id: 'gst-2026-1', name: '2026.1', startDate: '2026-01-01', endDate: '2026-06-30', status: 'finalizada' },
-  { id: 'gst-2025-2', name: '2025.2', startDate: '2025-07-01', endDate: '2025-12-31', status: 'finalizada' },
+  {
+    id: 'gst-2026-2',
+    name: '2026.2',
+    startDate: '2026-07-01',
+    endDate: '2026-12-31',
+    status: 'ativa',
+  },
+  {
+    id: 'gst-2026-1',
+    name: '2026.1',
+    startDate: '2026-01-01',
+    endDate: '2026-06-30',
+    status: 'finalizada',
+  },
+  {
+    id: 'gst-2025-2',
+    name: '2025.2',
+    startDate: '2025-07-01',
+    endDate: '2025-12-31',
+    status: 'finalizada',
+  },
 ];
 
 export const CURRENT_GESTAO_ID = 'gst-2026-2';
@@ -435,7 +453,7 @@ const SEED_MEMBERS: SeedMember[] = [
     squad: null,
     managerId: null,
     ggResponsibleId: null,
-    course: 'Comunicação Social — Publicidade e Propaganda',
+    course: 'Comunicação Social: Publicidade e Propaganda',
     semester: null,
     university: null,
     department: null,
@@ -500,7 +518,11 @@ const SEED_X1S: SeedX1[] = [
     desiredSkills: ['Liderança técnica', 'Arquitetura de frontend'],
     citiValues: [
       { value: 'Eu sou o CITi', rating: 5, note: 'Muito presente na cultura da squad.' },
-      { value: 'Obcecados por aprender', rating: 5, note: 'Estudou TypeScript avançado por conta própria.' },
+      {
+        value: 'Obcecados por aprender',
+        rating: 5,
+        note: 'Estudou TypeScript avançado por conta própria.',
+      },
       { value: 'Obcecados por vencer', rating: 4, note: null },
       { value: 'Obcecados por entregar', rating: 4, note: 'Cumpriu todos os prazos do ciclo.' },
     ],
@@ -813,7 +835,7 @@ const SEED_FEEDBACKS: SeedFeedback[] = [
     givenAt: daysAgo(6),
     registeredById: 'mbr-002',
     notes:
-      'Contexto acadêmico. Revisitar depois da semana de provas — a redução de carga é temporária e combinada.',
+      'Contexto acadêmico. Revisitar depois da semana de provas. A redução de carga é temporária e combinada.',
   },
 
   // Sem quem registrou: registro antigo ou importado. A tela não pode quebrar.
@@ -954,7 +976,7 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
   {
     id: 'anon-006',
     content:
-      'Queria trazer uma coisa que venho sentindo há algumas semanas e que acho que não sou só eu. A carga combinada no começo do ciclo não bate com o que aparece depois. A gente combina uma coisa no planejamento, e no meio do ciclo aparecem pedidos fora do que foi acordado, sempre com urgência. Individualmente cada pedido é pequeno e faz sentido, então fica difícil dizer não sem parecer que você não está colaborando. Só que somados eles ocupam boa parte da semana, e aí a entrega que estava combinada atrasa — e é essa que aparece na retro. Não estou falando de ninguém específico, é mais um padrão de como as coisas chegam. Acho que ajudaria muito se pedido novo no meio do ciclo passasse pela mesma conversa que o planejamento passou, mesmo que fosse uma conversa de cinco minutos. Também acho que ajudaria se ficasse registrado em algum lugar que aquilo entrou fora do combinado, porque hoje some.',
+      'Queria trazer uma coisa que venho sentindo há algumas semanas e que acho que não sou só eu. A carga combinada no começo do ciclo não bate com o que aparece depois. A gente combina uma coisa no planejamento, e no meio do ciclo aparecem pedidos fora do que foi acordado, sempre com urgência. Individualmente cada pedido é pequeno e faz sentido, então fica difícil dizer não sem parecer que você não está colaborando. Só que somados eles ocupam boa parte da semana, e aí a entrega que estava combinada atrasa, e é essa que aparece na retro. Não estou falando de ninguém específico, é mais um padrão de como as coisas chegam. Acho que ajudaria muito se pedido novo no meio do ciclo passasse pela mesma conversa que o planejamento passou, mesmo que fosse uma conversa de cinco minutos. Também acho que ajudaria se ficasse registrado em algum lugar que aquilo entrou fora do combinado, porque hoje some.',
     targetType: 'citi',
     targetMemberId: null,
     targetLabel: null,
@@ -1074,7 +1096,7 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
     directedMemberId: null,
     moderatedById: 'mbr-001',
     moderatedAt: daysAgo(32),
-    moderationNote: 'Sem indicação de quem — não dá para direcionar. GG está ciente.',
+    moderationNote: 'Sem indicação de quem, não dá para direcionar. GG está ciente.',
   },
   {
     id: 'anon-014',

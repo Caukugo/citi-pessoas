@@ -26,17 +26,22 @@ const TONE_CLASS: Record<Tone, string> = {
  */
 export function Badge({
   tone = 'neutral',
+  pill = false,
   children,
   className,
 }: {
   tone?: Tone;
+  /** Formato pílula em vez do raio padrão. Propriedade, e não `className`,
+   *  porque `rounded-full` e `rounded-lg` são a mesma família de utilitário. */
+  pill?: boolean;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-lg border px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center gap-1 border px-2.5 py-0.5 text-xs font-semibold',
+        pill ? 'rounded-full' : 'rounded-lg',
         TONE_CLASS[tone],
         className,
       )}
@@ -49,10 +54,18 @@ export function Badge({
 export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
 const AVATAR_SIZE: Record<AvatarSize, string> = {
-  sm: 'w-9 h-9 text-xs rounded-control',
-  md: 'w-11 h-11 text-sm rounded-control',
-  lg: 'w-16 h-16 text-xl rounded-surface',
-  xl: 'w-20 h-20 text-2xl rounded-surface',
+  sm: 'w-9 h-9 text-xs',
+  md: 'w-11 h-11 text-sm',
+  lg: 'w-16 h-16 text-xl',
+  xl: 'w-20 h-20 text-2xl',
+};
+
+/** Raio padrão por tamanho — `shape="circle"` troca tudo por um círculo. */
+const AVATAR_RADIUS: Record<AvatarSize, string> = {
+  sm: 'rounded-control',
+  md: 'rounded-control',
+  lg: 'rounded-surface',
+  xl: 'rounded-surface',
 };
 
 /**
@@ -63,21 +76,30 @@ export function Avatar({
   name,
   photoUrl,
   size = 'sm',
+  shape = 'rounded',
   className,
 }: {
   name: string;
   photoUrl?: string | null;
   size?: AvatarSize;
+  /** `circle` para listagens de pessoas; `rounded` mantém o raio do sistema. */
+  shape?: 'rounded' | 'circle';
   className?: string;
 }) {
   const color = colorFromName(name);
+  const radius = shape === 'circle' ? 'rounded-full' : AVATAR_RADIUS[size];
 
   if (photoUrl) {
     return (
       <img
         src={photoUrl}
         alt={name}
-        className={cn(AVATAR_SIZE[size], 'shrink-0 border border-border object-cover', className)}
+        className={cn(
+          AVATAR_SIZE[size],
+          radius,
+          'shrink-0 border border-border object-cover',
+          className,
+        )}
       />
     );
   }
@@ -88,6 +110,7 @@ export function Avatar({
       aria-label={name}
       className={cn(
         AVATAR_SIZE[size],
+        radius,
         'flex shrink-0 items-center justify-center border font-semibold',
         className,
       )}

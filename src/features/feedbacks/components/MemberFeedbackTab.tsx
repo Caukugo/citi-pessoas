@@ -1,13 +1,6 @@
 import { useState } from 'react';
 import { MessageSquarePlus, Plus } from 'lucide-react';
-import {
-  Button,
-  Chip,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  Surface,
-} from '@/components/ui';
+import { Button, Chip, EmptyState, ErrorState, LoadingState, Surface } from '@/components/ui';
 import type { ID, Member } from '@/data';
 import {
   FEEDBACK_TYPES,
@@ -88,7 +81,7 @@ export function MemberFeedbackTab({
       <Surface>
         <ErrorState
           title="Não foi possível carregar os feedbacks"
-          description="O histórico desta pessoa não chegou. Nada foi perdido — tente de novo."
+          description="O histórico desta pessoa não chegou. Nada foi perdido, tente de novo."
           onRetry={overview.refetch}
         />
       </Surface>
@@ -101,7 +94,7 @@ export function MemberFeedbackTab({
         <EmptyState
           icon={<MessageSquarePlus size={20} aria-hidden />}
           title="Nenhum feedback registrado"
-          description={`Os feedbacks de acompanhamento de ${member.fullName} aparecerão aqui — Informal, Formal e Carta de Ajuste, cada um como um registro independente.`}
+          description={`Os feedbacks de acompanhamento de ${member.fullName} aparecerão aqui: Informal, Formal e Carta de Ajuste, cada um como um registro independente.`}
           action={
             <Button variant="primary" icon={<Plus size={15} />} onClick={onRegister}>
               Registrar feedback

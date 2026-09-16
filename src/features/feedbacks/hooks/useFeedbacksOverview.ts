@@ -35,9 +35,7 @@ export interface FeedbacksOverviewResult {
   refetch: () => void;
 }
 
-export function useFeedbacksOverview(
-  filters: FeedbacksListFilters,
-): FeedbacksOverviewResult {
+export function useFeedbacksOverview(filters: FeedbacksListFilters): FeedbacksOverviewResult {
   // Sem filtro na consulta: a mesma chave de cache que `useMemberDirectory`
   // usa, então esta tela não gera uma segunda ida ao adapter.
   const membersQuery = useMembers();

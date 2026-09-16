@@ -20,7 +20,7 @@ import { memberNameById } from '../model/membersList';
  * que registrar uma conversa não dependa de descobrir uma aba antes.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 export function MemberProfileHeader({
   member,

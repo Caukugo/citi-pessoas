@@ -43,7 +43,7 @@ export function X1Form({
             label="Quem conduziu"
             hint={
               conductors.length === 0
-                ? 'Nenhum gerente ou pessoa de GG cadastrada ainda — cadastre quem conduz antes de registrar o X1.'
+                ? 'Nenhum gerente ou pessoa de GG cadastrada ainda. Cadastre quem conduz antes de registrar o X1.'
                 : undefined
             }
             error={errors.conductedById?.message}
@@ -203,9 +203,7 @@ export function X1Form({
           <Controller
             control={control}
             name="citiValues"
-            render={({ field }) => (
-              <X1ValuesField value={field.value} onChange={field.onChange} />
-            )}
+            render={({ field }) => <X1ValuesField value={field.value} onChange={field.onChange} />}
           />
         </div>
       </FormSection>

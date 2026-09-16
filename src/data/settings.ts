@@ -21,10 +21,7 @@ export function updateSettings(input: Partial<Omit<Settings, 'updatedAt'>>): Pro
 }
 
 /** Define ou remove a exceção de periodicidade de um membro. */
-export async function setMemberX1Periodicity(
-  memberId: ID,
-  days: number | null,
-): Promise<Settings> {
+export async function setMemberX1Periodicity(memberId: ID, days: number | null): Promise<Settings> {
   const current = await getSettings();
   const next = { ...current.x1PeriodicityByMember };
 

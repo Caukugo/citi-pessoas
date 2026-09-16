@@ -87,7 +87,7 @@ export function CreateMemberDrawer({
         message: `${member.fullName} foi cadastrada`,
         // A situação inicial é sempre "primeiro X1 pendente": ninguém nasce
         // atrasado. Dizer isso aqui evita a leitura de que algo já está errado.
-        description: 'Primeiro X1 pendente — ainda não houve nenhuma conversa registrada.',
+        description: 'Primeiro X1 pendente: ainda não houve nenhuma conversa registrada.',
         tone: 'success',
         action: {
           label: 'Abrir perfil',

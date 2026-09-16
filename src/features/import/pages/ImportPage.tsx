@@ -31,7 +31,7 @@ export function ImportPage() {
           'Abrir a planilha real e conferir os nomes de coluna (IMPORT-001).',
           'Corrigir COLUMN_ALIASES em src/data/import/membersImport.ts (IMPORT-002).',
           'Tela: escolher o arquivo, ler com previewMembersCsv() e mostrar o relatório (IMPORT-003).',
-          'Mostrar TODOS os problemas antes de importar — linha, campo e motivo (IMPORT-006).',
+          'Mostrar TODOS os problemas antes de importar: linha, campo e motivo (IMPORT-006).',
           'Confirmar a importação com createMembers(); duplicados são reportados, não gravados (IMPORT-004, IMPORT-005).',
         ]}
         files={[

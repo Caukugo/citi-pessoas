@@ -57,7 +57,7 @@ export const x1FormSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['occurredAt'],
-        message: 'A data não pode estar no futuro — registre o X1 depois que ele acontecer.',
+        message: 'A data não pode estar no futuro. Registre o X1 depois que ele acontecer.',
       });
     }
 
@@ -74,7 +74,7 @@ export const x1FormSchema = z
         code: z.ZodIssueCode.custom,
         path: ['summary'],
         message:
-          'Escreva pelo menos o resumo, um ponto discutido ou um encaminhamento — senão o registro não conta nada sobre a conversa.',
+          'Escreva pelo menos o resumo, um ponto discutido ou um encaminhamento, senão o registro não conta nada sobre a conversa.',
       });
     }
   });

@@ -59,7 +59,7 @@ export function DesignSystemPage() {
     <>
       <PageHeader
         title="Design System"
-        subtitle="Todos os componentes compartilhados da plataforma. Use estes — não crie versões próprias."
+        subtitle="Todos os componentes compartilhados da plataforma. Use estes, não crie versões próprias."
       />
 
       <ButtonsSection />
@@ -78,7 +78,7 @@ export function DesignSystemPage() {
 
 function ButtonsSection() {
   return (
-    <Panel title="Botões" subtitle="Só um botão primary por bloco — ele indica a ação principal.">
+    <Panel title="Botões" subtitle="Só um botão primary por bloco. Ele indica a ação principal.">
       <div className="flex flex-col gap-5">
         <Row label="Variantes">
           <Button variant="primary">Primary</Button>
@@ -196,7 +196,7 @@ function FormsSection() {
 
 function DisplaySection() {
   return (
-    <Panel title="Indicadores" subtitle="O tom do Badge carrega significado — não escolha por cor.">
+    <Panel title="Indicadores" subtitle="O tom do Badge carrega significado. Não escolha por cor.">
       <div className="flex flex-col gap-5">
         <Row label="Badges">
           <Badge tone="ok">Em dia</Badge>
@@ -214,7 +214,7 @@ function DisplaySection() {
         </Row>
 
         <Row label="Tooltip">
-          <Tooltip content="Só para apoio — nunca esconda informação essencial aqui.">
+          <Tooltip content="Só para apoio. Nunca esconda informação essencial aqui.">
             <Button>Passe o mouse</Button>
           </Tooltip>
         </Row>
@@ -246,10 +246,7 @@ function StatesSection() {
         />
       </Card>
       <Card className="p-0">
-        <ErrorState
-          description="Não conseguimos falar com o servidor."
-          onRetry={() => undefined}
-        />
+        <ErrorState description="Não conseguimos falar com o servidor." onRetry={() => undefined} />
       </Card>
       <Card>
         <p className="mb-3 text-xs text-muted-foreground">Skeleton</p>
@@ -363,7 +360,7 @@ function OverlaysSection() {
         onClose={() => setDrawer(false)}
         size="lg"
         title="Detalhe do feedback"
-        subtitle="`size` aceita md, lg e xl — escolha pela altura do conteúdo."
+        subtitle="`size` aceita md, lg e xl. Escolha pela altura do conteúdo."
       >
         <p className="text-sm text-muted-foreground">
           Use o Drawer para formulário longo: rodapé fixo, rolagem interna e a lista de origem
@@ -394,16 +391,10 @@ function ToastSection() {
       subtitle="Toast confirma o que já aconteceu; erro que exige decisão fica na tela."
     >
       <Row label="Toast">
-        <Button
-          onClick={() => showToast({ message: 'X1 registrado', tone: 'success' })}
-        >
+        <Button onClick={() => showToast({ message: 'X1 registrado', tone: 'success' })}>
           Sucesso
         </Button>
-        <Button
-          onClick={() =>
-            showToast({ message: 'Não foi possível salvar', tone: 'error' })
-          }
-        >
+        <Button onClick={() => showToast({ message: 'Não foi possível salvar', tone: 'error' })}>
           Erro
         </Button>
         <Button
@@ -454,7 +445,10 @@ function LiveExampleSection() {
       {isLoading ? (
         <LoadingState label="Carregando membros…" />
       ) : isError ? (
-        <ErrorState description={error instanceof Error ? error.message : undefined} onRetry={refetch} />
+        <ErrorState
+          description={error instanceof Error ? error.message : undefined}
+          onRetry={refetch}
+        />
       ) : !members?.length ? (
         <EmptyState
           title="Nenhum membro encontrado"

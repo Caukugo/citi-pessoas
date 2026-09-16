@@ -84,7 +84,7 @@ export function CreateX1Drawer({
       onClose={onClose}
       size="xl"
       title={isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
-      subtitle={`Conversa com ${memberName}. Cada registro é uma conversa — o histórico anterior continua intacto.`}
+      subtitle={`Conversa com ${memberName}. Cada registro é uma conversa, e o histórico anterior continua intacto.`}
       footer={
         <>
           <Button onClick={onClose} disabled={form.formState.isSubmitting}>

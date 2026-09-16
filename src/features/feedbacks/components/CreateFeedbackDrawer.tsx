@@ -92,7 +92,7 @@ export function CreateFeedbackDrawer({
       title="Registrar feedback"
       subtitle={
         member
-          ? `Feedback para ${member.fullName}. Cada registro é independente — os anteriores continuam intactos.`
+          ? `Feedback para ${member.fullName}. Cada registro é independente, e os anteriores continuam intactos.`
           : 'Cada registro é independente. Registrar não substitui nem apaga nenhum feedback anterior.'
       }
       footer={

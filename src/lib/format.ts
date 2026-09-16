@@ -11,19 +11,19 @@ import { ptBR } from 'date-fns/locale';
 
 /** `'2026-03-15'` → `'15/03/2026'` */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), 'dd/MM/yyyy', { locale: ptBR });
 }
 
 /** `'2026-03-15'` → `'15 de março de 2026'` */
 export function formatDateLong(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), "d 'de' MMMM 'de' yyyy", { locale: ptBR });
 }
 
 /** `'2026-03-15T14:00:00Z'` → `'15/03/2026 às 11:00'` */
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
 }
 
@@ -36,7 +36,7 @@ export function daysSince(iso: string | null | undefined, now: Date = new Date()
 /** `'há 12 dias'`, `'hoje'`, `'em 3 dias'` — para timelines e listas. */
 export function relativeDays(iso: string | null | undefined, now: Date = new Date()): string {
   const diff = daysSince(iso, now);
-  if (diff === null) return '—';
+  if (diff === null) return '·';
   if (diff === 0) return 'hoje';
   if (diff === 1) return 'ontem';
   if (diff === -1) return 'amanhã';

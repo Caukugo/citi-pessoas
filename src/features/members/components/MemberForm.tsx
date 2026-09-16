@@ -94,7 +94,9 @@ export function MemberForm({
               {...register('ggResponsibleId')}
               disabled={!hasGgPeople}
               placeholder={
-                hasGgPeople ? 'Escolha uma pessoa de Gente e Gestão' : 'Nenhuma pessoa de GG cadastrada'
+                hasGgPeople
+                  ? 'Escolha uma pessoa de Gente e Gestão'
+                  : 'Nenhuma pessoa de GG cadastrada'
               }
               options={ggPeople.map((person) => ({ value: person.id, label: person.fullName }))}
             />
@@ -117,7 +119,10 @@ export function MemberForm({
         </FormField>
       </FormSection>
 
-      <FormSection title="Acadêmico" description="Tudo opcional — o que não souber agora, deixe em branco.">
+      <FormSection
+        title="Acadêmico"
+        description="Tudo opcional. O que não souber agora, deixe em branco."
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Departamento" error={errors.department?.message}>
             {(field) => <Input {...field} {...register('department')} placeholder="CIn" />}

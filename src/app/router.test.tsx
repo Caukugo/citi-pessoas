@@ -36,13 +36,13 @@ describe('app shell', () => {
   it('manda quem não está logado para a tela de login', async () => {
     renderAt(ROUTES.members);
 
-    expect(await screen.findByRole('heading', { name: /plataforma de pessoas/i })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: /o mundo começa aqui/i })).toBeVisible();
   });
 
   it('não oferece cadastro público na tela de login', async () => {
     renderAt(ROUTES.login);
 
-    await screen.findByRole('heading', { name: /plataforma de pessoas/i });
+    await screen.findByRole('heading', { name: /o mundo começa aqui/i });
     // Regra de produto: acesso é por convite, nunca por autorregistro.
     expect(screen.queryByText(/criar conta/i)).toBeNull();
     expect(screen.getByText(/não há cadastro público/i)).toBeVisible();
@@ -52,9 +52,8 @@ describe('app shell', () => {
     const user = userEvent.setup();
     renderAt(ROUTES.login);
 
-    await user.type(await screen.findByLabelText(/e-mail/i), 'gg@citi.org.br');
-    await user.type(screen.getByLabelText(/^Senha/), 'citi123');
-    await user.click(screen.getByRole('button', { name: /entrar/i }));
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
     // Depois do login a home redireciona para Membros.
     await waitFor(async () =>
@@ -71,9 +70,8 @@ describe('app shell', () => {
     const user = userEvent.setup();
     renderAt(ROUTES.login);
 
-    await user.type(await screen.findByLabelText(/e-mail/i), 'gg@citi.org.br');
-    await user.type(screen.getByLabelText(/^Senha/), 'senha-errada');
-    await user.click(screen.getByRole('button', { name: /entrar/i }));
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'senha-errada{Enter}');
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/incorretos/i);
   });

@@ -231,10 +231,7 @@ export function summarizeFeedbacks(rows: MemberFeedbackRow[]): FeedbacksSummary 
  * Recorta o histórico de uma pessoa por tipo, do mais recente para o mais
  * antigo. `type` indefinido devolve todos.
  */
-export function selectMemberFeedbacks(
-  feedbacks: Feedback[],
-  type?: FeedbackType,
-): Feedback[] {
+export function selectMemberFeedbacks(feedbacks: Feedback[], type?: FeedbackType): Feedback[] {
   return feedbacks
     .filter((feedback) => !type || feedback.type === type)
     .sort((a, b) => b.givenAt.localeCompare(a.givenAt));

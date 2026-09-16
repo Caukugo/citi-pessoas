@@ -1,11 +1,5 @@
 import { useMemo } from 'react';
-import {
-  useLastCompletedX1ByMember,
-  useMembers,
-  useSettings,
-  type ID,
-  type Member,
-} from '@/data';
+import { useLastCompletedX1ByMember, useMembers, useSettings, type ID, type Member } from '@/data';
 import {
   applyDerivedFilters,
   buildMemberListItems,
@@ -59,11 +53,7 @@ export function useMembersList(filters: MembersListFilters): MembersListResult {
       return { items: [], summary: { total: 0, overdue: 0, firstPending: 0 } };
     }
 
-    const built = buildMemberListItems(
-      membersQuery.data,
-      lastX1Query.data,
-      settingsQuery.data,
-    );
+    const built = buildMemberListItems(membersQuery.data, lastX1Query.data, settingsQuery.data);
 
     // O resumo é calculado ANTES do filtro de situação: a faixa mostra o
     // panorama do recorte, e clicar nela é que estreita a lista.

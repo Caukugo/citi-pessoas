@@ -42,9 +42,7 @@ describe('feedbackFormSchema', () => {
     expect(feedbackFormSchema.safeParse(values({ memberId: '' })).success).toBe(false);
     expect(feedbackFormSchema.safeParse(values({ givenAt: '' })).success).toBe(false);
     expect(feedbackFormSchema.safeParse(values({ content: '' })).success).toBe(false);
-    expect(
-      feedbackFormSchema.safeParse({ ...values(), type: '' }).success,
-    ).toBe(false);
+    expect(feedbackFormSchema.safeParse({ ...values(), type: '' }).success).toBe(false);
   });
 
   it('recusa conteúdo curto demais para servir de registro', () => {

@@ -332,7 +332,9 @@ export function ConfirmDialog({
       }
     >
       <div className="flex gap-3">
-        {destructive && <AlertTriangle size={18} className="mt-0.5 shrink-0 text-bad" aria-hidden />}
+        {destructive && (
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-bad" aria-hidden />
+        )}
         <p className="text-sm text-foreground-secondary">{description}</p>
       </div>
     </Modal>

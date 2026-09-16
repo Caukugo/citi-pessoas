@@ -13,7 +13,7 @@
  * Documentação escrita: docs/DESIGN_SYSTEM.md
  */
 
-export { Surface, Panel, PanelHeader, Card } from './surface';
+export { Surface, Panel, PanelHeader, Card, NotchSurface } from './surface';
 export { Button, IconButton, Chip } from './button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './button';
 
@@ -50,3 +50,5 @@ export type { TabItem } from './tabs';
 export { tabId, tabPanelId, tabPanelProps } from './tab-ids';
 
 export { PageHeader } from './page-header';
+export { PageDecor } from './page-decor';
+export { Logo } from './logo';

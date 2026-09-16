@@ -14,7 +14,7 @@ import { memberNameById } from '../model/membersList';
  * parece bug, traço parece ausência — que é o que de fato é.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 interface Row {
   label: string;
@@ -51,7 +51,10 @@ export function MemberInfoGrid({
         { label: 'Subárea', value: member.area },
         { label: 'Cargo', value: member.role || DASH },
         { label: 'Squad', value: member.squad || DASH },
-        { label: 'GG responsável', value: memberNameById(directory, member.ggResponsibleId) ?? DASH },
+        {
+          label: 'GG responsável',
+          value: memberNameById(directory, member.ggResponsibleId) ?? DASH,
+        },
         { label: 'Gerente', value: memberNameById(directory, member.managerId) ?? DASH },
         { label: 'Entrada', value: formatDate(member.joinedAt) },
         { label: 'Tempo de casa', value: tenure(member.joinedAt) },

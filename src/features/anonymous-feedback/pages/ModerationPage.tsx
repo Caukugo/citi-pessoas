@@ -1,4 +1,4 @@
-import { PageHeader } from '@/components/ui';
+import { PageDecor, PageHeader } from '@/components/ui';
 import { AnonymousFeedbackBoard } from '../components/AnonymousFeedbackBoard';
 
 /**
@@ -19,9 +19,20 @@ import { AnonymousFeedbackBoard } from '../components/AnonymousFeedbackBoard';
 export function ModerationPage() {
   return (
     <>
+      {/* /moderacao renderiza o MESMO quadro da aba "Feedback Anônimo". Com a
+          barra de filtros já na linguagem nova, deixar só o cabeçalho para
+          trás faria a tela parecer meio migrada. São as mesmas três linhas de
+          Membros e Feedbacks — não é um redesenho desta página. */}
+      <PageDecor />
+
       <PageHeader
         title="Moderação"
-        subtitle="Feedbacks recebidos pelo formulário externo, aguardando a análise de GG."
+        titleClassName="text-[26px] leading-[1.18] tracking-[-0.02em] pb-[1px]"
+        subtitle={
+          <span className="text-[13px]">
+            Feedbacks recebidos pelo formulário externo, aguardando a análise de GG.
+          </span>
+        }
       />
 
       <AnonymousFeedbackBoard />

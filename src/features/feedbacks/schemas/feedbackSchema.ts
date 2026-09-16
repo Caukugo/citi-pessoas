@@ -33,7 +33,7 @@ export const feedbackFormSchema = z
       .min(1, 'Escreva o conteúdo do feedback')
       .min(
         10,
-        'Escreva um pouco mais — daqui a seis meses este texto precisa contar o que aconteceu.',
+        'Escreva um pouco mais: daqui a seis meses este texto precisa contar o que aconteceu.',
       ),
     notes: z.string().trim(),
   })
@@ -46,7 +46,7 @@ export const feedbackFormSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['givenAt'],
-        message: 'A data não pode estar no futuro — registre depois da conversa.',
+        message: 'A data não pode estar no futuro. Registre depois da conversa.',
       });
     }
   });

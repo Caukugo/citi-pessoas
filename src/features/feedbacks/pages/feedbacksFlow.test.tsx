@@ -44,9 +44,9 @@ async function signIn(user: ReturnType<typeof userEvent.setup>, route: string) {
     </MemoryRouter>,
   );
 
-  await user.type(await screen.findByLabelText(/e-mail/i), 'gg@citi.org.br');
-  await user.type(screen.getByLabelText(/^Senha/), 'citi123');
-  await user.click(screen.getByRole('button', { name: /entrar/i }));
+  // O login é UM campo em duas etapas: usuário, Enter, senha, Enter.
+  await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+  await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
   await screen.findByRole('heading', { name: 'Membros' });
 

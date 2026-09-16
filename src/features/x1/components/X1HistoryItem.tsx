@@ -20,7 +20,7 @@ import { X1StatusBadge } from './X1StatusBadge';
  * é justamente o motivo desta tela existir.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 /** Bloco de etiquetas (hard skills, soft skills, habilidades desejadas). */
 function TagRow({ label, tags }: { label: string; tags?: string[] }) {
@@ -78,14 +78,14 @@ export function X1HistoryItem({
 
   const hasDetail = Boolean(
     x1.summary ||
-      x1.topics?.length ||
-      followUps.length ||
-      x1.hardSkills?.length ||
-      x1.softSkills?.length ||
-      x1.desiredSkills?.length ||
-      ratedValues.length ||
-      x1.comments ||
-      x1.documentUrl,
+    x1.topics?.length ||
+    followUps.length ||
+    x1.hardSkills?.length ||
+    x1.softSkills?.length ||
+    x1.desiredSkills?.length ||
+    ratedValues.length ||
+    x1.comments ||
+    x1.documentUrl,
   );
 
   return (
@@ -107,9 +107,7 @@ export function X1HistoryItem({
             <X1StatusBadge status={x1.status} />
           </div>
 
-          <p className="mt-1 text-xs text-muted-foreground">
-            Conduzido por {conductor ?? DASH}
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">Conduzido por {conductor ?? DASH}</p>
 
           {x1.summary && (
             <p
@@ -123,9 +121,7 @@ export function X1HistoryItem({
           )}
 
           {!x1.summary && x1.status === 'realizado' && (
-            <p className="mt-2 text-sm text-muted-foreground italic">
-              Registrado sem resumo.
-            </p>
+            <p className="mt-2 text-sm text-muted-foreground italic">Registrado sem resumo.</p>
           )}
         </div>
 
@@ -207,7 +203,7 @@ export function X1HistoryItem({
                     </span>
                     {entry.note && (
                       <span className="text-xs break-words text-foreground-secondary">
-                        — {entry.note}
+                        · {entry.note}
                       </span>
                     )}
                   </li>

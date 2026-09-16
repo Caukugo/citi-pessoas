@@ -88,7 +88,11 @@ export function MemberProfilePage() {
   if (memberQuery.isError) {
     return (
       <>
-        <PageHeader title="Perfil do Membro" backTo={ROUTES.members} backLabel="Voltar para Membros" />
+        <PageHeader
+          title="Perfil do Membro"
+          backTo={ROUTES.members}
+          backLabel="Voltar para Membros"
+        />
         <Surface>
           <ErrorState
             title="Não foi possível carregar este perfil"
@@ -105,12 +109,16 @@ export function MemberProfilePage() {
   if (!memberQuery.data) {
     return (
       <>
-        <PageHeader title="Membro não encontrado" backTo={ROUTES.members} backLabel="Voltar para Membros" />
+        <PageHeader
+          title="Membro não encontrado"
+          backTo={ROUTES.members}
+          backLabel="Voltar para Membros"
+        />
         <Surface>
           <EmptyState
             icon={<UserX size={20} aria-hidden />}
             title="Este membro não existe"
-            description="O endereço pode estar errado, ou a pessoa pode ter sido arquivada. Lembre que membros nunca são apagados — procure também entre os arquivados."
+            description="O endereço pode estar errado, ou a pessoa pode ter sido arquivada. Lembre que membros nunca são apagados, procure também entre os arquivados."
             action={
               <Button variant="primary" onClick={() => navigate(ROUTES.members)}>
                 Voltar para Membros
@@ -145,7 +153,13 @@ export function MemberProfilePage() {
         }
       />
 
-      <Tabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={TAB_PREFIX} label="Seções do perfil" />
+      <Tabs
+        tabs={tabs}
+        active={activeTab}
+        onChange={setTab}
+        idPrefix={TAB_PREFIX}
+        label="Seções do perfil"
+      />
 
       {activeTab === 'visao-geral' && (
         <div {...tabPanelProps(TAB_PREFIX, 'visao-geral')} className="flex flex-col gap-6">

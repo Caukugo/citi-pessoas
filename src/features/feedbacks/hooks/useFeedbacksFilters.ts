@@ -1,9 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  DEFAULT_FEEDBACKS_FILTERS,
-  type FeedbacksListFilters,
-} from '../model/feedbacksOverview';
+import { DEFAULT_FEEDBACKS_FILTERS, type FeedbacksListFilters } from '../model/feedbacksOverview';
 
 /**
  * Os filtros da visão consolidada vivem na URL, não em `useState`.
@@ -24,10 +21,7 @@ const PARAM = {
 
 export interface FeedbacksFiltersControl {
   filters: FeedbacksListFilters;
-  setFilter: <K extends keyof FeedbacksListFilters>(
-    key: K,
-    value: FeedbacksListFilters[K],
-  ) => void;
+  setFilter: <K extends keyof FeedbacksListFilters>(key: K, value: FeedbacksListFilters[K]) => void;
   clear: () => void;
 }
 

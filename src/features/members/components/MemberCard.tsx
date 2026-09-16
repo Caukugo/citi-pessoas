@@ -15,10 +15,12 @@ import { memberNameById, type MemberListItem } from '../model/membersList';
  * a mesma história.
  *
  * É um `<Link>`, não um `<div onClick>`: assim funciona com teclado, com
- * "abrir em nova aba" e com leitor de tela sem nenhum trabalho extra.
+ * "abrir em nova aba" e com leitor de tela sem nenhum trabalho extra. O bloco
+ * clicável tem 44px de folga mínima em cada direção — alvo de toque, não de
+ * mouse.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 export function MemberCard({
   item,
@@ -31,33 +33,42 @@ export function MemberCard({
   const ggName = memberNameById(directory, member.ggResponsibleId);
 
   return (
-    <Surface interactive className="transition-colors">
+    <Surface className="rounded-[20px] border-border bg-surface-card transition-colors hover:border-border-hover">
       <Link
         to={ROUTES.memberProfile(member.id)}
         className="flex flex-col gap-3 p-4 outline-none focus-visible:outline-2 focus-visible:outline-ring"
       >
-        <div className="flex items-start gap-3">
-          <Avatar name={member.fullName} photoUrl={member.photoUrl} size="md" />
+        <div className="flex items-center gap-3">
+          <Avatar
+            name={member.fullName}
+            photoUrl={member.photoUrl}
+            size="md"
+            shape="circle"
+            className="h-[34px] w-[34px] text-[11px]"
+          />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-foreground">{member.fullName}</p>
-            <p className="truncate text-xs text-muted-foreground">{member.role || DASH}</p>
+            <p className="truncate text-[13px] font-semibold text-foreground">{member.fullName}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{member.role || DASH}</p>
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
           <div className="min-w-0">
             <dt className="text-muted-foreground">Subárea</dt>
-            <dd className="truncate text-foreground-secondary">{member.area}</dd>
+            <dd className="truncate font-medium text-foreground">{member.area}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-muted-foreground">GG responsável</dt>
-            <dd className="truncate text-foreground-secondary">{ggName ?? DASH}</dd>
+            <dd className="truncate font-medium text-foreground">{ggName ?? DASH}</dd>
           </div>
         </dl>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
-          <MemberX1StatusBadge status={x1Status} />
-          <span className="text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-divider pt-3">
+          <MemberX1StatusBadge
+            status={x1Status}
+            className="h-[20px] gap-[5px] border-transparent px-[9px] text-[11px] font-medium whitespace-nowrap"
+          />
+          <span className="text-[11px] text-muted-foreground">
             {lastX1?.occurredAt ? `Último X1 ${relativeDays(lastX1.occurredAt)}` : 'Sem X1 ainda'}
           </span>
         </div>
