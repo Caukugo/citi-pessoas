@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { Avatar, Badge, Surface } from '@/components/ui';
+import { MEMBER_STATUS_LABEL, memberSubareaLabel } from '@/data';
 import type { ID, Member, MemberX1Status } from '@/data';
 import type { X1 } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
@@ -59,14 +60,12 @@ export function MemberProfileHeader({
             {/* Só aparece quando a pessoa não está ativa: no dia a dia esta
                 informação seria ruído repetido em todo perfil. */}
             {member.status !== 'ativo' && (
-              <Badge tone="neutral">
-                {member.status === 'desligado' ? 'Desligado' : 'Arquivado'}
-              </Badge>
+              <Badge tone="neutral">{MEMBER_STATUS_LABEL[member.status]}</Badge>
             )}
           </div>
 
           <p className="mt-1 break-words text-sm text-foreground-secondary">
-            {member.role || DASH} · {member.area}
+            {member.role || DASH} · {memberSubareaLabel(member)}
           </p>
 
           <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-xs">

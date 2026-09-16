@@ -25,8 +25,8 @@ function member(id: string, overrides: Partial<Member> = {}): Member {
     id,
     fullName: `Pessoa ${id}`,
     email: `${id}@citi.org.br`,
-    role: 'Dev',
-    area: 'Desenvolvimento',
+    role: 'Pessoa Desenvolvedora',
+    subarea: 'Desenvolvimento',
     status: 'ativo',
     joinedAt: '2026-01-01',
     createdAt: '2026-01-01',
@@ -123,8 +123,8 @@ describe('aggregateFeedbacksByMember', () => {
 
 describe('applyFeedbackFilters', () => {
   const members = [
-    member('a', { fullName: 'Ana Souza', area: 'Dados', ggResponsibleId: 'gg1' }),
-    member('b', { fullName: 'Bruno Lima', area: 'Marketing', role: 'Analista' }),
+    member('a', { fullName: 'Ana Souza', subarea: 'Inteligência de Dados', ggResponsibleId: 'gg1' }),
+    member('b', { fullName: 'Bruno Lima', subarea: 'Marketing', role: 'Analista de Marketing' }),
   ];
   const feedbacks = [
     feedback('f1', 'a', 'informal', '2026-01-10'),
@@ -155,7 +155,7 @@ describe('applyFeedbackFilters', () => {
 
   it('filtra por subárea e por GG responsável', () => {
     expect(
-      applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, area: 'Dados' }),
+      applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, subarea: 'Inteligência de Dados' }),
     ).toHaveLength(1);
     expect(
       applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, ggResponsibleId: 'gg1' }),

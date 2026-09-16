@@ -12,7 +12,7 @@ import {
   tabPanelProps,
   type TabItem,
 } from '@/components/ui';
-import { useMember, type Member } from '@/data';
+import { getMemberArea, LIDERANCA_CARGOS, useMember, type Member } from '@/data';
 import { ROUTES } from '@/app/routes';
 import { CreateX1Drawer } from '@/features/x1/components/CreateX1Drawer';
 import { X1Tab } from '@/features/x1/components/X1Tab';
@@ -65,14 +65,24 @@ export function MemberProfilePage() {
     setSearchParams(params, { replace: true });
   };
 
-  /** Quem pode ter conduzido um X1: gerentes e pessoas de Gente e Gestão. */
+  /**
+   * Quem pode ter conduzido um X1: lideranças (o cargo de topo de alguma
+   * subárea/área — `LIDERANCA_CARGOS`, ver ADR-017) e pessoas de Gente e
+   * Gestão. Não é mais um regex sobre o texto do cargo: com o vocabulário
+   * fechado, "quem lidera" já está definido em `src/data/types.ts`, e um
+   * regex quebraria a cada gestão que renomear os cargos de liderança.
+   *
+   * "Pessoas de Gente e Gestão" usa `getMemberArea()`, não `person.subarea`
+   * direto, para incluir também a Diretoria de Gente e Gestão (COO) — que
+   * não tem subárea (ADR-018), mas ainda é GG para todo efeito prático.
+   */
   const conductors = useMemo<Member[]>(() => {
     const all = [...directory.byId.values()];
     return all
       .filter(
         (person) =>
           person.status === 'ativo' &&
-          (person.area === 'Gente e Gestão' || /gerente|gestor/i.test(person.role)),
+          (getMemberArea(person) === 'Gente e Gestão' || LIDERANCA_CARGOS.includes(person.role)),
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'));
   }, [directory.byId]);

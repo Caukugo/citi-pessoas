@@ -17,7 +17,7 @@ import {
 
 const PARAM = {
   search: 'busca',
-  area: 'subarea',
+  subarea: 'subarea',
   ggResponsibleId: 'gg',
   type: 'tipo',
 } as const;
@@ -39,7 +39,7 @@ export function useFeedbacksFilters(): FeedbacksFiltersControl {
     const params = new URLSearchParams(serialized);
     return {
       search: params.get(PARAM.search) ?? '',
-      area: params.get(PARAM.area) ?? '',
+      subarea: params.get(PARAM.subarea) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
       type: params.get(PARAM.type) ?? '',
     };

@@ -26,7 +26,7 @@ import { formatDate, relativeDays } from '@/lib/format';
 
 const ICON: Record<MemberEventType, LucideIcon> = {
   entrada: LogIn,
-  mudanca_area: ArrowRightLeft,
+  mudanca_subarea: ArrowRightLeft,
   mudanca_cargo: BriefcaseBusiness,
   mudanca_gerente: ArrowRightLeft,
   x1: ClipboardList,

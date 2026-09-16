@@ -26,9 +26,26 @@ describe('members', () => {
   });
 
   it('filtra por subárea', async () => {
-    const result = await mockAdapter.members.list({ area: 'Dados' });
+    const result = await mockAdapter.members.list({ subarea: 'Inteligência de Dados' });
     expect(result.length).toBeGreaterThan(0);
-    expect(result.every((m) => m.area === 'Dados')).toBe(true);
+    expect(result.every((m) => m.subarea === 'Inteligência de Dados')).toBe(true);
+  });
+
+  it('filtra por área (nível superior) — todas as subáreas dela', async () => {
+    const result = await mockAdapter.members.list({ area: 'Soluções' });
+    expect(result.length).toBeGreaterThan(0);
+    expect(
+      result.every(
+        (m) => m.subarea !== null && ['Desenvolvimento', 'Produto', 'Inteligência de Dados'].includes(m.subarea),
+      ),
+    ).toBe(true);
+  });
+
+  it('filtra por área inclui a Diretoria daquela área, mesmo sem subárea (ADR-018)', async () => {
+    const result = await mockAdapter.members.list({ area: 'Gente e Gestão' });
+    expect(result.some((m) => m.subarea === null && m.diretoriaArea === 'Gente e Gestão')).toBe(
+      true,
+    );
   });
 
   it('recusa e-mail duplicado ao criar', async () => {
@@ -37,8 +54,8 @@ describe('members', () => {
       mockAdapter.members.create({
         fullName: 'Outra Pessoa',
         email: existing.email,
-        role: 'Dev',
-        area: 'Desenvolvimento',
+        role: 'Pessoa Desenvolvedora',
+        subarea: 'Desenvolvimento',
         status: 'ativo',
         joinedAt: '2026-01-01',
       }),
@@ -58,8 +75,8 @@ describe('members', () => {
     const created = await mockAdapter.members.create({
       fullName: 'Pessoa Nova',
       email: 'pessoa.nova@citi.org.br',
-      role: 'Dev',
-      area: 'Desenvolvimento',
+      role: 'Pessoa Desenvolvedora',
+      subarea: 'Desenvolvimento',
       status: 'ativo',
       joinedAt: '2026-08-01',
     });
@@ -75,16 +92,16 @@ describe('members', () => {
       {
         fullName: 'Importada Um',
         email: 'importada.um@citi.org.br',
-        role: 'Dev',
-        area: 'Dados',
+        role: 'Analista de Dados',
+        subarea: 'Inteligência de Dados',
         status: 'ativo',
         joinedAt: '2026-02-01',
       },
       {
         fullName: 'Repetida',
         email: existing.email,
-        role: 'Dev',
-        area: 'Dados',
+        role: 'Analista de Dados',
+        subarea: 'Inteligência de Dados',
         status: 'ativo',
         joinedAt: '2026-02-01',
       },

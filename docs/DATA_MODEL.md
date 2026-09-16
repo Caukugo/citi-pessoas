@@ -24,7 +24,8 @@ erDiagram
         text full_name
         text email UK
         text role "cargo"
-        text area "subárea"
+        text subarea "subárea, nula p/ Diretoria — ver ADR-015/ADR-018"
+        text diretoria_area "só p/ Diretoria — mutuamente exclusivo c/ subarea, ADR-018"
         text squad
         uuid manager_id FK "gerente — conduz o X1"
         uuid gg_responsible_id FK "quem de GG acompanha"
@@ -130,7 +131,7 @@ A entidade central. Tudo se relaciona a ela.
 
 ### Decisão: posição atual no membro, mudanças em eventos
 
-`area`, `squad`, `role` e `manager_id` guardam o valor **atual** direto na
+`subarea`, `squad`, `role` e `manager_id` guardam o valor **atual** direto na
 tabela `members`. As **mudanças** são registradas em `member_events`.
 
 Por quê: quase toda tela precisa da posição atual, e obrigar toda listagem a
@@ -138,18 +139,110 @@ fazer junção temporal deixaria o código difícil para quem está começando. 
 mesmo tempo, a regra "não sobrescreva o passado" continua valendo — o evento
 preserva o histórico.
 
-Na prática, `updateMember()` cria o evento automaticamente quando `area` ou
+Na prática, `updateMember()` cria o evento automaticamente quando `subarea` ou
 `role` mudam. Você não precisa lembrar de fazer isso.
+
+### Hierarquia área → subárea
+
+O que o membro tem de fato é uma **subárea** (`Desenvolvimento`, `Produto`,
+`Inteligência de Dados`, `Marketing`, `Comercial`, `Institucional`, `Inovação`
+ou `Gente e Gestão`) — é o nível em que a pessoa realmente atua. **Área** é a
+divisão maior, um agrupamento de subáreas (`Gente e Gestão`, `Soluções`,
+`Negócios`, `Institucional`), e nunca é guardada redundantemente no membro
+para quem integra uma subárea: é sempre derivada via `getAreaForSubarea()`, a
+partir da única fonte de verdade `AREA_STRUCTURE: Record<Area, Subarea[]>`
+(`src/data/types.ts`). A exceção é a Diretoria, que não tem subárea — ver a
+subseção abaixo.
+
+`MemberFilters` aceita tanto `subarea` (filtro exato) quanto `area` (todas as
+subáreas daquela área, mais a Diretoria dela). As duas telas de listagem
+(Membros, Feedbacks) e os dois adapters (mock e Supabase) leem da mesma
+`AREA_STRUCTURE` — não há como divergirem.
+
+`AREA_STRUCTURE` representa a nomenclatura da **gestão atual**. Nomes de
+subárea podem mudar de uma gestão para outra; a Fase 1 não versiona esse
+catálogo — quando gestões passadas forem importadas, a nomenclatura da época
+fica registrada como texto livre em `member_events` (o mesmo mecanismo
+append-only da seção 6), não dentro do union type `Subarea`. Ver ADR-015 para
+o raciocínio completo e as alternativas descartadas.
+
+No cadastro (`MemberForm`), a Área aparece como um select que só GUIA a
+escolha de Subárea — filtrando as opções e realocando a Subárea quando a
+Área muda — mas continua sem ser gravada em lugar nenhum: a área exibida em
+qualquer tela deriva sempre de `getAreaForSubarea(subarea)`. Ver ADR-016.
+
+#### Diretoria: lidera a Área, não integra subárea nenhuma (ADR-018)
+
+A Diretoria é um caso à parte na hierarquia acima: ela lidera uma **Área**
+inteira (todas as subáreas dela), e por isso **não integra nenhuma
+subárea especifica** — diferente de qualquer outro cargo do organograma.
+
+- `Member.subarea: Subarea | null` — `null` é o que marca alguém como
+  Diretoria.
+- `Member.diretoriaArea?: Area | null` — preenchido **só** quando `subarea`
+  é `null`. Os dois campos são mutuamente exclusivos, reforçado por uma
+  `check constraint` no banco (migration `0007`): toda pessoa está numa
+  subárea OU é Diretoria de uma área, nunca as duas coisas nem nenhuma.
+- `getMemberArea(member): Area | null` — a função a usar sempre que uma
+  tela precisa "a área desta pessoa". Deriva de `subarea` quando ela existe,
+  ou lê `diretoriaArea` direto quando não existe. **Nunca** chame
+  `getAreaForSubarea(member.subarea)` direto num `Member` — quebra (ou
+  compila errado) para quem é da Diretoria.
+- `memberSubareaLabel(member): string` — rótulo de exibição único para
+  "onde esta pessoa está": a subárea normalmente, ou `"Diretoria (<Área>)"`
+  para quem não tem subárea. Toda tela que exibe a posição de um membro usa
+  esta função em vez de ler `member.subarea` direto.
+
+Ver ADR-018 para o histórico completo dessa correção — o desenho anterior
+(ADR-017) tinha modelado a Diretoria como um cargo extra dentro de uma
+subárea escolhida livremente, o que estava errado.
+
+### Cargo: vocabulário fechado por subárea/área
+
+`role` não é mais texto livre — é um `Cargo`, um union type fechado com os
+cargos vigentes NA GESTÃO ATUAL (ver ADR-017, revisada pela ADR-018 na parte
+de Diretoria). Duas tabelas em `src/data/types.ts` são a fonte de verdade:
+
+- `CARGOS_POR_SUBAREA: Record<Subarea, Cargo[]>` — os cargos de cada
+  subárea. O **último** cargo de cada lista é a liderança maior daquela
+  subárea (não existe um campo booleano separado para isso).
+- `CARGOS_DIRETORIA: Record<Area, Cargo>` — os quatro cargos de Diretoria,
+  ligados à **Área** (não à subárea): cada um lidera uma área inteira,
+  respondendo por todas as subáreas dela.
+
+`cargoOptionsForSubarea(subarea)` devolve **só** os cargos daquela subárea —
+desde a ADR-018, a Diretoria deixou de aparecer aqui como opção extra (era
+assim na ADR-017 original). Cadastrar alguém da Diretoria é um caminho
+separado no formulário (`positionType: 'diretoria'`), que usa
+`CARGOS_DIRETORIA[área]` diretamente, travando o cargo em vez de oferecê-lo
+como escolha. `cargoOptionsForSubarea()`, a validação (`memberSchema.ts`,
+com `z.enum` + checagem cruzada cargo × subárea/área) e a importação de CSV
+(`parseCargo()`/`parseDiretoriaCargo()`) são a única fonte de opções válidas
+— nenhuma lista duplicada.
+
+Igual à hierarquia área → subárea, `CARGOS_POR_SUBAREA`/`CARGOS_DIRETORIA`
+representam a nomenclatura da **gestão atual**, não um catálogo versionado.
+Nomes de cargo podem mudar de uma gestão para outra; quando isso acontecer,
+a nomenclatura antiga fica registrada como texto livre em `member_events`
+(mesmo mecanismo já usado para `mudanca_cargo`), sem exigir uma migration de
+schema — `members.role` continua `text` livre no banco, sem enum nem check
+constraint. Ver ADR-017 para o raciocínio completo do vocabulário e ADR-018
+para a correção do modelo de Diretoria.
 
 ### Ciclo de vida
 
 | Status | Significado |
 | --- | --- |
 | `ativo` | Membro atual do CITi |
-| `desligado` | Saiu; histórico preservado |
-| `arquivado` | Fora das listagens; histórico preservado |
+| `desligado` | Saiu sem concluir; histórico preservado |
+| `arquivado` | Saiu por ter concluído sua passagem no CITi (ex.: formou); histórico preservado |
 
 **Não existe exclusão.** `archiveMember()` é a operação disponível.
+
+O documento de contexto oficial do projeto define a situação do membro com
+três valores — `Ativo`, `Desligado` e `Concluído`. Em vez de adicionar um
+quarto valor ao enum, `arquivado` (que já existia no código) passou a
+representar especificamente "Concluído" — ver ADR-014 para o raciocínio.
 
 ---
 
@@ -355,7 +448,7 @@ Tabela **append-only**: registros são criados, nunca alterados.
 | Tipo | Quando é criado |
 | --- | --- |
 | `entrada` | Ao cadastrar o membro |
-| `mudanca_area` | Ao mudar a subárea |
+| `mudanca_subarea` | Ao mudar a subárea |
 | `mudanca_cargo` | Ao mudar o cargo |
 | `mudanca_gerente` | Ao mudar o gerente |
 | `x1` | Ao registrar um X1 como realizado |

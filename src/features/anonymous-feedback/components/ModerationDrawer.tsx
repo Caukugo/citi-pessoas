@@ -13,6 +13,7 @@ import {
 import {
   ANONYMOUS_RESOLUTION_LABEL,
   ANONYMOUS_TARGET_LABEL,
+  memberSubareaLabel,
   messageFor,
   useModerateAnonymousFeedback,
   type AnonymousFeedback,
@@ -294,7 +295,7 @@ export function ModerationDrawer({
                                 {member.fullName}
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
-                                {member.role} · {member.area}
+                                {member.role} · {memberSubareaLabel(member)}
                               </span>
                             </span>
                             {selected && (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FilterX } from 'lucide-react';
 import { Button, Chip, SearchInput, Select } from '@/components/ui';
-import { AREAS, MEMBER_X1_STATUS_LABEL, type MemberStatus } from '@/data';
+import { SUBAREAS, MEMBER_X1_STATUS_LABEL, type MemberStatus } from '@/data';
 import type { MemberDirectoryOptions } from '../model/membersList';
 import { hasActiveFilters, type MembersListFilters } from '../model/membersList';
 
@@ -22,6 +22,9 @@ const X1_STATUS_OPTIONS = [
   { value: 'atrasado', label: MEMBER_X1_STATUS_LABEL.atrasado },
 ];
 
+// Rótulos no plural (contagem de pessoas no filtro) — por isso não reaproveita
+// `MEMBER_STATUS_LABEL` de `@/data`, que é singular. Se um valor novo de
+// `MemberStatus` for adicionado, adicione a linha aqui também.
 const MEMBER_STATUS_OPTIONS: { value: MemberStatus; label: string }[] = [
   { value: 'ativo', label: 'Ativos' },
   { value: 'desligado', label: 'Desligados' },
@@ -74,10 +77,10 @@ export function MembersToolbar({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Select
           aria-label="Filtrar por subárea"
-          value={filters.area}
-          onChange={(e) => onChange('area', e.target.value)}
+          value={filters.subarea}
+          onChange={(e) => onChange('subarea', e.target.value)}
           placeholder="Todas as subáreas"
-          options={AREAS.map((area) => ({ value: area, label: area }))}
+          options={SUBAREAS.map((subarea) => ({ value: subarea, label: subarea }))}
         />
 
         <Select

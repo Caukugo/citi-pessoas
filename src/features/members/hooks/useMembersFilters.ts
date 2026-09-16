@@ -15,7 +15,7 @@ import { DEFAULT_MEMBERS_FILTERS, type MembersListFilters } from '../model/membe
 
 const PARAM = {
   search: 'busca',
-  area: 'subarea',
+  subarea: 'subarea',
   role: 'cargo',
   ggResponsibleId: 'gg',
   x1Status: 'x1',
@@ -40,7 +40,7 @@ export function useMembersFilters(): MembersFiltersControl {
 
     return {
       search: params.get(PARAM.search) ?? '',
-      area: params.get(PARAM.area) ?? '',
+      subarea: params.get(PARAM.subarea) ?? '',
       role: params.get(PARAM.role) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
       x1Status: params.get(PARAM.x1Status) ?? '',

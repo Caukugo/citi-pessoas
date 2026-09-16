@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, Surface } from '@/components/ui';
-import { FEEDBACK_TYPE_LABEL, type FeedbackType, type ID } from '@/data';
+import { FEEDBACK_TYPE_LABEL, memberSubareaLabel, type FeedbackType, type ID } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import {
@@ -40,7 +40,7 @@ export function MemberFeedbackCard({
             {member.fullName}
           </Link>
           <p className="truncate text-xs text-muted-foreground">
-            {member.role || DASH} · {member.area}
+            {member.role || DASH} · {memberSubareaLabel(member)}
           </p>
         </div>
         {member.status !== 'ativo' && (

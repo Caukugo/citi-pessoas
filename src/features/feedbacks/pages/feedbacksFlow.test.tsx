@@ -162,9 +162,9 @@ describe('Feedbacks → Acompanhamento', () => {
       const user = userEvent.setup();
       await signIn(user, 'acompanhamento');
 
-      // Ubiratã está desligado, mas tem um feedback — continua na tabela.
+      // Ubiratã está arquivado (concluiu o CITi), mas tem um feedback — continua na tabela.
       const linha = await rowFor('Ubiratã Malta');
-      expect(linha.getByText('Desligado')).toBeVisible();
+      expect(linha.getByText('Arquivado')).toBeVisible();
       expect(linha.getByRole('button', { name: /1 formais/i })).toBeVisible();
     },
     TIMEOUT,

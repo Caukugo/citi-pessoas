@@ -1,7 +1,7 @@
 import type { DataAdapter } from '../adapter';
 import { DataError } from '../errors';
 import { normalizeText } from '@/lib/format';
-import { FEEDBACK_TYPE_LABEL } from '../types';
+import { FEEDBACK_TYPE_LABEL, getMemberArea, memberSubareaLabel } from '../types';
 import type {
   AnonymousFeedback,
   AnonymousFeedbackStatus,
@@ -47,7 +47,12 @@ export const mockAdapter: DataAdapter = {
             normalizeText(m.fullName).includes(term) || normalizeText(m.email).includes(term),
         );
       }
-      if (filters?.area) result = result.filter((m) => m.area === filters.area);
+      if (filters?.subarea) result = result.filter((m) => m.subarea === filters.subarea);
+      if (filters?.area) {
+        // `getMemberArea` cobre os dois casos: subárea normal e Diretoria
+        // (que não tem subárea — ver ADR-018).
+        result = result.filter((m) => getMemberArea(m) === filters.area);
+      }
       if (filters?.status) result = result.filter((m) => m.status === filters.status);
       if (filters?.ggResponsibleId) {
         result = result.filter((m) => m.ggResponsibleId === filters.ggResponsibleId);
@@ -80,7 +85,10 @@ export const mockAdapter: DataAdapter = {
         type: 'entrada',
         occurredAt: member.joinedAt,
         title: 'Entrada no CITi',
-        description: `Ingressou na subárea de ${member.area}.`,
+        // Diretoria não tem subárea (ADR-018) — o texto reflete isso.
+        description: member.subarea
+          ? `Ingressou na subárea de ${member.subarea}.`
+          : `Ingressou na Diretoria (${member.diretoriaArea}).`,
         sourceId: null,
         createdAt: nowISO(),
       });
@@ -100,14 +108,20 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = updated;
 
       // Mudanças estruturais viram evento, para não sobrescrever o passado.
-      if (input.area && input.area !== before.area) {
+      // Comparado pelo rótulo (não só por `subarea`) porque uma pessoa pode
+      // mudar de posição sem mudar de subárea no sentido estrito — por
+      // exemplo, entrar ou sair da Diretoria (ADR-018), onde `subarea` fica
+      // `null` e quem muda é `diretoriaArea`.
+      const beforeLabel = memberSubareaLabel(before);
+      const updatedLabel = memberSubareaLabel(updated);
+      if (beforeLabel !== updatedLabel) {
         db.memberEvents.push({
           id: mockId('evt'),
           memberId: id,
-          type: 'mudanca_area',
+          type: 'mudanca_subarea',
           occurredAt: nowISO().slice(0, 10),
           title: 'Mudança de subárea',
-          description: `De ${before.area} para ${input.area}.`,
+          description: `De ${beforeLabel} para ${updatedLabel}.`,
           sourceId: null,
           createdAt: nowISO(),
         });

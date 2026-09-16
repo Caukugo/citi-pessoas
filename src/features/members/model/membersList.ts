@@ -1,4 +1,5 @@
 import {
+  getMemberArea,
   memberX1StatusFrom,
   x1PeriodicityFor,
   type ID,
@@ -42,7 +43,7 @@ export interface MemberListItem {
  */
 export interface MembersListFilters {
   search: string;
-  area: string;
+  subarea: string;
   role: string;
   ggResponsibleId: string;
   x1Status: string;
@@ -52,7 +53,7 @@ export interface MembersListFilters {
 /** Padrão da tela: quem está ativo hoje. Desligado e arquivado ficam a um filtro. */
 export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
   search: '',
-  area: '',
+  subarea: '',
   role: '',
   ggResponsibleId: '',
   x1Status: '',
@@ -63,7 +64,7 @@ export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
 export function hasActiveFilters(filters: MembersListFilters): boolean {
   return (
     filters.search !== '' ||
-    filters.area !== '' ||
+    filters.subarea !== '' ||
     filters.role !== '' ||
     filters.ggResponsibleId !== '' ||
     filters.x1Status !== '' ||
@@ -158,8 +159,11 @@ export function deriveDirectoryOptions(allMembers: Member[]): MemberDirectoryOpt
     a.localeCompare(b, 'pt-BR'),
   );
 
+  // `getMemberArea`, não `m.subarea` direto: inclui também a Diretoria de
+  // Gente e Gestão (COO), que não tem subárea (ADR-018) mas ainda é GG para
+  // todo efeito prático de "quem pode acompanhar alguém".
   const ggPeople = allMembers
-    .filter((m) => m.area === 'Gente e Gestão' && m.status === 'ativo')
+    .filter((m) => getMemberArea(m) === 'Gente e Gestão' && m.status === 'ativo')
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'));
 
   return { roles, ggPeople };

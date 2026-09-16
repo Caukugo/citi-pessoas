@@ -22,32 +22,199 @@ export type ISODate = string;
 /**
  * Situação do membro na organização.
  *
- * REGRA DE PRODUTO: nunca apagamos um membro. Quem sai vira `desligado`,
- * quem some do dia a dia vira `arquivado`. O histórico permanece.
+ * REGRA DE PRODUTO: nunca apagamos um membro.
+ *   • `desligado`  — saiu sem concluir (ex.: trancou, foi desligado pela GG).
+ *   • `arquivado`  — saiu por ter concluído sua passagem no CITi (ex.: formou).
+ *
+ * Ver ADR-014 (docs/DECISIONS.md) para o histórico dessa definição.
  */
 export type MemberStatus = 'ativo' | 'desligado' | 'arquivado';
 
-/** Subáreas do CITi. Configurável na Administração no futuro. */
-export type Area =
-  | 'Desenvolvimento'
-  | 'Dados'
-  | 'Produto'
-  | 'Marketing'
-  | 'Gestão'
-  | 'Gente e Gestão'
-  | 'Comercial'
-  | 'Institucional';
+/** Rótulo de exibição (singular) de cada situação — fonte única, não repita em componente. */
+export const MEMBER_STATUS_LABEL: Record<MemberStatus, string> = {
+  ativo: 'Ativo',
+  desligado: 'Desligado',
+  arquivado: 'Arquivado',
+};
 
-export const AREAS: Area[] = [
-  'Desenvolvimento',
-  'Dados',
-  'Produto',
-  'Marketing',
-  'Gestão',
-  'Gente e Gestão',
-  'Comercial',
-  'Institucional',
+/**
+ * Subáreas do CITi (nível inferior da hierarquia). Configurável na
+ * Administração no futuro.
+ *
+ * É a que o membro efetivamente integra — ver `Member.subarea`.
+ */
+export type Subarea =
+  | 'Gente e Gestão'
+  | 'Desenvolvimento'
+  | 'Produto'
+  | 'Inteligência de Dados'
+  | 'Marketing'
+  | 'Comercial'
+  | 'Institucional'
+  | 'Inovação';
+
+/**
+ * Áreas do CITi (nível superior da hierarquia área → subárea — ADR-015).
+ */
+export type Area = 'Gente e Gestão' | 'Soluções' | 'Negócios' | 'Institucional';
+
+/**
+ * Hierarquia área → subárea VIGENTE NESTA GESTÃO, alinhada ao organograma de
+ * "Contexto das funcionalidades e estrutura da plataforma" (ADR-015, que
+ * substitui a lista plana de subáreas da ADR-014).
+ *
+ * ⚠️ Nomes de área/subárea (e de cargo) não são permanentes: cada gestão pode
+ * renomeá-los. Esta constante é a nomenclatura da gestão ATUAL — não um fato
+ * imutável do CITi. Quando gestões passadas forem importadas, a nomenclatura
+ * da época delas entra como texto livre no evento/observação correspondente
+ * (`MemberEvent`), sem forçar nomes antigos a caber neste enum vigente — é o
+ * mesmo princípio de ADR-007 (posição atual + histórico em eventos) e ADR-012
+ * (módulo completo de gestões é evolução futura, não Fase 1). Ver ADR-015.
+ */
+export const AREA_STRUCTURE: Record<Area, Subarea[]> = {
+  'Gente e Gestão': ['Gente e Gestão'],
+  Soluções: ['Desenvolvimento', 'Produto', 'Inteligência de Dados'],
+  Negócios: ['Marketing', 'Comercial'],
+  Institucional: ['Institucional', 'Inovação'],
+};
+
+export const AREAS: Area[] = Object.keys(AREA_STRUCTURE) as Area[];
+export const SUBAREAS: Subarea[] = AREAS.flatMap((area) => AREA_STRUCTURE[area]);
+
+const SUBAREA_TO_AREA = AREAS.reduce<Record<string, Area>>((acc, area) => {
+  for (const subarea of AREA_STRUCTURE[area]) acc[subarea] = area;
+  return acc;
+}, {}) as Record<Subarea, Area>;
+
+/** A área (nível superior) de uma subárea, segundo a hierarquia vigente. */
+export function getAreaForSubarea(subarea: Subarea): Area {
+  return SUBAREA_TO_AREA[subarea];
+}
+
+/**
+ * Cargos possíveis NA GESTÃO ATUAL (ADR-017). Todo cargo do CITi está preso a
+ * uma subárea ou, no caso da Diretoria, a uma área — não existe cargo solto.
+ *
+ * ⚠️ Mesmo princípio de `AREA_STRUCTURE` (ADR-015): nome de cargo não é
+ * permanente, cada gestão pode renomear. Isto é a nomenclatura vigente, não
+ * um catálogo histórico — gestões passadas/futuras com cargos diferentes não
+ * geram uma versão nova deste union type, viram texto livre em `MemberEvent`
+ * (mesmo princípio de ADR-007/ADR-012/ADR-015).
+ */
+export type Cargo =
+  // Gente e Gestão
+  | 'Analista de Gente e Gestão'
+  | 'Especialista em Gente e Gestão'
+  | 'Gerente de Gente e Gestão'
+  // Desenvolvimento
+  | 'Pessoa Desenvolvedora'
+  | 'Analista de Software'
+  | 'Gerente de Software'
+  | 'Líder de Desenvolvimento'
+  // Produto
+  | 'Analista de Produto'
+  | 'Especialista em Produto'
+  | 'Gerente de Produto'
+  | 'Líder de Produto'
+  // Inteligência de Dados
+  | 'Analista de Dados'
+  | 'Especialista de Dados'
+  | 'Gerente de Dados'
+  | 'Líder de Dados'
+  // Marketing
+  | 'Analista de Marketing'
+  | 'Especialista de Marketing'
+  | 'Gerente de Marketing'
+  // Comercial
+  | 'Gerente de Contas'
+  | 'Gerente de Contas Chave'
+  | 'Gerente Comercial'
+  // Institucional
+  | 'Relationship Manager'
+  | 'Gerente Institucional'
+  // Inovação
+  | 'Agente de Inovação'
+  | 'Head de Inovação'
+  // Diretoria (ligada à ÁREA, não à subárea — ver `CARGOS_DIRETORIA`)
+  | 'Diretor(a) Institucional (CEO)'
+  | 'Diretor(a) de Soluções (CTO)'
+  | 'Diretor(a) de Negócios (CRO)'
+  | 'Diretor(a) de Operações (COO)';
+
+/**
+ * Cargos de cada subárea, na ordem do organograma vigente — o ÚLTIMO cargo de
+ * cada lista é a liderança maior daquela subárea.
+ */
+export const CARGOS_POR_SUBAREA: Record<Subarea, Cargo[]> = {
+  'Gente e Gestão': [
+    'Analista de Gente e Gestão',
+    'Especialista em Gente e Gestão',
+    'Gerente de Gente e Gestão',
+  ],
+  Desenvolvimento: ['Pessoa Desenvolvedora', 'Analista de Software', 'Gerente de Software', 'Líder de Desenvolvimento'],
+  Produto: ['Analista de Produto', 'Especialista em Produto', 'Gerente de Produto', 'Líder de Produto'],
+  'Inteligência de Dados': ['Analista de Dados', 'Especialista de Dados', 'Gerente de Dados', 'Líder de Dados'],
+  Marketing: ['Analista de Marketing', 'Especialista de Marketing', 'Gerente de Marketing'],
+  Comercial: ['Gerente de Contas', 'Gerente de Contas Chave', 'Gerente Comercial'],
+  Institucional: ['Relationship Manager', 'Gerente Institucional'],
+  Inovação: ['Agente de Inovação', 'Head de Inovação'],
+};
+
+/**
+ * Cargo de Diretoria por ÁREA (não por subárea) — é a liderança maior da
+ * área inteira, respondendo por todas as subáreas dela. Fica em uma tabela à
+ * parte de `CARGOS_POR_SUBAREA` porque "Diretoria" não é uma nona subárea:
+ * é um cargo que qualquer pessoa de qualquer subárea daquela área pode
+ * assumir, mantendo a subárea em que atua (ver ADR-017).
+ */
+export const CARGOS_DIRETORIA: Record<Area, Cargo> = {
+  Institucional: 'Diretor(a) Institucional (CEO)',
+  Soluções: 'Diretor(a) de Soluções (CTO)',
+  Negócios: 'Diretor(a) de Negócios (CRO)',
+  'Gente e Gestão': 'Diretor(a) de Operações (COO)',
+};
+
+/** Todos os cargos válidos na gestão atual — união de subárea + diretoria. */
+export const ALL_CARGOS: Cargo[] = [
+  ...SUBAREAS.flatMap((subarea) => CARGOS_POR_SUBAREA[subarea]),
+  ...AREAS.map((area) => CARGOS_DIRETORIA[area]),
 ];
+
+/**
+ * Cargos de liderança maior de alguma subárea (o último de cada lista em
+ * `CARGOS_POR_SUBAREA`) ou de alguma área (`CARGOS_DIRETORIA`).
+ *
+ * Existe para telas que precisam saber "esta pessoa lidera algo", sem
+ * recorrer a um regex sobre o texto do cargo (que quebra a cada gestão que
+ * renomear os cargos) nem a um campo booleano solto no membro (que poderia
+ * divergir do cargo escrito — ver ADR-017).
+ */
+export const LIDERANCA_CARGOS: Cargo[] = [
+  ...SUBAREAS.map((subarea) => CARGOS_POR_SUBAREA[subarea][CARGOS_POR_SUBAREA[subarea].length - 1]),
+  ...AREAS.map((area) => CARGOS_DIRETORIA[area]),
+];
+
+/**
+ * Cargos que uma pessoa alocada nesta subárea pode assumir.
+ *
+ * ⚠️ Revisado em ADR-018: Diretoria NÃO é mais oferecida aqui como opção
+ * extra. A Diretoria lidera a ÁREA inteira, não uma subárea específica —
+ * uma pessoa da Diretoria não integra nenhuma subárea (`Member.subarea` fica
+ * `null` para ela; ver `Member.diretoriaArea`). Cadastrar alguém da
+ * Diretoria é um caminho separado no formulário, que usa `CARGOS_DIRETORIA`
+ * diretamente a partir da Área escolhida — nunca `cargoOptionsForSubarea()`.
+ */
+export function cargoOptionsForSubarea(subarea: Subarea): Cargo[] {
+  return [...CARGOS_POR_SUBAREA[subarea]];
+}
+
+/** Os quatro cargos de Diretoria, um por área. */
+export const DIRETORIA_CARGOS: Cargo[] = AREAS.map((area) => CARGOS_DIRETORIA[area]);
+
+/** `true` quando o cargo é um dos quatro de Diretoria (ligados à área, não à subárea). */
+export function isDiretoriaCargo(cargo: Cargo): boolean {
+  return (DIRETORIA_CARGOS as string[]).includes(cargo);
+}
 
 /**
  * O Membro é a entidade central do produto. X1, Feedback e qualquer
@@ -62,15 +229,31 @@ export interface Member {
 
   // Identificação
   fullName: string;
+  /** CPF, com ou sem pontuação. Validado (dígitos verificadores) em `memberSchema.ts`. */
+  cpf?: string | null;
   /** E-mail institucional: nome.sobrenome@citi.org.br */
   email: string;
-  personalEmail?: string | null;
+  /** Link do perfil do LinkedIn. Substituiu o antigo e-mail pessoal. */
+  linkedinUrl?: string | null;
   phone?: string | null;
   photoUrl?: string | null;
 
   // Posição atual na organização
-  role: string;
-  area: Area;
+  /** Cargo, restrito ao vocabulário da gestão atual — ver `Cargo` (ADR-017). */
+  role: Cargo;
+  /**
+   * Subárea que o membro integra — `null` para quem é da Diretoria (ADR-018):
+   * a Diretoria lidera a ÁREA inteira, não uma subárea específica, então não
+   * faz sentido prender essa pessoa a uma. Use `getMemberArea()` para obter a
+   * área nos dois casos, e `memberSubareaLabel()` para exibição.
+   */
+  subarea: Subarea | null;
+  /**
+   * Área que a pessoa da Diretoria dirige (ADR-018). Preenchida SÓ quando
+   * `subarea` é `null` — os dois campos são mutuamente exclusivos: a pessoa
+   * está alocada numa subárea OU é Diretoria de uma área, nunca as duas coisas.
+   */
+  diretoriaArea?: Area | null;
   squad?: string | null;
   /** Gerente — é quem conduz o X1. */
   managerId?: ID | null;
@@ -100,10 +283,36 @@ export interface Member {
 export type MemberCreateInput = Omit<Member, 'id' | 'createdAt' | 'updatedAt'>;
 export type MemberUpdateInput = Partial<MemberCreateInput>;
 
+/**
+ * Área da pessoa, cobrindo os dois formatos possíveis de posição (ADR-018):
+ * quem integra uma subárea deriva a área normalmente a partir dela; quem é
+ * da Diretoria não tem subárea e guarda a área diretamente em
+ * `diretoriaArea`. Sempre use esta função em vez de ler `subarea`/
+ * `diretoriaArea` direto — é o único lugar que sabe resolver os dois casos.
+ */
+export function getMemberArea(member: Pick<Member, 'subarea' | 'diretoriaArea'>): Area | null {
+  if (member.subarea) return getAreaForSubarea(member.subarea);
+  return member.diretoriaArea ?? null;
+}
+
+/**
+ * Rótulo de exibição da posição organizacional da pessoa — o que a maioria
+ * das telas hoje mostra lendo `member.subarea` direto. Para a Diretoria não
+ * existe subárea para mostrar, então o rótulo vira "Diretoria (<Área>)".
+ */
+export function memberSubareaLabel(member: Pick<Member, 'subarea' | 'diretoriaArea'>): string {
+  if (member.subarea) return member.subarea;
+  if (member.diretoriaArea) return `Diretoria (${member.diretoriaArea})`;
+  return '—';
+}
+
 /** Filtros da listagem de membros (MEM-002 / MEM-003). */
 export interface MemberFilters {
   /** Busca livre por nome ou e-mail. */
   search?: string;
+  /** Filtra por subárea (nível inferior). */
+  subarea?: Subarea;
+  /** Filtra por área (nível superior) — todas as subáreas dela. */
   area?: Area;
   status?: MemberStatus;
   ggResponsibleId?: ID;
@@ -380,7 +589,7 @@ export interface AnonymousFeedbackModeration {
 
 export type MemberEventType =
   | 'entrada'
-  | 'mudanca_area'
+  | 'mudanca_subarea'
   | 'mudanca_cargo'
   | 'mudanca_gerente'
   | 'x1'

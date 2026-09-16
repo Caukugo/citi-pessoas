@@ -23,12 +23,14 @@ export function fromMemberRow(row: Row): Member {
   return {
     id: row.id,
     fullName: row.full_name,
+    cpf: row.cpf,
     email: row.email,
-    personalEmail: row.personal_email,
+    linkedinUrl: row.linkedin_url,
     phone: row.phone,
     photoUrl: row.photo_url,
     role: row.role,
-    area: row.area,
+    subarea: row.subarea,
+    diretoriaArea: row.diretoria_area,
     squad: row.squad,
     managerId: row.manager_id,
     ggResponsibleId: row.gg_responsible_id,
@@ -49,12 +51,14 @@ export function fromMemberRow(row: Row): Member {
 export function toMemberRow(input: Partial<Member>): Row {
   const row: Row = {};
   if (input.fullName !== undefined) row.full_name = input.fullName;
+  if (input.cpf !== undefined) row.cpf = input.cpf;
   if (input.email !== undefined) row.email = input.email;
-  if (input.personalEmail !== undefined) row.personal_email = input.personalEmail;
+  if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
   if (input.phone !== undefined) row.phone = input.phone;
   if (input.photoUrl !== undefined) row.photo_url = input.photoUrl;
   if (input.role !== undefined) row.role = input.role;
-  if (input.area !== undefined) row.area = input.area;
+  if (input.subarea !== undefined) row.subarea = input.subarea;
+  if (input.diretoriaArea !== undefined) row.diretoria_area = input.diretoriaArea;
   if (input.squad !== undefined) row.squad = input.squad;
   if (input.managerId !== undefined) row.manager_id = input.managerId;
   if (input.ggResponsibleId !== undefined) row.gg_responsible_id = input.ggResponsibleId;

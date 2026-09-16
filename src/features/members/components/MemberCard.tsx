@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Surface } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import { memberSubareaLabel, type ID, type Member } from '@/data';
 import { relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
@@ -47,7 +47,7 @@ export function MemberCard({
         <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
           <div className="min-w-0">
             <dt className="text-muted-foreground">Subárea</dt>
-            <dd className="truncate text-foreground-secondary">{member.area}</dd>
+            <dd className="truncate text-foreground-secondary">{memberSubareaLabel(member)}</dd>
           </div>
           <div className="min-w-0">
             <dt className="text-muted-foreground">GG responsável</dt>

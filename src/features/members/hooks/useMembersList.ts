@@ -5,6 +5,7 @@ import {
   useSettings,
   type ID,
   type Member,
+  type Subarea,
 } from '@/data';
 import {
   applyDerivedFilters,
@@ -47,7 +48,10 @@ export interface MembersListResult {
 export function useMembersList(filters: MembersListFilters): MembersListResult {
   const membersQuery = useMembers({
     search: filters.search || undefined,
-    area: filters.area ? (filters.area as Member['area']) : undefined,
+    // `Subarea`, não `Member['subarea']`: este filtro nunca representa
+    // Diretoria (que não tem subárea, ADR-018) — é sempre uma subárea de
+    // verdade ou "nenhum filtro".
+    subarea: filters.subarea ? (filters.subarea as Subarea) : undefined,
     status: filters.status,
     ggResponsibleId: filters.ggResponsibleId || undefined,
   });

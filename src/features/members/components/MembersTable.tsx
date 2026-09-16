@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { Avatar, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import { memberSubareaLabel, type ID, type Member } from '@/data';
 import { relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
@@ -57,7 +57,7 @@ export function MembersTable({
                 </div>
               </TD>
               <TD className="max-w-[14rem] truncate">{member.role || DASH}</TD>
-              <TD>{member.area}</TD>
+              <TD>{memberSubareaLabel(member)}</TD>
               <TD className="max-w-[12rem] truncate">
                 {memberNameById(directory, member.ggResponsibleId) ?? DASH}
               </TD>

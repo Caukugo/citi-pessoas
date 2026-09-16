@@ -71,3 +71,42 @@ export function normalizeText(value: string): string {
     .trim()
     .toLowerCase();
 }
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+function cpfCheckDigit(base: string): number {
+  let sum = 0;
+  for (let i = 0; i < base.length; i++) {
+    sum += Number(base[i]) * (base.length + 1 - i);
+  }
+  const rest = sum % 11;
+  return rest < 2 ? 0 : 11 - rest;
+}
+
+/**
+ * Valida um CPF pelo algoritmo oficial dos dígitos verificadores — não só a
+ * máscara. Aceita com ou sem pontuação.
+ *
+ * Sequências como `'111.111.111-11'` têm dígitos verificadores que "batem"
+ * pela fórmula, mas nunca são CPFs reais emitidos — por isso são rejeitadas
+ * à parte.
+ */
+export function isValidCPF(value: string): boolean {
+  const digits = onlyDigits(value);
+  if (digits.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+
+  const base = digits.slice(0, 9);
+  const d1 = cpfCheckDigit(base);
+  const d2 = cpfCheckDigit(base + d1);
+  return digits === `${base}${d1}${d2}`;
+}
+
+/** `'12345678909'` → `'123.456.789-09'`. Sem 11 dígitos, devolve o valor original. */
+export function formatCPF(value: string): string {
+  const digits = onlyDigits(value);
+  if (digits.length !== 11) return value;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+}

@@ -40,7 +40,7 @@ import {
   Tooltip,
   TR,
 } from '@/components/ui';
-import { AREAS, useMembers } from '@/data';
+import { memberSubareaLabel, SUBAREAS, useMembers } from '@/data';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -119,7 +119,7 @@ function ButtonsSection() {
 
 const demoSchema = z.object({
   name: z.string().min(3, 'Informe pelo menos 3 caracteres'),
-  area: z.string().min(1, 'Escolha uma subárea'),
+  subarea: z.string().min(1, 'Escolha uma subárea'),
   notes: z.string().optional(),
 });
 
@@ -147,13 +147,13 @@ function FormsSection() {
           {(field) => <Input {...field} {...register('name')} placeholder="Ana Beatriz" />}
         </FormField>
 
-        <FormField label="Subárea" error={errors.area?.message} required>
+        <FormField label="Subárea" error={errors.subarea?.message} required>
           {(field) => (
             <Select
               {...field}
-              {...register('area')}
+              {...register('subarea')}
               placeholder="Selecione…"
-              options={AREAS.map((area) => ({ value: area, label: area }))}
+              options={SUBAREAS.map((subarea) => ({ value: subarea, label: subarea }))}
             />
           )}
         </FormField>
@@ -481,7 +481,7 @@ function LiveExampleSection() {
                     </div>
                   </TD>
                   <TD>{member.role}</TD>
-                  <TD>{member.area}</TD>
+                  <TD>{memberSubareaLabel(member)}</TD>
                   <TD>{formatDate(member.joinedAt)}</TD>
                 </TR>
               ))}

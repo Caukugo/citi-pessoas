@@ -27,7 +27,11 @@ import {
  * da barra lateral, quando o modo mock está ativo).
  */
 
-const STORAGE_KEY = 'citi-pessoas:mock-db:v1';
+// v2: o Membro ganhou `subarea`/`area` derivada (ADR-015), `cpf` e `linkedinUrl`
+// (ADR-016). Uma versão nova força reseed em vez de devolver registros salvos
+// no formato antigo (ex.: `area` em vez de `subarea`), que apareceriam com
+// campos em branco na tela em vez de dar erro.
+const STORAGE_KEY = 'citi-pessoas:mock-db:v2';
 
 export interface MockDatabase {
   members: Member[];

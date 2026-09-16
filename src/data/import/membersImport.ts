@@ -1,7 +1,16 @@
 import Papa from 'papaparse';
 import { z } from 'zod';
-import { normalizeText } from '@/lib/format';
-import { AREAS, type Area, type MemberCreateInput } from '../types';
+import { formatCPF, isValidCPF, normalizeText } from '@/lib/format';
+import {
+  AREAS,
+  cargoOptionsForSubarea,
+  CARGOS_DIRETORIA,
+  SUBAREAS,
+  type Area,
+  type Cargo,
+  type MemberCreateInput,
+  type Subarea,
+} from '../types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -24,11 +33,12 @@ import { AREAS, type Area, type MemberCreateInput } from '../types';
  */
 export const COLUMN_ALIASES: Record<string, string[]> = {
   fullName: ['nome', 'nome completo', 'membro', 'full name'],
+  cpf: ['cpf'],
   email: ['email', 'e-mail', 'email institucional', 'e-mail institucional'],
-  personalEmail: ['email pessoal', 'e-mail pessoal'],
+  linkedinUrl: ['linkedin', 'link do linkedin', 'perfil do linkedin', 'url do linkedin'],
   phone: ['telefone', 'celular', 'contato'],
   role: ['cargo', 'funcao', 'função', 'papel'],
-  area: ['subarea', 'subárea', 'area', 'área'],
+  subarea: ['subarea', 'subárea', 'area', 'área'],
   squad: ['squad', 'time', 'equipe'],
   course: ['curso', 'graduacao', 'graduação'],
   semester: ['periodo', 'período', 'semestre'],
@@ -75,12 +85,12 @@ export function parseFlexibleDate(value: string | undefined): string | null {
   return null;
 }
 
-/** Normaliza a subárea escrita na planilha para uma `Area` conhecida. */
-export function parseArea(value: string | undefined): Area | null {
+/** Normaliza a subárea escrita na planilha para uma `Subarea` conhecida. */
+export function parseSubarea(value: string | undefined): Subarea | null {
   if (!value) return null;
   const normalized = normalizeText(value);
 
-  const direct = AREAS.find((area) => normalizeText(area) === normalized);
+  const direct = SUBAREAS.find((subarea) => normalizeText(subarea) === normalized);
   if (direct) return direct;
 
   // Apelidos comuns usados internamente.
@@ -89,18 +99,71 @@ export function parseArea(value: string | undefined): Area | null {
   }
   if (['dev', 'desenvolvimento', 'tech'].includes(normalized)) return 'Desenvolvimento';
   if (['mkt', 'marketing'].includes(normalized)) return 'Marketing';
+  // "Dados" foi renomeado para "Inteligência de Dados" (ADR-014) — aceita a
+  // grafia antiga e variações comuns para não quebrar planilhas existentes.
+  if (
+    ['dados', 'dado', 'ciencia de dados', 'inteligencia de dados', 'id'].includes(normalized)
+  ) {
+    return 'Inteligência de Dados';
+  }
+  if (['inovacao'].includes(normalized)) return 'Inovação';
 
+  // NÃO existe apelido para "gestao": o valor foi removido por não
+  // corresponder a nenhuma subárea do organograma oficial (ADR-014). Uma
+  // planilha com essa subárea precisa ser corrigida na origem, escolhendo a
+  // subárea real da pessoa — inventar um mapeamento aqui seria decidir por
+  // ela.
+
+  return null;
+}
+
+/**
+ * Normaliza o cargo escrito na planilha para um `Cargo` válido NA SUBÁREA já
+ * resolvida da linha (ADR-017: cargo válido depende da subárea, então esta
+ * função só pode rodar depois de `parseSubarea()`).
+ */
+export function parseCargo(value: string | undefined, subarea: Subarea): Cargo | null {
+  if (!value) return null;
+  const normalized = normalizeText(value);
+  return cargoOptionsForSubarea(subarea).find((cargo) => normalizeText(cargo) === normalized) ?? null;
+}
+
+/**
+ * Diretoria não depende de subárea (ADR-018) — o próprio texto do cargo já
+ * diz a área. Roda ANTES de `parseSubarea()`/`parseCargo()`: quando o cargo
+ * da planilha bate com um dos quatro cargos de Diretoria, a linha nem
+ * precisa ter uma subárea preenchida.
+ */
+export function parseDiretoriaCargo(value: string | undefined): { area: Area; cargo: Cargo } | null {
+  if (!value) return null;
+  const normalized = normalizeText(value);
+  for (const area of AREAS) {
+    const cargo = CARGOS_DIRETORIA[area];
+    if (normalizeText(cargo) === normalized) return { area, cargo };
+  }
   return null;
 }
 
 /** Regras mínimas para uma linha virar um membro. */
 const rowSchema = z.object({
   fullName: z.string().trim().min(3, 'Nome muito curto'),
+  cpf: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || isValidCPF(value), 'CPF inválido')
+    .optional(),
   email: z.string().trim().email('E-mail inválido'),
-  personalEmail: z.string().trim().email('E-mail pessoal inválido').or(z.literal('')).optional(),
+  linkedinUrl: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^https?:\/\/.+/i.test(value), 'Link do LinkedIn inválido')
+    .optional(),
   phone: z.string().trim().optional(),
   role: z.string().trim().min(1, 'Cargo obrigatório'),
-  area: z.string().trim().min(1, 'Subárea obrigatória'),
+  // Sem `.min(1)`: Diretoria não tem subárea (ADR-018), então a coluna pode
+  // vir vazia para essas linhas. Quem exige o preenchimento, quando não é
+  // Diretoria, é a checagem manual em `previewMembersCsv`.
+  subarea: z.string().trim().optional(),
   squad: z.string().trim().optional(),
   course: z.string().trim().optional(),
   semester: z.string().trim().optional(),
@@ -167,14 +230,47 @@ export function previewMembersCsv(csvContent: string): ImportPreview {
       return;
     }
 
-    const area = parseArea(result.data.area);
-    if (!area) {
-      issues.push({
-        line,
-        field: 'area',
-        message: `Subárea "${result.data.area}" não reconhecida. Esperado: ${AREAS.join(', ')}.`,
-      });
-      return;
+    // Diretoria é checada primeiro, ANTES de exigir subárea (ADR-018): quem
+    // dirige uma área não integra subárea nenhuma, então uma linha cujo
+    // cargo já identifica a Diretoria não precisa da coluna de subárea.
+    const diretoria = parseDiretoriaCargo(result.data.role);
+
+    let subarea: Subarea | null = null;
+    let diretoriaArea: Area | null = null;
+    let cargo: Cargo | null = null;
+
+    if (diretoria) {
+      diretoriaArea = diretoria.area;
+      cargo = diretoria.cargo;
+    } else {
+      if (!result.data.subarea) {
+        issues.push({
+          line,
+          field: 'subarea',
+          message: 'Subárea obrigatória (ou informe um cargo de Diretoria, que dispensa a subárea).',
+        });
+        return;
+      }
+
+      subarea = parseSubarea(result.data.subarea);
+      if (!subarea) {
+        issues.push({
+          line,
+          field: 'subarea',
+          message: `Subárea "${result.data.subarea}" não reconhecida. Esperado: ${SUBAREAS.join(', ')}.`,
+        });
+        return;
+      }
+
+      cargo = parseCargo(result.data.role, subarea);
+      if (!cargo) {
+        issues.push({
+          line,
+          field: 'role',
+          message: `Cargo "${result.data.role}" não é válido para a subárea ${subarea}. Esperado: ${cargoOptionsForSubarea(subarea).join(', ')}.`,
+        });
+        return;
+      }
     }
 
     const joinedAt = parseFlexibleDate(result.data.joinedAt);
@@ -203,12 +299,14 @@ export function previewMembersCsv(csvContent: string): ImportPreview {
 
     valid.push({
       fullName: result.data.fullName,
+      cpf: result.data.cpf ? formatCPF(result.data.cpf) : null,
       email: result.data.email,
-      personalEmail: result.data.personalEmail || null,
+      linkedinUrl: result.data.linkedinUrl || null,
       phone: result.data.phone || null,
       photoUrl: null,
-      role: result.data.role,
-      area,
+      role: cargo,
+      subarea,
+      diretoriaArea,
       squad: result.data.squad || null,
       managerId: null,
       ggResponsibleId: null,

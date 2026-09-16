@@ -1,5 +1,5 @@
 import { Panel } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import { getMemberArea, memberSubareaLabel, type ID, type Member } from '@/data';
 import { daysSince, formatDate } from '@/lib/format';
 import { memberNameById } from '../model/membersList';
 
@@ -19,6 +19,8 @@ const DASH = '—';
 interface Row {
   label: string;
   value: string;
+  /** Quando presente, o valor vira link (usado pelo LinkedIn). */
+  href?: string;
 }
 
 /** "há 412 dias" não diz nada; "1 ano e 2 meses" diz. */
@@ -48,7 +50,12 @@ export function MemberInfoGrid({
     {
       title: 'No CITi',
       rows: [
-        { label: 'Subárea', value: member.area },
+        // Área nunca é guardada diretamente para quem integra uma subárea —
+        // é derivada dela (ADR-015). Para Diretoria é o contrário: não há
+        // subárea, a área é o próprio dado guardado (ADR-018). `getMemberArea`
+        // cobre os dois casos.
+        { label: 'Área', value: getMemberArea(member) ?? DASH },
+        { label: 'Subárea', value: memberSubareaLabel(member) },
         { label: 'Cargo', value: member.role || DASH },
         { label: 'Squad', value: member.squad || DASH },
         { label: 'GG responsável', value: memberNameById(directory, member.ggResponsibleId) ?? DASH },
@@ -70,8 +77,11 @@ export function MemberInfoGrid({
     {
       title: 'Contato',
       rows: [
+        { label: 'CPF', value: member.cpf || DASH },
         { label: 'E-mail institucional', value: member.email },
-        { label: 'E-mail pessoal', value: member.personalEmail || DASH },
+        member.linkedinUrl
+          ? { label: 'LinkedIn', value: 'Ver perfil', href: member.linkedinUrl }
+          : { label: 'LinkedIn', value: DASH },
         { label: 'Telefone', value: member.phone || DASH },
       ],
     },
@@ -91,7 +101,20 @@ export function MemberInfoGrid({
                   <dt className="text-xs text-muted-foreground">{row.label}</dt>
                   {/* `break-words`: e-mail e curso longos não podem empurrar
                       a coluna e fazer a página rolar para o lado. */}
-                  <dd className="text-sm break-words text-foreground-secondary">{row.value}</dd>
+                  {row.href ? (
+                    <dd className="text-sm break-words">
+                      <a
+                        href={row.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {row.value}
+                      </a>
+                    </dd>
+                  ) : (
+                    <dd className="text-sm break-words text-foreground-secondary">{row.value}</dd>
+                  )}
                 </div>
               ))}
             </dl>

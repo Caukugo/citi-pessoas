@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FilterX } from 'lucide-react';
 import { Button, Chip, SearchInput, Select } from '@/components/ui';
-import { AREAS, type Member } from '@/data';
+import { SUBAREAS, type Member } from '@/data';
 import {
   FEEDBACK_TYPES,
   FEEDBACK_TYPE_PLURAL,
@@ -67,10 +67,10 @@ export function FeedbacksToolbar({
       <div className="grid grid-cols-2 gap-3">
         <Select
           aria-label="Filtrar por subárea"
-          value={filters.area}
-          onChange={(e) => onChange('area', e.target.value)}
+          value={filters.subarea}
+          onChange={(e) => onChange('subarea', e.target.value)}
           placeholder="Todas as subáreas"
-          options={AREAS.map((area) => ({ value: area, label: area }))}
+          options={SUBAREAS.map((subarea) => ({ value: subarea, label: subarea }))}
         />
 
         <Select

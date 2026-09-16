@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
-import { FEEDBACK_TYPE_LABEL, type FeedbackType, type ID, type Member } from '@/data';
+import { FEEDBACK_TYPE_LABEL, memberSubareaLabel, type FeedbackType, type ID, type Member } from '@/data';
 import { cn } from '@/lib/cn';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
@@ -123,7 +123,7 @@ export function FeedbacksTable({
                 </div>
               </TD>
 
-              <TD>{member.area}</TD>
+              <TD>{memberSubareaLabel(member)}</TD>
 
               <TD className="max-w-[12rem] truncate">
                 {memberNameById(directory, member.ggResponsibleId) ?? DASH}

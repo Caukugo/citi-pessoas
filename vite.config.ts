@@ -20,5 +20,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Padrão do Vitest é 5s — curto para um teste que renderiza a aplicação
+    // inteira e passa pela latência simulada do adapter mock (login, busca de
+    // membros, navegação). Testes de fluxo mais longos continuam declarando
+    // seu próprio limite maior (ex.: 15_000/30_000) por cima deste padrão.
+    testTimeout: 15_000,
   },
 });

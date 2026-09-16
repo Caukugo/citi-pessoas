@@ -115,7 +115,7 @@ function mostRecent(feedbacks: Feedback[]): Feedback | null {
  */
 export interface FeedbacksListFilters {
   search: string;
-  area: string;
+  subarea: string;
   ggResponsibleId: string;
   /** Um `FeedbackType`, ou '' para todos. */
   type: string;
@@ -123,7 +123,7 @@ export interface FeedbacksListFilters {
 
 export const DEFAULT_FEEDBACKS_FILTERS: FeedbacksListFilters = {
   search: '',
-  area: '',
+  subarea: '',
   ggResponsibleId: '',
   type: '',
 };
@@ -131,7 +131,7 @@ export const DEFAULT_FEEDBACKS_FILTERS: FeedbacksListFilters = {
 export function hasActiveFeedbackFilters(filters: FeedbacksListFilters): boolean {
   return (
     filters.search !== '' ||
-    filters.area !== '' ||
+    filters.subarea !== '' ||
     filters.ggResponsibleId !== '' ||
     filters.type !== ''
   );
@@ -159,14 +159,16 @@ export function applyFeedbackFilters(
   const needle = normalizeText(filters.search);
 
   return rows.filter(({ member, counts }) => {
-    if (filters.area && member.area !== filters.area) return false;
+    if (filters.subarea && member.subarea !== filters.subarea) return false;
     if (filters.ggResponsibleId && member.ggResponsibleId !== filters.ggResponsibleId) {
       return false;
     }
     if (filters.type && counts[filters.type as FeedbackType] === 0) return false;
 
     if (needle) {
-      const haystack = [member.fullName, member.role, member.area].map(normalizeText);
+      // `subarea` é `null` para Diretoria (ADR-018) — cai fora da busca, não
+      // quebra a busca.
+      const haystack = [member.fullName, member.role, member.subarea ?? ''].map(normalizeText);
       if (!haystack.some((value) => value.includes(needle))) return false;
     }
 

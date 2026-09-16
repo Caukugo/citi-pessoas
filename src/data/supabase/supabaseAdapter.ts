@@ -1,6 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import type { DataAdapter } from '../adapter';
 import { DataError } from '../errors';
+import { AREA_STRUCTURE } from '../types';
 import type { AuthUser, ID, Member, MemberCreateInput, X1 } from '../types';
 import { supabase } from './client';
 import {
@@ -44,7 +45,13 @@ export const supabaseAdapter: DataAdapter = {
     async list(filters) {
       let query = supabase().from('members').select('*').order('full_name', { ascending: true });
 
-      if (filters?.area) query = query.eq('area', filters.area);
+      if (filters?.subarea) query = query.eq('subarea', filters.subarea);
+      if (filters?.area) {
+        // Uma pessoa da Diretoria não tem subárea (ADR-018) — ela só aparece
+        // no filtro por área via `diretoria_area`, nunca via `subarea`.
+        const subareasDaArea = AREA_STRUCTURE[filters.area].join(',');
+        query = query.or(`subarea.in.(${subareasDaArea}),diretoria_area.eq.${filters.area}`);
+      }
       if (filters?.status) query = query.eq('status', filters.status);
       if (filters?.ggResponsibleId) query = query.eq('gg_responsible_id', filters.ggResponsibleId);
       if (filters?.managerId) query = query.eq('manager_id', filters.managerId);
