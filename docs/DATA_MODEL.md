@@ -424,6 +424,270 @@ existir autorregistro.
 
 ---
 
+## 8b. Gestão de membros — estrutura, ciclo e entrada
+
+Acrescentado pelas migrations `0003`–`0010`. Passo a passo de aplicação,
+premissas e comandos: **`docs/supabase-test-setup.md`**.
+
+### Estrutura organizacional
+
+`areas` → `subareas` → `positions`. Substitui, sem remover, o texto livre de
+`members.area` e `members.role`: as colunas novas (`area_id`, `subarea_id`,
+`position_id`) convivem com as antigas enquanto as telas não migram.
+
+Duas decisões que valem lembrar:
+
+- **Cargo de área inteira.** `positions.subarea_id` nulo significa que o cargo
+  atua sobre a área toda. É o que faz "Diretoria de Negócios" cobrir Comercial
+  e Marketing sem existirem duas linhas dela.
+- **Membro sem subárea (0014).** Quem tem cargo de área inteira fica com
+  `members.subarea_id` **NULO, sempre** — inclusive quando a planilha informou
+  uma subárea válida, que é conferida (precisa ser da área do cargo) e depois
+  descartada. Prender a Diretoria de Negócios ao Comercial inventaria um
+  vínculo que não existe. `area_id` vem do cargo; o valor recebido continua no
+  `payload` da submissão. Não gera erro nem `needs_review`: a prévia mostra um
+  aviso informativo e segue. Cargo preso a uma subárea continua exigindo
+  subárea — sem ela ninguém saberia em que time a pessoa entrou. A pessoa é
+  **uma só**: não existe uma linha por subárea coberta.
+- **Filtros e listagens usam as chaves, não o texto.** `area_id` recorta a área
+  inteira (e traz quem não está em subárea nenhuma); `subarea_id` recorta só a
+  subárea, e a diretoria de área não aparece nele porque não pertence a uma
+  subárea só. A coluna `members.area` fica **apenas** por compatibilidade, para
+  o cadastro manual que ainda não lê o catálogo — remoção registrada em
+  **DATA-007**.
+- **Regra de continuação armazenada.** `positions.continuation_months` (12 para
+  diretoria, 6 para o resto). O código **nunca** compara o nome do cargo com a
+  palavra "diretoria" — ele lê a coluna.
+- **Um cargo, vários nomes (0017 e 0018).** `position_aliases` guarda os
+  apelidos de um cargo, e `positions.abbreviation` guarda a sigla. As quatro
+  diretorias são **cadeiras únicas**, todas de escopo de **área inteira**
+  (`subarea_id` nulo), `is_directorship` e **12 meses**:
+
+  | Sigla | Nome canônico | Área | Apelidos que resolvem |
+  | --- | --- | --- | --- |
+  | CEO | Diretor(a) Institucional | Institucional | Presidência, Diretoria Institucional, Diretor(a)/Diretora Institucional |
+  | COO | Diretor(a) de Operações | Gente e Gestão | Diretoria de Gente e Gestão, Diretor(a)/Diretora de Operações, Diretoria de Operações |
+  | CRO | Diretor(a) de Negócios | Negócios | Diretoria de Negócios, Diretor/Diretora de Negócios |
+  | CTO | Diretor(a) de Soluções | Soluções | Diretoria de Soluções, Diretor/Diretora de Soluções |
+
+  **Customer Success** (0018) também cobre a área de Soluções inteira, no mesmo
+  nível dos Líderes — mas **não é diretoria**: 6 meses de continuação, como
+  qualquer cargo não diretivo. Área inteira e diretoria são coisas diferentes, e
+  confundi-las daria 12 meses a quem a gestão deu 6. Ele não lidera ninguém
+  hoje; isso é um fato do momento, e **não** existe proibição de liderados.
+
+  **Cargo de área inteira nunca é cargo de ENTRADA** (0018). A chave composta
+  `subareas_entry_position_da_propria_subarea` exige que o cargo de chegada seja
+  da própria subárea — é o que impede a futura integração do Google Forms de
+  atribuir uma diretoria ou o Customer Success sozinha. Ninguém entra na
+  empresa como CTO.
+
+  Dois cargos equivalentes no catálogo não é detalhe: é a mesma pessoa
+  importada num ou noutro conforme o que a planilha escreveu naquele semestre,
+  duas linhas no seletor, e filtro por cargo devolvendo metade da resposta.
+
+  Quem resolve texto → cargo é `citi_resolve_position(rótulo, área)` no banco e
+  `findPositionsByLabel()` no TypeScript; os dois normalizam igual (minúsculas,
+  sem acento, espaços colapsados). Um apelido pertence a **um** cargo só,
+  garantido por índice único.
+- **Cargo inicial por chave estrangeira.** `subareas.entry_position_id` diz com
+  que cargo entra quem chega naquela subárea. Não é texto comparado em lugar
+  nenhum.
+
+### Situação do membro
+
+`member_status` passou a ter quatro valores:
+
+| Status | Significado |
+| --- | --- |
+| `ativo` | está atualmente na empresa |
+| `inativo` | **terminou naturalmente** o ciclo |
+| `desligado` | saiu **antes** de terminar o ciclo |
+| `arquivado` | mantido apenas para histórico |
+
+A diferença entre `inativo` e `desligado` não é cosmética: só quem ficou inativo
+por conclusão natural pode ser reativado.
+
+### Ciclos (`member_cycles`)
+
+⚠️ **Gestão ≠ ciclo.** A gestão `2026.2` é o semestre administrativo
+(01/07/2026 – 31/12/2026). O ciclo de quem entra nela dura **12 meses**
+(01/07/2026 – 30/06/2027).
+
+| Entrada | Ciclo |
+| --- | --- |
+| `AAAA.1` | 01/01/AAAA → 31/12/AAAA |
+| `AAAA.2` | 01/07/AAAA → 30/06/(AAAA+1) |
+
+Calculado por `citi_cycle_bounds()`. Um membro tem no máximo um ciclo
+`em_andamento` (índice único parcial garante). Continuação **emenda**: o novo
+ciclo abre no dia seguinte ao fim do anterior, com `origin = 'continuacao'`.
+
+O ciclo é vigente durante **todo** o `expected_end_on`: só está vencido quando
+`expected_end_on < data de referência`.
+
+**Como um ciclo termina** (`end_type`):
+
+| Valor | Significado |
+| --- | --- |
+| `conclusao_natural` | chegou ao fim previsto e a pessoa ficou inativa. É o único fim que a reativação aceita |
+| `continuado` | chegou ao fim previsto e **a pessoa seguiu** — o ciclo seguinte emenda no dia seguinte. Introduzido pela `0015` |
+| `desligamento` | saiu antes do fim |
+| `arquivamento` | foi para histórico |
+
+**`member_cycles.source` (0015).** Responde outra pergunta que não a `origin`:
+quem criou aquele período. `NULL` é o normal — entrada, ou continuação que
+alguém decidiu. `current_roster_import` marca o ciclo que a importação da base
+atual **deduziu**, e que ninguém assinou.
+
+### A base atual (`current_roster`, migration 0015)
+
+⚠️ **A planilha da importação é a BASE ATUAL, não um arquivo de entradas.** Ela
+descreve quem está no CITi **hoje**. Quem entrou em 2024.1 e continua atuando
+não "concluiu o ciclo e saiu" — continuou, e ninguém registrou porque a
+plataforma não existia.
+
+Por isso a importação nunca inativa ninguém. Quando o ciclo da gestão de entrada
+já terminou antes da data de referência:
+
+1. o ciclo inicial (que **não** se estica) é encerrado como `continuado`;
+2. abre-se um ciclo no dia seguinte, com `continuation_months` do **cargo**
+   (12 diretoria, 6 demais — lido da coluna);
+3. repete-se até um ciclo alcançar a data de referência;
+4. só o último fica `em_andamento`, e o membro fica `ativo` o tempo todo;
+5. nenhum desligamento, retorno ou reativação é registrado — nada disso houve;
+6. os ciclos inferidos ficam com `source = 'current_roster_import'`;
+7. tudo isso vira **um único** `member_event` de `importacao`, com fim original,
+   fim final, quantidade de ciclos, meses de cada bloco e data de referência. O
+   detalhamento de cada período vive nos `member_cycles`.
+
+**A data de referência é do BANCO** (`citi_import_reference_date`). A prévia
+calcula no navegador para mostrar as datas sem uma ida ao servidor por linha,
+mas quem decide quantos meses cada pessoa ganha não pode ser o relógio do
+cliente: pela API a sugestão é substituída pela data do servidor, e uma sugestão
+a mais de um dia de distância é recusada (prévia velha). O valor usado volta no
+resultado da importação.
+
+**Não existe renovação automática depois disso.** Quando o último ciclo
+terminar, a rotina diária inativa o membro normalmente, por
+`conclusao_natural` — a continuação seguinte é decisão humana, pela reativação.
+
+A entrada futura pelo **Google Forms não usa a base atual**: `citi_open_entry_cycle`
+cria só o ciclo inicial, porque quem está chegando agora não tem histórico a
+reconstruir.
+
+### As duas operações
+
+| Função | O que faz |
+| --- | --- |
+| `citi_deactivate_finished_cycles(data)` | quem está `ativo` com ciclo vencido vira `inativo`. Idempotente; não toca em desligado nem arquivado |
+| `citi_reactivate_member(membro, cargo, …)` | continuação: só para quem está `inativo` por conclusão natural. Os meses vêm de `continuation_months` |
+
+### Histórico (`member_events`)
+
+Ganhou `before_data` / `after_data` (JSONB), `actor_profile_id` e
+`idempotency_key`. Mudança de cargo, área, subárea, responsável de GG, saída e
+**correção cadastral** são registradas por **trigger**, não pela tela — confiar
+na tela para lembrar de registrar é como o passado acaba sobrescrito.
+
+**Correção cadastral ≠ mudança (0016).** Corrigir um telefone digitado errado
+não é a mesma coisa que o telefone da pessoa ter mudado. O tipo
+`correcao_cadastral` guarda o **diff** — só os campos que mudaram, com antes e
+depois — e um único evento por correção, mesmo quando três campos são
+corrigidos de uma vez.
+
+Os eventos de cargo, área e subárea carregam `change_kind` em `after_data`:
+`correcao_cadastral` quando vieram da tela de correção, `nao_informado` quando
+ninguém declarou. É o que vai separar conserto de cadastro de uma futura
+**movimentação** formal (promoção, troca de time, com data de vigência) — ver
+ADR-015. Quem chama declara com `set local citi.change_kind`.
+
+### Correção de cadastro (`0016`, PERFIL-006)
+
+| Função | O que faz |
+| --- | --- |
+| `citi_correct_member_record(membro, mudanças)` | corrige o cadastro numa transação. `mudanças` é JSONB com **apenas as chaves alteradas**; chave ausente não mexe, chave nula limpa. Chave desconhecida é **recusada** |
+| `citi_resolve_member_review(membro, motivos)` | remove do `needs_review` **só** os motivos informados e devolve os que sobraram |
+
+O que a correção valida: e-mail institucional único (sem depender da caixa),
+telefone guardado **só com dígitos**, data de nascimento real e não futura,
+período entre 1 e 20, e a lotação inteira de uma vez — cargo de área inteira
+zera a subárea, e a área sai do cargo, exatamente como na importação.
+
+O que ela **não** toca, de propósito: `status`, `joined_at`, `exited_at` (sair e
+voltar têm fluxo próprio), `gg_responsible_id` (tela e evento próprios), foto
+(vai para o Storage, que não participa da transação) e CPF (exige modelagem de
+segurança própria).
+
+Corrigir a data de nascimento resolve `invalid_birth_date` **e só ela**; enviar
+a foto resolve as pendências `photo_*`. Quando o último motivo sai, a submissão
+volta sozinha para `processed`.
+
+### Entrada de pessoas (`member_intake_submissions`)
+
+Planilha e Google Forms escrevem aqui antes de virar membro: guarda o payload
+original, o status (`pending` / `processed` / `needs_review` / `failed`) e um
+`external_id` único por origem, que impede processar o mesmo envio duas vezes.
+
+A importação por **CSV já está implementada** (migrations 0011 a 0015, tela em
+`/importacao`, passo a passo em `docs/importacao-piloto.md`). O Google Forms
+continua sendo só o lugar onde ela vai escrever.
+
+| Função | O que faz |
+| --- | --- |
+| `citi_import_member(...)` | submissão + membro + ciclo + continuação da base atual + histórico numa transação. Ninguém entra inativo. Idempotente por `(csv, external_id)` e por e-mail |
+| `citi_continue_roster_cycles(membro, data)` | emenda os ciclos de continuação da base atual até alcançar a data de referência. Encerra os anteriores como `continuado` |
+| `citi_import_reference_date(data)` | a data de referência oficial: a do banco. Sessão direta pode fixá-la; pela API, sugestão distante é recusada |
+| `citi_record_intake_failure(...)` | deixa rastro de uma linha que falhou — a transação dela já voltou atrás |
+| `citi_flag_intake_review(...)` | marca uma submissão já importada como `needs_review`, com os motivos. Lista vazia devolve para `processed` |
+| `org_positions_catalog` (view) | combinações válidas de área × subárea × cargo, uma linha por par permitido |
+
+**Pendência de revisão (`review_reasons`, migration 0013).** Existe um terceiro
+destino além de "entrou" e "não entrou": a pessoa entra corretamente e ainda
+sobra algo para um humano resolver. `review_reasons` é `text[]` com **códigos
+estáveis** — `invalid_birth_date`, `photo_missing`, `invalid_photo_type`,
+`photo_too_large`, `photo_upload_failed` — e a tradução para português vive na
+tela, não no banco.
+
+- Status e motivos andam juntos, garantido por `check`: ter motivo **é** estar
+  em `needs_review`; não ter motivo **é** não estar. Tirar o último motivo
+  devolve a submissão para `processed` sozinho.
+- `error_message` continua reservado para **falha técnica**. Pendência de
+  revisão não é erro.
+- O valor original que a planilha trouxe **não** é copiado para cá: ele já está
+  em `payload`, fiel ao arquivo.
+- Reimportar não apaga uma pendência: `needs_review` conta como "já importado"
+  na primeira camada de idempotência.
+
+⚠️ Hoje não existe tela para resolver essas pendências — a correção do cadastro
+pelo Perfil é **PERFIL-006**, obrigatória antes da importação da base real.
+
+⚠️ A importação usa o cargo **da planilha**, não `subareas.entry_position_id`:
+quem já está no CITi pode ser analista, especialista, gerente, líder ou diretor.
+O cargo inicial é para as entradas futuras pelo Google Forms.
+
+### Fotos
+
+Bucket **privado** `member-photos`, organizado por `<member_id>/<arquivo>`,
+5 MB, JPEG/PNG/WebP. Sem link público permanente: a exibição usa URL assinada.
+`members.photo_path` guarda o caminho.
+
+**Como a foto chega à tela.** `db.members.getPhotoUrl(caminho)` pede uma URL
+assinada de uma hora; `useMemberPhotoUrl` guarda essa URL em cache **por
+caminho**, com validade um pouco menor que a da assinatura. A listagem de
+setenta pessoas pede setenta URLs — não uma por renderização.
+
+- A URL assinada **nunca** é gravada no banco. Ela expira, e link morto
+  guardado é pior do que nenhum.
+- Sem foto, foto apagada do bucket e assinatura vencida têm a mesma resposta:
+  as **iniciais**. Quadrado quebrado no lugar do rosto de alguém, nunca.
+- Assinatura vencida (aba aberta desde ontem) faz a imagem falhar; o
+  `MemberAvatar` invalida o cache daquele caminho e pede outra.
+- O caminho é conferido contra `<uuid>/<arquivo>` antes de virar pedido de
+  assinatura: um `photo_path` adulterado não vira URL de outro bucket.
+
+---
+
 ## 9. Convenções
 
 | Assunto | Convenção |

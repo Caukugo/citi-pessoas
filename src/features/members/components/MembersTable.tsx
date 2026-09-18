@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
-import { Avatar, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import { Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
+import { useMemberOrgLabels, type ID, type Member } from '@/data';
 import { cn } from '@/lib/cn';
 import { relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
+import { MemberAvatar } from './MemberAvatar';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
 import { memberNameById, type MemberListItem } from '../model/membersList';
 
@@ -57,6 +58,8 @@ export function MembersTable({
   directory: Map<ID, Member>;
 }) {
   const navigate = useNavigate();
+  // "Área inteira" para quem tem cargo de área: nunca o texto legado.
+  const orgLabel = useMemberOrgLabels();
 
   return (
     <TableWrapper>
@@ -94,9 +97,8 @@ export function MembersTable({
             >
               <TD className={cn(CELL, ROW)}>
                 <div className="flex items-center gap-[12px]">
-                  <Avatar
-                    name={member.fullName}
-                    photoUrl={member.photoUrl}
+                  <MemberAvatar
+                    member={member}
                     size="md"
                     shape="circle"
                     className="h-[34px] w-[34px] text-[11px]"
@@ -112,7 +114,9 @@ export function MembersTable({
                 </div>
               </TD>
               <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>{member.role || DASH}</TD>
-              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>{member.area}</TD>
+              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
+                {orgLabel(member).subarea}
+              </TD>
               <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
                 {memberNameById(directory, member.ggResponsibleId) ?? DASH}
               </TD>

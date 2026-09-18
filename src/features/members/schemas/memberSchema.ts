@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AREAS, type Area, type MemberCreateInput } from '@/data';
+import { LEGACY_SUBAREA_NAMES, type LegacySubareaName, type MemberCreateInput } from '@/data';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -51,7 +51,9 @@ const baseMemberFormSchema = z.object({
   // Informações básicas
   fullName: z.string().trim().min(3, 'Informe o nome completo'),
   role: z.string().trim().min(2, 'Informe o cargo'),
-  area: z.enum(AREAS as [Area, ...Area[]], { errorMap: () => ({ message: 'Escolha a subárea' }) }),
+  area: z.enum(LEGACY_SUBAREA_NAMES as [LegacySubareaName, ...LegacySubareaName[]], {
+    errorMap: () => ({ message: 'Escolha a subárea' }),
+  }),
   joinedAt: z.string().min(1, 'Informe a data de entrada'),
 
   // Acompanhamento

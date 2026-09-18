@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
-import { FEEDBACK_TYPE_LABEL, type FeedbackType, type ID, type Member } from '@/data';
+import {
+  FEEDBACK_TYPE_LABEL,
+  MEMBER_STATUS_LABEL,
+  type FeedbackType,
+  useMemberOrgLabels,
+  type ID,
+  type Member,
+} from '@/data';
 import { cn } from '@/lib/cn';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
@@ -107,6 +114,8 @@ export function FeedbacksTable({
   directory: Map<ID, Member>;
   onOpenHistory: (memberId: ID, type: FeedbackType) => void;
 }) {
+  const orgLabel = useMemberOrgLabels();
+
   return (
     <TableWrapper>
       {/* `table-fixed`: sem ele as porcentagens são só sugestão — a coluna com
@@ -162,13 +171,15 @@ export function FeedbacksTable({
                       pill
                       className="h-[20px] shrink-0 border-transparent px-[9px] text-[11px] font-medium whitespace-nowrap"
                     >
-                      {member.status === 'desligado' ? 'Desligado' : 'Arquivado'}
+                      {MEMBER_STATUS_LABEL[member.status]}
                     </Badge>
                   )}
                 </div>
               </TD>
 
-              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>{member.area}</TD>
+              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
+                {orgLabel(member).subarea}
+              </TD>
 
               <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
                 {memberNameById(directory, member.ggResponsibleId) ?? DASH}

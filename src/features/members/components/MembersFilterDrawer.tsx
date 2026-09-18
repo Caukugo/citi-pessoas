@@ -1,5 +1,5 @@
 import { Button, Drawer, FormField, Select } from '@/components/ui';
-import { AREAS, MEMBER_X1_STATUS_LABEL } from '@/data';
+import { MEMBER_X1_STATUS_LABEL, useOrgCatalog } from '@/data';
 import type { MemberDirectoryOptions, MembersListFilters } from '../model/membersList';
 
 /**
@@ -23,6 +23,12 @@ const X1_STATUS_OPTIONS = [
   { value: 'atrasado', label: MEMBER_X1_STATUS_LABEL.atrasado },
 ];
 
+/**
+ * Área e subárea saem do CATÁLOGO (`areas` / `subareas`), não de uma lista
+ * escrita no código. É o que faz "Negócios" existir como recorte próprio — e,
+ * com ele, aparecerem também as pessoas de cargo de área inteira, que não
+ * pertencem a nenhuma subárea.
+ */
 export function MembersFilterDrawer({
   open,
   onClose,
@@ -40,6 +46,15 @@ export function MembersFilterDrawer({
   onChange: <K extends keyof MembersListFilters>(key: K, value: MembersListFilters[K]) => void;
   onClear: () => void;
 }) {
+  const { data: catalog } = useOrgCatalog();
+  const areas = catalog?.areas ?? [];
+  // Escolhida uma área, só as subáreas DELA continuam ofertadas: combinar
+  // "Negócios" com "Dados" só produziria uma lista vazia.
+  const selectedArea = areas.find((area) => area.slug === filters.areaSlug) ?? null;
+  const subareas = (catalog?.subareas ?? []).filter(
+    (subarea) => !selectedArea || subarea.areaId === selectedArea.id,
+  );
+
   return (
     <Drawer
       open={open}
@@ -59,14 +74,26 @@ export function MembersFilterDrawer({
       }
     >
       <div className="flex flex-col gap-4">
+        <FormField label="Área" hint="Traz a área inteira, incluindo quem tem cargo de área.">
+          {(field) => (
+            <Select
+              {...field}
+              value={filters.areaSlug}
+              onChange={(e) => onChange('areaSlug', e.target.value)}
+              placeholder="Todas as áreas"
+              options={areas.map((area) => ({ value: area.slug, label: area.name }))}
+            />
+          )}
+        </FormField>
+
         <FormField label="Subárea">
           {(field) => (
             <Select
               {...field}
-              value={filters.area}
-              onChange={(e) => onChange('area', e.target.value)}
+              value={filters.subareaSlug}
+              onChange={(e) => onChange('subareaSlug', e.target.value)}
               placeholder="Todas as subáreas"
-              options={AREAS.map((area) => ({ value: area, label: area }))}
+              options={subareas.map((subarea) => ({ value: subarea.slug, label: subarea.name }))}
             />
           )}
         </FormField>

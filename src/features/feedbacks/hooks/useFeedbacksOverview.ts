@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
-import { useAllFeedbacks, useMembers, type Feedback, type ID } from '@/data';
+import {
+  orgIdBySlug,
+  useAllFeedbacks,
+  useMembers,
+  useOrgCatalog,
+  type Feedback,
+  type ID,
+} from '@/data';
 import {
   aggregateFeedbacksByMember,
   applyFeedbackFilters,
@@ -40,17 +47,26 @@ export function useFeedbacksOverview(filters: FeedbacksListFilters): FeedbacksOv
   // usa, então esta tela não gera uma segunda ida ao adapter.
   const membersQuery = useMembers();
   const feedbacksQuery = useAllFeedbacks();
+  const catalogQuery = useOrgCatalog();
+
+  const catalog = catalogQuery.data;
 
   const derived = useMemo(() => {
     const members = membersQuery.data ?? [];
     const feedbacks = feedbacksQuery.data ?? [];
+
+    // Slug → id, uma vez: a função de filtro compara chave, nunca texto.
+    const org = {
+      areaId: orgIdBySlug(catalog?.areas, filters.areaSlug),
+      subareaId: orgIdBySlug(catalog?.subareas, filters.subareaSlug),
+    };
 
     const all = aggregateFeedbacksByMember(members, feedbacks);
 
     // O resumo é calculado sem o filtro de tipo, de propósito: a faixa mostra o
     // panorama do recorte, e clicar em um tipo é que estreita a tabela. Se o
     // número encolhesse junto, ele deixaria de ser panorama.
-    const withoutType = applyFeedbackFilters(all, { ...filters, type: '' });
+    const withoutType = applyFeedbackFilters(all, { ...filters, type: '' }, org);
 
     const byMember = new Map<ID, Feedback[]>();
     for (const feedback of feedbacks) {
@@ -60,19 +76,22 @@ export function useFeedbacksOverview(filters: FeedbacksListFilters): FeedbacksOv
     }
 
     return {
-      rows: sortFeedbackRows(applyFeedbackFilters(all, filters)),
+      rows: sortFeedbackRows(applyFeedbackFilters(all, filters, org)),
       summary: summarizeFeedbacks(withoutType),
       byMember,
     };
-  }, [membersQuery.data, feedbacksQuery.data, filters]);
+  }, [membersQuery.data, feedbacksQuery.data, catalog, filters]);
 
   return {
     ...derived,
-    isLoading: membersQuery.isLoading || feedbacksQuery.isLoading,
-    isError: membersQuery.isError || feedbacksQuery.isError,
+    // O catálogo entra no carregamento: sem ele o slug do filtro ainda não
+    // virou id, e a tabela apareceria sem recorte por um instante.
+    isLoading: membersQuery.isLoading || feedbacksQuery.isLoading || catalogQuery.isLoading,
+    isError: membersQuery.isError || feedbacksQuery.isError || catalogQuery.isError,
     refetch: () => {
       void membersQuery.refetch();
       void feedbacksQuery.refetch();
+      void catalogQuery.refetch();
     },
   };
 }

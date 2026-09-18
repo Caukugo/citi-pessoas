@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-08-21",
+  "updatedAt": "2026-09-17",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -393,6 +393,33 @@
       ]
     },
     {
+      "id": "DATA-007",
+      "epic": "EPIC-0",
+      "title": "Remover a coluna legada members.area",
+      "description": "Listagens e filtros ja usam area_id / subarea_id. A coluna de texto members.area ficou so por compatibilidade com o formulario de cadastro manual, que ainda escreve LEGACY_SUBAREA_NAMES - uma lista que se chama 'area' e guarda nome de subarea.",
+      "owner": "Sofia",
+      "reviewer": "Cauan",
+      "difficulty": "tecnica",
+      "priority": "Baixa",
+      "status": "Blocked",
+      "dependencies": [
+        "DATA-006"
+      ],
+      "branch": "chore/drop-legacy-area",
+      "acceptanceCriteria": [
+        "Formulario de cadastro escolhe area, subarea e cargo pelo catalogo",
+        "Nenhum codigo de tela le member.area",
+        "Migration derruba members.area e citi_import_member para de preenche-la",
+        "LegacySubareaName e LEGACY_SUBAREA_NAMES saem de types.ts"
+      ],
+      "aiInstructions": "memberOrgLabels() em src/data/org.ts e o unico lugar que ainda le o texto legado, como ultimo recurso.",
+      "labels": [
+        "area: data",
+        "difficulty: technical",
+        "priority: low"
+      ]
+    },
+    {
       "id": "ONB-001",
       "epic": "EPIC-0",
       "title": "Onboarding — primeiro fluxo completo (Gabi)",
@@ -733,6 +760,35 @@
         "priority: normal"
       ],
       "note": "X1 integrado ao Perfil; falta a seção de Feedbacks (FB-007)."
+    },
+    {
+      "id": "PERFIL-006",
+      "epic": "EPIC-2",
+      "title": "Editar dados cadastrais do membro",
+      "description": "Permitir que a GG corrija pelo Perfil os dados cadastrais de um membro, comecando pelos campos que a importacao pode deixar incompletos.",
+      "owner": "Gabi",
+      "reviewer": "Sofia",
+      "difficulty": "assistida",
+      "priority": "Alta",
+      "status": "Implementada",
+      "dependencies": [
+        "PERFIL-002"
+      ],
+      "branch": "feat/member-profile-edit",
+      "acceptanceCriteria": [
+        "Edita no minimo data de nascimento, contato, curso e departamento academico",
+        "Data de nascimento passa a aparecer no Perfil (MemberInfoGrid)",
+        "Validacao com zod + FormField; campo vazio vira null",
+        "A alteracao vira registro em member_events",
+        "Corrigir o campo pendente resolve o needs_review da submissao",
+        "Quatro estados tratados; sucesso com useToast()"
+      ],
+      "aiInstructions": "Implementada. Gaveta EditMemberDrawer no Perfil + secao Lotacao e cargo + GgResponsibleField. A gravacao passa por citi_correct_member_record (migration 0016): so as chaves alteradas viajam, o evento correcao_cadastral guarda antes/depois e a pendencia de revisao correspondente e resolvida na mesma transacao. Ver ADR-015. CPF NAO entra aqui: exige modelagem de seguranca propria.",
+      "labels": [
+        "area: profile",
+        "difficulty: assisted",
+        "priority: high"
+      ]
     },
     {
       "id": "X1-001",
@@ -2075,6 +2131,30 @@
       "owner": "A definir",
       "reviewer": "A definir",
       "status": "Blocked",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-012",
+      "title": "Revisar a autorizacao antes da carga dos 70 membros reais",
+      "description": "Hoje qualquer perfil de GG pode tudo (is_gg()). Antes de entrar dado real de 70 pessoas, revisar policies de RLS, as funcoes security definer, os grants e o acesso ao bucket privado member-photos.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "acceptanceCriteria": [
+        "Decidido: importação única ou período de coexistência",
+        "Se houver coexistência: definido quem é a fonte de verdade de cada campo",
+        "Data combinada para a planilha deixar de ser usada no acompanhamento",
+        "Decisão registrada em DECISIONS.md"
+      ],
+      "aiInstructions": "Duas fontes concorrentes é exatamente o problema que a plataforma existe para resolver — evite desenhar sincronização permanente.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
       "branch": "—",
       "labels": [
         "area: infra",

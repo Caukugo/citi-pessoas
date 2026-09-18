@@ -5,6 +5,8 @@ import type {
   Gestao,
   Member,
   MemberEvent,
+  MemberIntakeReviewReason,
+  MemberIntakeSource,
   Settings,
   X1,
 } from '../types';
@@ -37,8 +39,30 @@ export interface MockDatabase {
   memberEvents: MemberEvent[];
   gestoes: Gestao[];
   settings: Settings;
+  /**
+   * Controle das importações por planilha, para o modo mock também ser
+   * idempotente: reenviar o mesmo CSV não cria ninguém de novo.
+   */
+  intakeSubmissions: MockIntakeSubmission[];
   /** Sessão do modo mock. No Supabase quem cuida disso é a própria lib. */
   currentUser: AuthUser | null;
+}
+
+/** Espelho enxuto de `member_intake_submissions`. */
+export interface MockIntakeSubmission {
+  id: string;
+  source: MemberIntakeSource;
+  externalId: string;
+  status: 'pending' | 'processed' | 'needs_review' | 'failed';
+  memberId: string | null;
+  payload: Record<string, string>;
+  errorMessage: string | null;
+  /**
+   * Códigos do que ainda precisa de correção humana. Vazio = nada pendente.
+   * Espelha a restrição do banco (migration 0013): ter motivo é estar em
+   * `needs_review`, e não ter motivo é não estar.
+   */
+  reviewReasons: MemberIntakeReviewReason[];
 }
 
 function seed(): MockDatabase {
@@ -51,6 +75,7 @@ function seed(): MockDatabase {
     memberEvents: structuredClone(MEMBER_EVENTS),
     gestoes: structuredClone(GESTOES),
     settings: structuredClone(SETTINGS),
+    intakeSubmissions: [],
     currentUser: null,
   };
 }
@@ -63,7 +88,10 @@ function load(): MockDatabase {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      db = JSON.parse(raw) as MockDatabase;
+      // Espalhado sobre o seed de propósito: quando o modelo ganha uma coleção
+      // nova, quem já tinha dados salvos recebe a coleção vazia em vez de um
+      // `undefined` que quebra a primeira tela que iterar sobre ela.
+      db = { ...seed(), ...(JSON.parse(raw) as Partial<MockDatabase>) } as MockDatabase;
       return db;
     }
   } catch {

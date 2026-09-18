@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, UserX } from 'lucide-react';
+import { Pencil, Plus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -21,6 +21,8 @@ import { CreateFeedbackDrawer } from '@/features/feedbacks/components/CreateFeed
 import { MemberFeedbackTab } from '@/features/feedbacks/components/MemberFeedbackTab';
 import { useMemberFeedbacks } from '@/features/feedbacks/hooks/useMemberFeedbacks';
 import { useMemberDirectory } from '../hooks/useMembersList';
+import { EditMemberDrawer } from '../components/EditMemberDrawer';
+import { GgResponsibleField } from '../components/GgResponsibleField';
 import { MemberActivityTimeline } from '../components/MemberActivityTimeline';
 import { MemberInfoGrid } from '../components/MemberInfoGrid';
 import { MemberProfileHeader } from '../components/MemberProfileHeader';
@@ -48,6 +50,7 @@ export function MemberProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const memberQuery = useMember(memberId);
   const directory = useMemberDirectory();
@@ -147,9 +150,16 @@ export function MemberProfilePage() {
         x1Status={overview.status}
         lastX1={overview.lastX1}
         action={
-          <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
-            {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Corrigir cadastro é ação secundária: o que a GG faz no dia a dia
+                é registrar conversa, não consertar planilha. */}
+            <Button icon={<Pencil size={15} />} onClick={() => setEditOpen(true)}>
+              Editar cadastro
+            </Button>
+            <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
+              {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
+            </Button>
+          </div>
         }
       />
 
@@ -164,6 +174,7 @@ export function MemberProfilePage() {
       {activeTab === 'visao-geral' && (
         <div {...tabPanelProps(TAB_PREFIX, 'visao-geral')} className="flex flex-col gap-6">
           <MemberInfoGrid member={member} directory={directory.byId} />
+          <GgResponsibleField member={member} />
           <MemberActivityTimeline memberId={member.id} />
         </div>
       )}
@@ -196,6 +207,8 @@ export function MemberProfilePage() {
           />
         </div>
       )}
+
+      <EditMemberDrawer open={editOpen} onClose={() => setEditOpen(false)} member={member} />
 
       <CreateX1Drawer
         open={registerOpen}

@@ -22,3 +22,5 @@ export * from './feedbacks';
 export * from './anonymousFeedback';
 export * from './settings';
 export * from './gestoes';
+export * from './org';
+export * from './membersImport';

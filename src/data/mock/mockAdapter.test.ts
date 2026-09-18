@@ -25,10 +25,27 @@ describe('members', () => {
     expect(result.map((m) => m.fullName)).toContain('Íris Cavalcanti');
   });
 
-  it('filtra por subárea', async () => {
-    const result = await mockAdapter.members.list({ area: 'Dados' });
+  it('filtra por subárea pelo id, não pelo texto legado', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const dados = catalog.subareas.find((s) => s.slug === 'solucoes-dados')!;
+
+    const result = await mockAdapter.members.list({ subareaId: dados.id });
+
     expect(result.length).toBeGreaterThan(0);
-    expect(result.every((m) => m.area === 'Dados')).toBe(true);
+    expect(result.every((m) => m.subareaId === dados.id)).toBe(true);
+  });
+
+  it('filtra por área trazendo todas as subáreas dela', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const solucoes = catalog.areas.find((a) => a.slug === 'solucoes')!;
+
+    const result = await mockAdapter.members.list({ areaId: solucoes.id });
+    const subareas = new Set(result.map((m) => m.subareaId));
+
+    // Produto, Dados e Desenvolvimento são a mesma área: o recorte por área
+    // não é o recorte por subárea.
+    expect(subareas.size).toBeGreaterThan(1);
+    expect(result.every((m) => m.areaId === solucoes.id)).toBe(true);
   });
 
   it('recusa e-mail duplicado ao criar', async () => {
@@ -190,5 +207,436 @@ describe('auth', () => {
 
     await mockAdapter.auth.signOut();
     expect(await mockAdapter.auth.getCurrentUser()).toBeNull();
+  });
+});
+
+describe('importação (modo mock)', () => {
+  /** Uma linha pronta para importar, resolvida contra o catálogo do mock. */
+  async function entrada(overrides: Record<string, unknown> = {}) {
+    const catalog = await mockAdapter.org.getCatalog();
+    const subarea = catalog.subareas.find((s) => s.slug === 'solucoes-dados');
+    const position = catalog.positions.find((p) => p.name === 'Analista de Dados');
+    const gestoes = await mockAdapter.gestoes.list();
+
+    return {
+      externalId: 'csv:novo@teste.invalid',
+      payload: { 'Nome Completo': 'Pessoa Nova' },
+      fullName: 'Pessoa Nova',
+      email: 'novo@teste.invalid',
+      positionId: position!.id,
+      subareaId: subarea!.id,
+      gestaoId: gestoes[0].id,
+      ...overrides,
+    };
+  }
+
+  it('o catálogo tem as quatro áreas e as oito subáreas da migration 0003', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+
+    expect(catalog.areas).toHaveLength(4);
+    expect(catalog.subareas).toHaveLength(8);
+    // 30: a 0017 fundiu Presidência em Diretor(a) Institucional (−1) e a 0018
+    // acrescentou Customer Success (+1).
+    expect(catalog.positions).toHaveLength(30);
+    // Cargo de área inteira: não pertence a nenhuma subárea.
+    expect(catalog.positions.find((p) => p.name === 'Diretor(a) de Soluções')?.subareaId).toBeNull();
+    expect(catalog.positions.some((p) => p.name === 'Presidência')).toBe(false);
+  });
+
+  it('cria o membro com o cargo da planilha e sem responsável de GG', async () => {
+    const result = await mockAdapter.membersImport.importMember(await entrada());
+
+    expect(result.outcome).toBe('criado');
+
+    const member = await mockAdapter.members.getById(result.memberId!);
+    expect(member?.role).toBe('Analista de Dados');
+    expect(member?.area).toBe('Dados');
+    // Alocação de GG é decisão humana posterior — a tela mostra "pendente".
+    expect(member?.ggResponsibleId).toBeNull();
+  });
+
+  it('reimportar o mesmo envio não cria ninguém de novo', async () => {
+    const input = await entrada();
+    const primeira = await mockAdapter.membersImport.importMember(input);
+    const antes = (await mockAdapter.members.list()).length;
+
+    const segunda = await mockAdapter.membersImport.importMember(input);
+
+    expect(segunda.outcome).toBe('ja_importado');
+    expect(segunda.memberId).toBe(primeira.memberId);
+    expect((await mockAdapter.members.list()).length).toBe(antes);
+  });
+
+  it('e-mail já cadastrado não vira membro novo', async () => {
+    const existing = (await mockAdapter.members.list())[0];
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({ email: existing.email, externalId: 'csv:outro-envio' }),
+    );
+
+    expect(result.outcome).toBe('ja_existia');
+    expect(result.memberId).toBe(existing.id);
+  });
+
+  it('encontra os e-mails já cadastrados ignorando a caixa', async () => {
+    const existing = (await mockAdapter.members.list())[0];
+
+    const found = await mockAdapter.membersImport.findExistingEmails([
+      existing.email.toUpperCase(),
+      'ninguem@teste.invalid',
+    ]);
+
+    expect(found[existing.email.toLowerCase()]).toBe(existing.id);
+    expect(found['ninguem@teste.invalid']).toBeUndefined();
+  });
+
+  it('grava o caminho da foto por id do membro', async () => {
+    const result = await mockAdapter.membersImport.importMember(await entrada());
+
+    const path = await mockAdapter.membersImport.uploadPhoto(result.memberId!, {
+      fileName: 'foto.png',
+      contentType: 'image/png',
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    });
+
+    expect(path).toBe(`${result.memberId}/foto.png`);
+    expect((await mockAdapter.members.getById(result.memberId!))?.photoPath).toBe(path);
+  });
+
+  it('cargo de área inteira entra sem subárea, com a área do cargo', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const diretoria = catalog.positions.find((p) => p.name === 'Diretor(a) de Negócios');
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({
+        externalId: 'csv:dir.negocios@teste.invalid',
+        email: 'dir.negocios@teste.invalid',
+        positionId: diretoria!.id,
+        subareaId: null,
+      }),
+    );
+
+    expect(result.outcome).toBe('criado');
+
+    const member = await mockAdapter.members.getById(result.memberId!);
+    // A pessoa fica sem subárea de propósito: o cargo cobre a área inteira.
+    expect(member?.subareaId).toBeNull();
+    expect(member?.areaId).toBe(diretoria!.areaId);
+    expect(member?.area).toBe('Negócios');
+    expect(member?.role).toBe('Diretor(a) de Negócios');
+  });
+
+  it('cargo de subárea sem subárea é recusado, como no banco', async () => {
+    await expect(
+      mockAdapter.membersImport.importMember(await entrada({ subareaId: null })),
+    ).rejects.toThrow();
+  });
+
+  it('descarta a subárea informada para cargo de área inteira', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const diretoria = catalog.positions.find((p) => p.name === 'Diretor(a) de Soluções')!;
+    const produto = catalog.subareas.find((s) => s.slug === 'solucoes-produto')!;
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({
+        externalId: 'csv:dir.produto@teste.invalid',
+        email: 'dir.produto@teste.invalid',
+        positionId: diretoria.id,
+        subareaId: produto.id,
+      }),
+    );
+
+    const member = await mockAdapter.members.getById(result.memberId!);
+
+    // Prender a diretoria a Produto inventaria um vínculo que não existe.
+    expect(member?.subareaId).toBeNull();
+    expect(member?.areaId).toBe(diretoria.areaId);
+    expect(member?.area).toBe('Soluções');
+  });
+
+  it('recusa subárea de outra área, mesmo para cargo de área inteira', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const diretoria = catalog.positions.find((p) => p.name === 'Diretor(a) de Negócios')!;
+    const produto = catalog.subareas.find((s) => s.slug === 'solucoes-produto')!;
+
+    await expect(
+      mockAdapter.membersImport.importMember(
+        await entrada({
+          externalId: 'csv:dir.errada@teste.invalid',
+          email: 'dir.errada@teste.invalid',
+          positionId: diretoria.id,
+          subareaId: produto.id,
+        }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('ciclo vencido NAO entra inativo: a base atual emenda continuacao', async () => {
+    const gestoes = await mockAdapter.gestoes.list();
+    const antiga = gestoes.find((g) => g.name === '2025.2')!;
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({
+        externalId: 'csv:roster.antigo@teste.invalid',
+        email: 'roster.antigo@teste.invalid',
+        gestaoId: antiga.id,
+        referenceDate: '2026-09-17',
+      }),
+    );
+
+    // 2025.2 → ciclo 01/07/2025 a 30/06/2026, ja vencido em 17/09/2026.
+    // Analista de Dados: 6 meses por bloco, um bloco basta (07→12/2026).
+    // Ninguem entra inativo.
+    expect(result.status).toBe('ativo');
+    expect(result.continuation?.cyclesAdded).toBe(1);
+    expect(result.continuation?.monthsPerBlock).toEqual([6]);
+    expect(result.continuation?.originalEndOn).toBe('2026-06-30');
+    expect(result.expectedEndOn).toBe('2026-12-31');
+    expect(result.referenceDate).toBe('2026-09-17');
+
+    const member = await mockAdapter.members.getById(result.memberId!);
+    expect(member?.status).toBe('ativo');
+    // A data de entrada continua sendo a do ciclo inicial.
+    expect(member?.joinedAt).toBe('2025-07-01');
+
+    // Nenhum desligamento, retorno ou inativacao: nada disso aconteceu. E um
+    // unico evento de importacao, com o resumo da continuacao.
+    const events = await mockAdapter.members.listEvents(result.memberId!);
+    expect(events.filter((e) => e.type === 'importacao')).toHaveLength(1);
+    expect(events.some((e) => e.type === 'inativacao_automatica')).toBe(false);
+    expect(events.some((e) => e.type === 'reativacao')).toBe(false);
+    expect(events.find((e) => e.type === 'importacao')?.description).toContain('Base atual');
+  });
+
+  it('ciclo ainda vigente nao ganha continuacao nenhuma', async () => {
+    const gestoes = await mockAdapter.gestoes.list();
+    const atual = gestoes.find((g) => g.name === '2026.2')!;
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({
+        externalId: 'csv:roster.vigente@teste.invalid',
+        email: 'roster.vigente@teste.invalid',
+        gestaoId: atual.id,
+        referenceDate: '2026-09-17',
+      }),
+    );
+
+    expect(result.continuation).toBeNull();
+    expect(result.expectedEndOn).toBe('2027-06-30');
+    expect(result.status).toBe('ativo');
+  });
+
+  it('reimportar nao emenda ciclo de novo nem estica a data final', async () => {
+    const gestoes = await mockAdapter.gestoes.list();
+    const antiga = gestoes.find((g) => g.name === '2025.2')!;
+    const input = await entrada({
+      externalId: 'csv:roster.idempotente@teste.invalid',
+      email: 'roster.idempotente@teste.invalid',
+      gestaoId: antiga.id,
+      referenceDate: '2026-09-17',
+    });
+
+    const primeira = await mockAdapter.membersImport.importMember(input);
+
+    // Bem mais tarde: se a regra rodasse de novo, a data final iria adiante.
+    const segunda = await mockAdapter.membersImport.importMember({
+      ...input,
+      referenceDate: '2029-01-01',
+    });
+
+    expect(segunda.outcome).toBe('ja_importado');
+    expect(segunda.memberId).toBe(primeira.memberId);
+    expect(segunda.continuation).toBeUndefined();
+
+    const events = await mockAdapter.members.listEvents(primeira.memberId!);
+    expect(events.filter((e) => e.type === 'importacao')).toHaveLength(1);
+  });
+
+  it('o filtro por área acha quem tem cargo de área inteira; o de subárea, não', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const diretoria = catalog.positions.find((p) => p.name === 'Diretor(a) de Negócios')!;
+    const negocios = catalog.areas.find((a) => a.slug === 'negocios')!;
+    const comercial = catalog.subareas.find((s) => s.slug === 'negocios-comercial')!;
+
+    const result = await mockAdapter.membersImport.importMember(
+      await entrada({
+        externalId: 'csv:dir.negocios2@teste.invalid',
+        email: 'dir.negocios2@teste.invalid',
+        fullName: 'Diretoria Piloto',
+        positionId: diretoria.id,
+        subareaId: null,
+      }),
+    );
+
+    // Filtrar por Negócios traz a diretoria: ela é da área toda.
+    const porArea = await mockAdapter.members.list({ areaId: negocios.id });
+    expect(porArea.map((m) => m.id)).toContain(result.memberId);
+
+    // Filtrar por Comercial NÃO a apresenta como se fosse do Comercial.
+    const porSubarea = await mockAdapter.members.list({ subareaId: comercial.id });
+    expect(porSubarea.map((m) => m.id)).not.toContain(result.memberId);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('correção cadastral (PERFIL-006)', () => {
+  /** Uma pessoa importada com foto ausente e data ilegível, como no piloto. */
+  async function importada() {
+    const catalog = await mockAdapter.org.getCatalog();
+    const subarea = catalog.subareas.find((s) => s.slug === 'solucoes-dados')!;
+    const position = catalog.positions.find((p) => p.name === 'Analista de Dados')!;
+    const gestoes = await mockAdapter.gestoes.list();
+
+    const result = await mockAdapter.membersImport.importMember({
+      externalId: 'csv:corrigir@teste.invalid',
+      payload: { 'Data de Nascimento': '31/02/2006' },
+      fullName: 'Pessoa A Corrigir',
+      email: 'corrigir@teste.invalid',
+      positionId: position.id,
+      subareaId: subarea.id,
+      gestaoId: gestoes[0].id,
+      referenceDate: '2026-09-17',
+    });
+
+    await mockAdapter.membersImport.flagReview('csv:corrigir@teste.invalid', [
+      'invalid_birth_date',
+      'photo_missing',
+    ]);
+
+    return result.memberId!;
+  }
+
+  it('corrige campos e registra UM evento de correção, com o que mudou', async () => {
+    const memberId = await importada();
+
+    const corrigido = await mockAdapter.members.correctRecord(memberId, {
+      fullName: 'Pessoa Corrigida',
+      phone: '(81) 98888-7777',
+    });
+
+    expect(corrigido.fullName).toBe('Pessoa Corrigida');
+    // Telefone normalizado: o mesmo número não pode existir de duas formas.
+    expect(corrigido.phone).toBe('81988887777');
+
+    const events = await mockAdapter.members.listEvents(memberId);
+    const correcoes = events.filter((e) => e.type === 'correcao_cadastral');
+    expect(correcoes).toHaveLength(1);
+    expect(correcoes[0].description).toContain('nome');
+    expect(correcoes[0].description).toContain('telefone');
+  });
+
+  it('recusa e-mail institucional que já é de outro membro', async () => {
+    const memberId = await importada();
+    const outro = (await mockAdapter.members.list())[0];
+
+    await expect(
+      mockAdapter.members.correctRecord(memberId, { email: outro.email.toUpperCase() }),
+    ).rejects.toThrow(/já pertence/i);
+
+    // Nada foi gravado pela metade.
+    expect((await mockAdapter.members.getById(memberId))?.email).toBe('corrigir@teste.invalid');
+  });
+
+  it('corrigir a data resolve SÓ a pendência dela', async () => {
+    const memberId = await importada();
+    expect(await mockAdapter.members.listReviewReasons(memberId)).toEqual([
+      'invalid_birth_date',
+      'photo_missing',
+    ]);
+
+    await mockAdapter.members.correctRecord(memberId, { birthDate: '2005-04-12' });
+
+    // A foto continua faltando: apagar as duas esconderia um problema aberto.
+    expect(await mockAdapter.members.listReviewReasons(memberId)).toEqual(['photo_missing']);
+  });
+
+  it('resolver o último motivo devolve a submissão para processed', async () => {
+    const memberId = await importada();
+
+    await mockAdapter.members.resolveReview(memberId, ['invalid_birth_date']);
+    const restantes = await mockAdapter.members.resolveReview(memberId, ['photo_missing']);
+
+    expect(restantes).toEqual([]);
+    expect(await mockAdapter.members.listReviewReasons(memberId)).toEqual([]);
+  });
+
+  it('corrigir o cargo troca subárea, área e o texto legado', async () => {
+    const memberId = await importada();
+    const catalog = await mockAdapter.org.getCatalog();
+    const diretoria = catalog.positions.find((p) => p.name === 'Diretor(a) de Negócios')!;
+
+    const corrigido = await mockAdapter.members.correctRecord(memberId, {
+      positionId: diretoria.id,
+      subareaId: null,
+    });
+
+    // Cargo de área inteira: sem subárea, com a área do cargo.
+    expect(corrigido.subareaId).toBeNull();
+    expect(corrigido.areaId).toBe(diretoria.areaId);
+    expect(corrigido.area).toBe('Negócios');
+    expect(corrigido.role).toBe('Diretor(a) de Negócios');
+
+    const events = await mockAdapter.members.listEvents(memberId);
+    expect(events.some((e) => e.type === 'mudanca_cargo')).toBe(true);
+    // A diferença que importa: isto é conserto de cadastro, não promoção.
+    expect(events.find((e) => e.type === 'mudanca_cargo')?.description).toContain(
+      'Correção cadastral',
+    );
+  });
+
+  it('recusa correção que não corrige nada', async () => {
+    const memberId = await importada();
+    await expect(mockAdapter.members.correctRecord(memberId, {})).rejects.toThrow(/nada a corrigir/i);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('foto do membro e responsável de GG', () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  it('a foto é servida por URL temporária a partir do caminho no bucket', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    const path = await mockAdapter.membersImport.uploadPhoto(membro.id, {
+      fileName: 'foto.png',
+      contentType: 'image/png',
+      bytes: PNG,
+    });
+
+    // O que fica gravado é o CAMINHO — nunca a URL, que expira.
+    expect((await mockAdapter.members.getById(membro.id))?.photoPath).toBe(path);
+    expect(await mockAdapter.members.getPhotoUrl(path)).toContain('image/png');
+  });
+
+  it('caminho sem objeto devolve null — e a tela cai nas iniciais', async () => {
+    expect(await mockAdapter.members.getPhotoUrl('nao-existe/foto.png')).toBeNull();
+  });
+
+  it('atribuir, trocar e remover responsável de GG registra os três eventos', async () => {
+    const todos = await mockAdapter.members.list();
+    const membro = todos[0];
+    const gg = todos.find((m) => m.area === 'Gente e Gestão' && m.id !== membro.id)!;
+    const outro = todos.find((m) => m.id !== membro.id && m.id !== gg.id)!;
+
+    // Ponto de partida conhecido: as fixtures já trazem alguém alocado, e o
+    // teste é sobre as TRÊS transições, não sobre o estado inicial.
+    await mockAdapter.members.update(membro.id, { ggResponsibleId: null });
+    const antes = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'mudanca_responsavel_gg',
+    ).length;
+
+    await mockAdapter.members.update(membro.id, { ggResponsibleId: gg.id });
+    await mockAdapter.members.update(membro.id, { ggResponsibleId: outro.id });
+    const semResponsavel = await mockAdapter.members.update(membro.id, { ggResponsibleId: null });
+
+    expect(semResponsavel.ggResponsibleId).toBeNull();
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'mudanca_responsavel_gg',
+    );
+    expect(eventos.length - antes).toBe(3);
+    expect(eventos.some((e) => e.title === 'Responsável de GG atribuído')).toBe(true);
+    expect(eventos.some((e) => e.title === 'Responsável de GG alterado')).toBe(true);
+    expect(eventos.some((e) => e.title === 'Responsável de GG removido')).toBe(true);
   });
 });

@@ -1,233 +1,257 @@
 import Papa from 'papaparse';
-import { z } from 'zod';
 import { normalizeText } from '@/lib/format';
-import { AREAS, type Area, type MemberCreateInput } from '../types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * FUNDAÇÃO DA IMPORTAÇÃO DA BASE "CITi Pessoas" (EPIC 7 — Sofia).
+ * LEITURA DA PLANILHA "CITi Pessoas" (EPIC 7 — IMPORT-001/002).
  *
- * O que existe aqui: ler um CSV, normalizar os campos, validar linha a linha e
- * apontar duplicados — devolvendo um relatório em vez de quebrar no meio.
+ * Este arquivo só LÊ e NORMALIZA. Ele não conhece o banco, não valida área nem
+ * cargo e não decide nada sobre ciclo — isso é `importPlan.ts`, que precisa do
+ * catálogo organizacional para conferir contra registros reais em vez de
+ * comparar texto solto.
  *
- * ⚠️ O MAPEAMENTO DE COLUNAS AINDA NÃO ESTÁ FECHADO. A planilha real do CITi
- * Pessoas não estava disponível quando esta fundação foi escrita, então os
- * nomes de coluna abaixo são um palpite documentado, não um fato.
- * A primeira tarefa da IMPORT-001 é abrir a planilha real e corrigir
- * `COLUMN_ALIASES` — não suponha em silêncio que está certo.
+ * REGRA DE NORMALIZAÇÃO: cabeçalhos e espaços são normalizados; e-mail vira
+ * minúsculo. NOME PRÓPRIO NÃO É TOCADO além de colapsar espaços — "Luís
+ * D'Ávila" não pode virar "luis d'avila" só porque foi mais fácil comparar.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/** Campos do domínio que a planilha pode trazer. */
+export type CsvField =
+  | 'area'
+  | 'subarea'
+  | 'position'
+  | 'fullName'
+  | 'email'
+  | 'phone'
+  | 'course'
+  | 'department'
+  | 'birthDate'
+  | 'gestao'
+  | 'photoFile'
+  /** Cabeçalho antigo. Vira gestão quando o valor é `AAAA.1` / `AAAA.2`. */
+  | 'legacyEntry';
+
 /**
- * Nomes aceitos para cada campo, em minúsculas e sem acento.
- * Ajuste esta tabela depois de ver a planilha real (IMPORT-002).
+ * Nomes aceitos para cada campo, já sem acento e em minúsculas.
+ *
+ * O primeiro alias é o nome oficial da coluna — é ele que aparece nas
+ * mensagens de erro e no arquivo de exemplo.
  */
-export const COLUMN_ALIASES: Record<string, string[]> = {
-  fullName: ['nome', 'nome completo', 'membro', 'full name'],
-  email: ['email', 'e-mail', 'email institucional', 'e-mail institucional'],
-  personalEmail: ['email pessoal', 'e-mail pessoal'],
-  phone: ['telefone', 'celular', 'contato'],
-  role: ['cargo', 'funcao', 'função', 'papel'],
-  area: ['subarea', 'subárea', 'area', 'área'],
-  squad: ['squad', 'time', 'equipe'],
-  course: ['curso', 'graduacao', 'graduação'],
-  semester: ['periodo', 'período', 'semestre'],
-  university: ['universidade', 'instituicao', 'instituição'],
-  joinedAt: ['entrada', 'data de entrada', 'ingresso', 'data de ingresso'],
-  birthDate: ['nascimento', 'data de nascimento', 'aniversario', 'aniversário'],
+export const COLUMN_ALIASES: Record<CsvField, string[]> = {
+  area: ['area'],
+  subarea: ['subarea', 'sub area'],
+  position: ['cargo', 'funcao', 'papel'],
+  fullName: ['nome completo', 'nome', 'membro'],
+  email: [
+    'email do citi',
+    'e-mail do citi',
+    'email institucional',
+    'e-mail institucional',
+    'email',
+    'e-mail',
+  ],
+  phone: ['celular', 'telefone', 'contato'],
+  course: ['curso', 'graduacao'],
+  department: ['departamento academico', 'departamento', 'depto academico'],
+  birthDate: ['data de nascimento', 'nascimento', 'aniversario'],
+  gestao: ['gestao de entrada', 'gestao', 'gestao de ingresso'],
+  photoFile: ['foto arquivo', 'arquivo da foto', 'arquivo de foto', 'foto'],
+  legacyEntry: ['entrada no citi'],
 };
 
-/** Uma linha do arquivo, já com as chaves do domínio. */
-type RawRow = Record<string, string>;
+/** Colunas sem as quais não dá para importar ninguém. */
+const REQUIRED_FIELDS: CsvField[] = ['subarea', 'position', 'fullName', 'email'];
+
+/** Uma linha lida, já com as chaves do domínio. */
+export interface CsvRow {
+  /** Número da linha no arquivo, contando o cabeçalho como linha 1. */
+  line: number;
+  values: Partial<Record<CsvField, string>>;
+  /** A linha original, com os cabeçalhos como vieram. Vai para o `payload`. */
+  raw: Record<string, string>;
+}
+
+export interface ParsedCsv {
+  rows: CsvRow[];
+  /** Colunas do arquivo que não correspondem a nenhum campo conhecido. */
+  unknownColumns: string[];
+  /** Campos obrigatórios que o arquivo não trouxe. Bloqueia a importação. */
+  missingColumns: CsvField[];
+  /** `true` quando a gestão veio do cabeçalho antigo `Entrada no CITi`. */
+  usedLegacyGestaoColumn: boolean;
+  /** Erros de leitura do próprio arquivo (aspas quebradas, etc.). */
+  parseErrors: string[];
+}
+
+/** Rótulo oficial de cada campo, para mensagens e para o arquivo de exemplo. */
+export function columnLabel(field: CsvField): string {
+  const LABELS: Record<CsvField, string> = {
+    area: 'Área',
+    subarea: 'Subárea',
+    position: 'Cargo',
+    fullName: 'Nome Completo',
+    email: 'Email do CITi',
+    phone: 'Celular',
+    course: 'Curso',
+    department: 'Departamento Acadêmico',
+    birthDate: 'Data de Nascimento',
+    gestao: 'Gestão de Entrada',
+    photoFile: 'Foto Arquivo',
+    legacyEntry: 'Entrada no CITi',
+  };
+  return LABELS[field];
+}
+
+/**
+ * Compara cabeçalhos ignorando acento, caixa e espaço repetido.
+ * `'  Departamento   Acadêmico '` e `'departamento academico'` são a mesma coluna.
+ */
+function normalizeHeader(header: string): string {
+  return normalizeText(header).replace(/\s+/g, ' ');
+}
+
+/** Colapsa espaços internos e apara as pontas. Não mexe em acento nem em caixa. */
+function cleanValue(value: string | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/** Formato de gestão do CITi: `2026.1`, `2026.2`. */
+export const GESTAO_PATTERN = /^\d{4}\.[12]$/;
+
+export function isGestaoName(value: string): boolean {
+  return GESTAO_PATTERN.test(value.trim());
+}
+
+/**
+ * Aceita `15/03/2006`, `2006-03-15` e `15-03-2006`. Devolve ISO ou `null`.
+ *
+ * Valida o calendário de verdade: `31/02/2006` é recusado, porque `new Date`
+ * aceitaria e devolveria 3 de março — uma data de nascimento errada que
+ * ninguém mais perceberia.
+ */
+export function parseFlexibleDate(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  let year: number, month: number, day: number;
+
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+  const brazilian = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
+
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else if (brazilian) {
+    day = Number(brazilian[1]);
+    month = Number(brazilian[2]);
+    year = Number(brazilian[3]);
+  } else {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const real =
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  if (!real) return null;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
 
 /** Descobre qual coluna do arquivo corresponde a qual campo do domínio. */
-function buildHeaderMap(headers: string[]): Record<string, string> {
-  const map: Record<string, string> = {};
+function buildHeaderMap(headers: string[]): Map<string, CsvField> {
+  const map = new Map<string, CsvField>();
 
   for (const header of headers) {
-    const normalized = normalizeText(header);
-    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-      if (aliases.some((alias) => normalizeText(alias) === normalized)) {
-        map[header] = field;
-        break;
-      }
+    const normalized = normalizeHeader(header);
+
+    for (const [field, aliases] of Object.entries(COLUMN_ALIASES) as [CsvField, string[]][]) {
+      if (!aliases.some((alias) => normalizeHeader(alias) === normalized)) continue;
+      // Primeira coluna vence: se a planilha tiver "Nome" e "Nome Completo",
+      // a segunda não sobrescreve a primeira em silêncio.
+      if (![...map.values()].includes(field)) map.set(header, field);
+      break;
     }
   }
 
   return map;
 }
 
-/** Aceita `15/03/2026`, `2026-03-15` e `15-03-2026`. Devolve ISO ou `null`. */
-export function parseFlexibleDate(value: string | undefined): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  if (iso) return trimmed;
-
-  const brazilian = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
-  if (brazilian) {
-    const [, day, month, year] = brazilian;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  }
-
-  return null;
-}
-
-/** Normaliza a subárea escrita na planilha para uma `Area` conhecida. */
-export function parseArea(value: string | undefined): Area | null {
-  if (!value) return null;
-  const normalized = normalizeText(value);
-
-  const direct = AREAS.find((area) => normalizeText(area) === normalized);
-  if (direct) return direct;
-
-  // Apelidos comuns usados internamente.
-  if (['gg', 'gente e gestao', 'gente & gestao', 'gente'].includes(normalized)) {
-    return 'Gente e Gestão';
-  }
-  if (['dev', 'desenvolvimento', 'tech'].includes(normalized)) return 'Desenvolvimento';
-  if (['mkt', 'marketing'].includes(normalized)) return 'Marketing';
-
-  return null;
-}
-
-/** Regras mínimas para uma linha virar um membro. */
-const rowSchema = z.object({
-  fullName: z.string().trim().min(3, 'Nome muito curto'),
-  email: z.string().trim().email('E-mail inválido'),
-  personalEmail: z.string().trim().email('E-mail pessoal inválido').or(z.literal('')).optional(),
-  phone: z.string().trim().optional(),
-  role: z.string().trim().min(1, 'Cargo obrigatório'),
-  area: z.string().trim().min(1, 'Subárea obrigatória'),
-  squad: z.string().trim().optional(),
-  course: z.string().trim().optional(),
-  semester: z.string().trim().optional(),
-  university: z.string().trim().optional(),
-  joinedAt: z.string().trim().min(1, 'Data de entrada obrigatória'),
-  birthDate: z.string().trim().optional(),
-});
-
-export interface ImportIssue {
-  /** Número da linha no arquivo, contando o cabeçalho como linha 1. */
-  line: number;
-  field?: string;
-  message: string;
-}
-
-export interface ImportPreview {
-  /** Linhas prontas para importar. */
-  valid: MemberCreateInput[];
-  /** Problemas encontrados — mostre TODOS ao usuário antes de importar. */
-  issues: ImportIssue[];
-  /** E-mails repetidos dentro do próprio arquivo. */
-  duplicatesInFile: string[];
-  /** Colunas do arquivo que não foram reconhecidas. */
-  unknownColumns: string[];
-  totalRows: number;
-}
-
 /**
- * Lê o conteúdo de um CSV e devolve um relatório do que dá para importar.
+ * Lê o CSV e devolve as linhas normalizadas.
  *
- * Não escreve nada no banco: quem importa de fato é `createMembers()` em
- * `@/data/members`, depois de a pessoa revisar o relatório.
+ * Não valida área, subárea, cargo nem gestão contra o banco — isso exige o
+ * catálogo organizacional e acontece em `buildImportPlan()`.
  */
-export function previewMembersCsv(csvContent: string): ImportPreview {
-  const parsed = Papa.parse<RawRow>(csvContent, {
+export function parseMembersCsv(content: string): ParsedCsv {
+  // Planilhas exportadas do Excel começam com BOM; sem remover, o primeiro
+  // cabeçalho vira "\uFEFFÁrea" e nunca casa com nada.
+  const withoutBom = content.replace(/^\uFEFF/, '');
+
+  const parsed = Papa.parse<Record<string, string>>(withoutBom, {
     header: true,
-    skipEmptyLines: true,
+    skipEmptyLines: 'greedy',
     transformHeader: (header) => header.trim(),
   });
 
   const headers = parsed.meta.fields ?? [];
   const headerMap = buildHeaderMap(headers);
-  const unknownColumns = headers.filter((header) => !headerMap[header]);
+  const mappedFields = new Set(headerMap.values());
 
-  const valid: MemberCreateInput[] = [];
-  const issues: ImportIssue[] = [];
-  const duplicatesInFile: string[] = [];
-  const seenEmails = new Set<string>();
+  const unknownColumns = headers.filter((header) => !headerMap.has(header));
+  const missingColumns = REQUIRED_FIELDS.filter((field) => !mappedFields.has(field));
 
-  parsed.data.forEach((rawRow, index) => {
-    const line = index + 2; // +1 pelo cabeçalho, +1 porque planilha começa em 1
+  // Compatibilidade temporária: antes da coluna "Gestão de Entrada" existir, a
+  // gestão vinha em "Entrada no CITi". Só vale quando o valor é mesmo uma
+  // gestão — naquela planilha a mesma coluna às vezes guardava uma data.
+  const hasGestaoColumn = mappedFields.has('gestao');
+  let usedLegacyGestaoColumn = false;
 
-    // Traduz as colunas do arquivo para os campos do domínio.
-    const row: RawRow = {};
-    for (const [header, field] of Object.entries(headerMap)) {
-      row[field] = (rawRow[header] ?? '').trim();
+  const rows: CsvRow[] = parsed.data.map((rawRow, index) => {
+    const values: Partial<Record<CsvField, string>> = {};
+    const raw: Record<string, string> = {};
+
+    for (const header of headers) {
+      const original = cleanValue(rawRow[header]);
+      if (original !== '') raw[header] = original;
+
+      const field = headerMap.get(header);
+      if (!field) continue;
+      if (original === '') continue;
+
+      values[field] = field === 'email' ? original.toLowerCase() : original;
     }
 
-    const result = rowSchema.safeParse(row);
-    if (!result.success) {
-      for (const issue of result.error.issues) {
-        issues.push({ line, field: String(issue.path[0]), message: issue.message });
-      }
-      return;
+    if (!values.gestao && values.legacyEntry && isGestaoName(values.legacyEntry)) {
+      values.gestao = values.legacyEntry.trim();
+      usedLegacyGestaoColumn = true;
     }
 
-    const area = parseArea(result.data.area);
-    if (!area) {
-      issues.push({
-        line,
-        field: 'area',
-        message: `Subárea "${result.data.area}" não reconhecida. Esperado: ${AREAS.join(', ')}.`,
-      });
-      return;
-    }
-
-    const joinedAt = parseFlexibleDate(result.data.joinedAt);
-    if (!joinedAt) {
-      issues.push({
-        line,
-        field: 'joinedAt',
-        message: `Data de entrada "${result.data.joinedAt}" inválida. Use DD/MM/AAAA.`,
-      });
-      return;
-    }
-
-    const emailKey = normalizeText(result.data.email);
-    if (seenEmails.has(emailKey)) {
-      duplicatesInFile.push(result.data.email);
-      issues.push({
-        line,
-        field: 'email',
-        message: `E-mail ${result.data.email} aparece mais de uma vez no arquivo.`,
-      });
-      return;
-    }
-    seenEmails.add(emailKey);
-
-    const semester = Number(result.data.semester);
-
-    valid.push({
-      fullName: result.data.fullName,
-      email: result.data.email,
-      personalEmail: result.data.personalEmail || null,
-      phone: result.data.phone || null,
-      photoUrl: null,
-      role: result.data.role,
-      area,
-      squad: result.data.squad || null,
-      managerId: null,
-      ggResponsibleId: null,
-      course: result.data.course || null,
-      semester: Number.isFinite(semester) && semester > 0 ? semester : null,
-      university: result.data.university || null,
-      status: 'ativo',
-      joinedAt,
-      exitedAt: null,
-      birthDate: parseFlexibleDate(result.data.birthDate),
-      notes: null,
-    });
+    return {
+      // +1 pelo cabeçalho, +1 porque planilha começa a contar em 1.
+      line: index + 2,
+      values,
+      raw,
+    };
   });
 
-  return {
-    valid,
-    issues,
-    duplicatesInFile,
-    unknownColumns,
-    totalRows: parsed.data.length,
-  };
+  // "Gestão de Entrada" ausente E "Entrada no CITi" sem nenhum valor de gestão
+  // = não há como calcular ciclo nenhum. Melhor dizer isso no cabeçalho do que
+  // repetir o mesmo erro em todas as linhas.
+  // Se a coluna antiga existe mas nenhum valor dela parece uma gestão, cair
+  // aqui é o certo: a tela explica o formato `AAAA.1` / `AAAA.2` esperado.
+  if (!hasGestaoColumn && !usedLegacyGestaoColumn) {
+    missingColumns.push('gestao');
+  }
+
+  const parseErrors = (parsed.errors ?? [])
+    .filter((error) => error.code !== 'TooFewFields' && error.code !== 'TooManyFields')
+    .map((error) => `Linha ${(error.row ?? 0) + 2}: ${error.message}`);
+
+  return { rows, unknownColumns, missingColumns, usedLegacyGestaoColumn, parseErrors };
 }

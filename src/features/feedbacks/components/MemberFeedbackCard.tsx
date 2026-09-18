@@ -1,6 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, Surface } from '@/components/ui';
-import { FEEDBACK_TYPE_LABEL, type FeedbackType, type ID } from '@/data';
+import {
+  FEEDBACK_TYPE_LABEL,
+  MEMBER_STATUS_LABEL,
+  useMemberOrgLabels,
+  type FeedbackType,
+  type ID,
+} from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import {
@@ -27,6 +33,7 @@ export function MemberFeedbackCard({
   onOpenHistory: (memberId: ID, type: FeedbackType) => void;
 }) {
   const { member, counts, lastFeedback } = row;
+  const orgLabel = useMemberOrgLabels();
 
   return (
     <Surface className="rounded-[20px] border-border bg-surface-card p-4">
@@ -46,7 +53,7 @@ export function MemberFeedbackCard({
             {member.fullName}
           </Link>
           <p className="truncate text-[11px] text-muted-foreground">
-            {member.role || DASH} · {member.area}
+            {member.role || DASH} · {orgLabel(member).subarea}
           </p>
         </div>
         {member.status !== 'ativo' && (
@@ -55,7 +62,7 @@ export function MemberFeedbackCard({
             pill
             className="h-[20px] shrink-0 border-transparent px-[9px] text-[11px] font-medium whitespace-nowrap"
           >
-            {member.status === 'desligado' ? 'Desligado' : 'Arquivado'}
+            {MEMBER_STATUS_LABEL[member.status]}
           </Badge>
         )}
       </div>

@@ -9,6 +9,24 @@ import { ptBR } from 'date-fns/locale';
  * (`'2026-03-15'` ou `'2026-03-15T14:00:00Z'`) e só viram texto na hora de exibir.
  */
 
+/**
+ * `'81988887777'` → `'(81) 98888-7777'`.
+ *
+ * O banco guarda o telefone só com DÍGITOS, para que o mesmo número não exista
+ * de duas formas e a busca ache as duas. A máscara é decisão de tela e mora
+ * aqui — o que não couber no padrão brasileiro volta como veio, em vez de sair
+ * cortado ao meio.
+ */
+export function formatPhone(value: string | null | undefined): string {
+  if (!value) return '·';
+
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+
+  return value;
+}
+
 /** `'2026-03-15'` → `'15/03/2026'` */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '·';

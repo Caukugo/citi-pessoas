@@ -23,14 +23,22 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 const MEMBER_STATUS_OPTIONS: { value: MemberStatus; label: string }[] = [
   { value: 'ativo', label: 'Ativos' },
+  // Quem concluiu o ciclo naturalmente. Separado de 'Desligados' porque é o
+  // recorte de quem pode ser reativado numa continuação.
+  { value: 'inativo', label: 'Inativos' },
   { value: 'desligado', label: 'Desligados' },
   { value: 'arquivado', label: 'Arquivados' },
 ];
 
 /** Os filtros que moram na gaveta — os que o botão redondo precisa anunciar. */
 function drawerFilterCount(filters: MembersListFilters): number {
-  return [filters.area, filters.role, filters.ggResponsibleId, filters.x1Status].filter(Boolean)
-    .length;
+  return [
+    filters.areaSlug,
+    filters.subareaSlug,
+    filters.role,
+    filters.ggResponsibleId,
+    filters.x1Status,
+  ].filter(Boolean).length;
 }
 
 export function MembersToolbar({

@@ -9,6 +9,7 @@ import {
   useModerateAnonymousFeedback,
   type AnonymousFeedback,
   type AnonymousFeedbackResolution,
+  useMemberOrgLabels,
   type ID,
   type Member,
 } from '@/data';
@@ -65,6 +66,7 @@ export function ModerationDrawer({
   const { user } = useAuth();
   const { showToast } = useToast();
   const moderate = useModerateAnonymousFeedback();
+  const orgLabel = useMemberOrgLabels();
 
   // O último relato aberto continua desenhado enquanto a gaveta desliza para
   // fora. Sem isso o conteúdo sumiria antes do painel, e o fechamento pareceria
@@ -286,7 +288,7 @@ export function ModerationDrawer({
                                 {member.fullName}
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
-                                {member.role} · {member.area}
+                                {member.role} · {orgLabel(member).subarea}
                               </span>
                             </span>
                             {selected && (

@@ -8,6 +8,7 @@ import type {
   Settings,
   X1,
 } from '../types';
+import { MOCK_ORG_CATALOG } from './orgFixtures';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -489,7 +490,34 @@ const SEED_MEMBERS: SeedMember[] = [
   },
 ];
 
-export const MEMBERS: Member[] = SEED_MEMBERS.map((m) => ({
+/**
+ * Preenche as chaves normalizadas a partir do texto legado do seed.
+ *
+ * O seed foi escrito quando `members.area` era a única verdade. Sem `areaId` e
+ * `subareaId`, os filtros novos (que são por id, como no banco) não achariam
+ * ninguém no modo mock — e a tela pareceria quebrada sem estar.
+ *
+ * `Gestão` não existe no catálogo: esse membro fica sem as chaves de propósito,
+ * e é ele quem exercita o caminho de quem foi cadastrado antes da estrutura
+ * normalizada existir.
+ */
+function withOrgKeys(member: SeedMember): SeedMember {
+  const subarea = MOCK_ORG_CATALOG.subareas.find((item) => item.name === member.area);
+  if (!subarea) return member;
+
+  const position = MOCK_ORG_CATALOG.positions.find(
+    (item) => item.name === member.role && item.areaId === subarea.areaId,
+  );
+
+  return {
+    ...member,
+    areaId: subarea.areaId,
+    subareaId: subarea.id,
+    positionId: position?.id ?? null,
+  };
+}
+
+export const MEMBERS: Member[] = SEED_MEMBERS.map(withOrgKeys).map((m) => ({
   ...m,
   createdAt: NOW,
   updatedAt: NOW,

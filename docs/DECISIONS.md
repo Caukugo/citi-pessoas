@@ -524,6 +524,219 @@ decisão humana que nunca aconteceu.
 
 ---
 
+## ADR-014 — A planilha da importação é a BASE ATUAL, não um arquivo de entradas
+
+- **Data:** 2026-09-17
+- **Status:** Aceita
+- **Afeta:** a importação por CSV (migrations `0011`–`0014`), que até aqui
+  inativava quem entrasse com gestão antiga.
+
+**Contexto.** A importação calcula o ciclo pela gestão de entrada
+(`AAAA.1` → 01/01–31/12; `AAAA.2` → 01/07–30/06) e, se esse ciclo já tinha
+terminado, encerrava-o por `conclusao_natural` e criava a pessoa **inativa**.
+
+Isso é correto para uma entrada avulsa e falso para a carga da base do CITi. A
+planilha descreve **quem está na empresa hoje**. Quem entrou em 2024.1 e
+continua atuando não concluiu o ciclo e saiu — continuou, semestre após
+semestre, e ninguém registrou porque a plataforma não existia. Importar assim
+criaria dezenas de desligamentos que nunca aconteceram, obrigaria a reativar
+todo mundo à mão e deixaria uma saída falsa na timeline de cada pessoa, para
+sempre.
+
+**Decisão.** Tratar o CSV como `current_roster`. Todo membro válido termina a
+importação **ativo**. Quando o ciclo inicial já venceu, o banco:
+
+1. encerra-o como **`continuado`** — um valor novo de `member_cycle_end_type`,
+   porque "terminou e seguiu" não é "terminou e parou";
+2. emenda ciclos contíguos (início = fim anterior + 1 dia) com
+   `positions.continuation_months` do cargo atual, até alcançar a data de
+   referência;
+3. marca os ciclos inferidos com `member_cycles.source = 'current_roster_import'`;
+4. registra **um único** `member_event` de importação com o resumo (fim
+   original, fim final, ciclos acrescentados, meses de cada bloco, data de
+   referência);
+5. define a **data de referência no servidor** (`citi_import_reference_date`) —
+   a prévia calcula localmente só para mostrar as datas.
+
+Migration própria: `0015_current_roster.sql`.
+
+**Alternativas consideradas.**
+
+- **Esticar o ciclo inicial até hoje.** Rejeitado: reescreve o passado. O ciclo
+  de 2024.1 terminou mesmo em 31/12/2024, e um ciclo de "quatro anos" não
+  corresponde a compromisso nenhum que alguém assumiu.
+- **Importar inativo e reativar depois, pela tela.** Rejeitado: é exatamente o
+  desligamento que nunca aconteceu, multiplicado por setenta — e `reativacao` é
+  registro de uma **decisão humana**, que aqui ninguém tomou.
+- **Um `member_event` por ciclo emendado.** Rejeitado: quem entrou há três anos
+  abriria o perfil com sete eventos que ninguém decidiu. Os `member_cycles` já
+  guardam cada período; a timeline guarda o que aconteceu.
+- **Novo valor em `member_cycle_origin`** em vez da coluna `source`. Rejeitado:
+  um ciclo inferido **é** uma continuação (emenda o anterior, `cycle_number`
+  maior que 1), e trocar a origem quebraria `member_cycles_origem_coerente` e
+  toda leitura que já distingue entrada de continuação.
+- **Confiar na data de referência do cliente.** Rejeitado: o relógio do
+  navegador decidiria quantos meses cada pessoa ganha.
+
+**Consequências.**
+
+- ✅ Ninguém entra desligado; nenhum retorno ou reativação falsa é registrado.
+- ✅ `continuado` × `conclusao_natural` preserva a diferença entre continuar e
+  parar — e a reativação continua exigindo `conclusao_natural`, então nada do
+  fluxo existente muda.
+- ✅ O período inferido fica separado, para sempre, do período que alguém
+  concedeu (`source`).
+- ⚠️ **Não existe renovação automática.** Terminado o último ciclo emendado, a
+  rotina diária inativa a pessoa normalmente. A continuação seguinte é decisão
+  humana, pela reativação.
+- ⚠️ A entrada futura pelo **Google Forms não usa esta regra**: quem chega agora
+  cria só o ciclo inicial, por `citi_open_entry_cycle`.
+- ⚠️ A regra vive em dois lugares (banco e TypeScript, para a prévia). O banco é
+  a autoridade e os dois têm teste — `supabase/tests/0005_current_roster.sql` e
+  `src/data/import/currentRoster.test.ts`.
+
+---
+
+## ADR-015 — Corrigir cadastro é um acontecimento próprio, diferente de movimentação
+
+- **Data:** 2026-09-17
+- **Status:** Aceita
+- **Nasce de:** PERFIL-006 e da importação piloto, que deixou quatro pessoas com
+  pendências que não tinham como ser corrigidas pela plataforma.
+
+**Contexto.** A importação entra com o que a planilha trouxe. Quando a planilha
+traz errado — data de nascimento ilegível, telefone com dígito a menos, cargo na
+subárea errada — a correção precisa acontecer em algum lugar. Até aqui esse
+lugar era o SQL Editor.
+
+Ao abrir essa porta aparece uma pergunta que não é de interface: quando alguém
+troca o cargo de uma pessoa na tela, isso é **conserto de um dado errado** ou a
+pessoa foi **promovida**? A timeline responde coisas diferentes nos dois casos, e
+quem for ler daqui a um ano não tem como adivinhar.
+
+**Decisão.**
+
+1. `correcao_cadastral` é um tipo de evento próprio, escrito pelo **trigger**
+   (não pela tela), com o **diff**: só os campos que mudaram, antes e depois. Um
+   evento por correção, mesmo que três campos mudem juntos.
+2. Os eventos de cargo, área e subárea passam a carregar `change_kind` em
+   `after_data`. A tela de correção declara `correcao_cadastral` via
+   `set local citi.change_kind`; quem não declara nada fica `nao_informado`.
+3. A **movimentação formal** (promoção, troca de time, com data de vigência)
+   fica para depois e usará o mesmo `change_kind` com outro valor. Nada nesta
+   decisão a implementa.
+4. A correção acontece por uma função do Postgres
+   (`citi_correct_member_record`), que valida, grava e resolve a pendência de
+   revisão eliminada — numa transação só.
+
+**Alternativas consideradas.**
+
+- **Reaproveitar `update` direto na tabela.** Rejeitado: a unicidade do e-mail
+  viraria erro de constraint sem frase legível, e a resolução do `needs_review`
+  seria uma segunda escrita que pode falhar sozinha, deixando a pendência viva
+  depois de corrigida.
+- **Mandar o cadastro inteiro a cada salvamento.** Rejeitado: o evento diria que
+  tudo mudou, e um campo preenchido por outra pessoa enquanto a gaveta estava
+  aberta seria sobrescrito por um valor velho. Só as chaves alteradas viajam —
+  chave ausente é "não mexe", chave nula é "limpa".
+- **Um evento por campo corrigido.** Rejeitado: consertar três erros de digitação
+  viraria três acontecimentos na vida da pessoa.
+- **Marcar tudo como correção por padrão.** Rejeitado: afirmaria o que ninguém
+  declarou. `nao_informado` é honesto.
+
+**Consequências.**
+
+- ✅ A timeline distingue "o dado estava errado" de "a pessoa mudou".
+- ✅ Corrigir a data de nascimento resolve `invalid_birth_date` **e só ela**: as
+  outras pendências continuam visíveis até alguém resolvê-las.
+- ✅ Quem corrige direto no banco deixa o mesmo rastro — a auditoria é do
+  trigger, não da tela.
+- ⚠️ `status`, `joined_at`, `exited_at` e `gg_responsible_id` ficam **fora** da
+  correção: sair, voltar e alocar têm fluxo e evento próprios.
+- ⚠️ **CPF não entra por aqui.** Documento pede modelagem de segurança própria e
+  não pega carona numa correção cadastral.
+
+---
+
+## ADR-016 — Cargo tem UM nome canônico; o resto é apelido
+
+- **Data:** 2026-09-17
+- **Status:** Aceita
+- **Migrations:** `0017` (CEO) e `0018` (COO, CRO, CTO e Customer Success).
+- **Substitui:** as linhas duplicadas que a `0003` criou para as mesmas cadeiras.
+
+**Contexto.** O catálogo nasceu com `Presidência` (nível 1) e `Diretoria
+Institucional` (nível 2) — ambas na subárea Institucional, ambas de diretoria,
+ambas com 12 meses. São a mesma pessoa vista por dois nomes, e as pessoas usam
+ainda um terceiro: CEO.
+
+Cargo duplicado no catálogo não é problema de cadastro, é problema de
+**resposta**: a mesma pessoa entra num ou noutro conforme o que a planilha
+escreveu naquele semestre, o seletor de cargo mostra duas opções equivalentes, e
+quem filtra por cargo recebe metade da lista sem saber que falta metade.
+
+**Decisão.** Existe **uma** posição canônica: nome `Diretor(a) Institucional`,
+sigla `CEO`, área Institucional, `subarea_id` **nulo** (escopo de área inteira),
+diretoria, 12 meses de continuação. Os seis nomes conhecidos viram **apelidos**
+em `position_aliases`, e todos resolvem o mesmo `position_id`.
+
+A consolidação (migration `0017`) tem ordem obrigatória: mover as referências
+reais → preservar o histórico → **só então** remover o duplicado.
+
+**Alternativas consideradas.**
+
+- **Manter os dois e "combinar" qual usar.** Rejeitado: é a convenção que se
+  perde na primeira importação feita por outra pessoa.
+- **Apelidos num `text[]` na linha do cargo.** Rejeitado: sem índice único, nada
+  impede dois cargos reivindicarem "Presidência" de novo. A tabela com índice é
+  o que transforma a regra em garantia.
+- **Reescrever `member_events` para o cargo novo.** Rejeitado: o passado diria
+  que a pessoa mudou de cargo. Quem mudou foi o catálogo — e é isso que o evento
+  de observação registra, com `change_kind: consolidacao_de_catalogo`.
+- **Desativar o duplicado em vez de remover.** Rejeitado como estado final: um
+  cargo inativo continua sendo uma segunda linha para a mesma cadeira. Ele só
+  sai depois que nada mais o referencia — é a ordem, não a preferência.
+- **Resolver por "parece com".** Rejeitado: `Diretoria de Negócios` e
+  `Diretoria de Soluções` são cadeiras diferentes. Equivalência é decisão
+  humana, escrita na tabela de apelidos — nunca heurística de texto.
+
+**Estendida pela `0018`** para as outras três cadeiras — COO (Gente e Gestão),
+CRO (Negócios) e CTO (Soluções) —, cada uma reaproveitando o `position_id` que
+já existia, e para o cargo novo de **Customer Success**. O procedimento virou a
+função `citi_consolidate_position()`, que encerra a ordem obrigatória (mover →
+preservar → remover) em um lugar só: copiá-la e colá-la três vezes era o jeito
+mais fácil de inverter a ordem na terceira.
+
+Duas coisas que a `0018` deixa explícitas:
+
+- **Área inteira ≠ diretoria.** Customer Success cobre a área de Soluções
+  inteira e **não** é diretoria: 6 meses, como qualquer cargo não diretivo.
+  Tratar "cobre a área toda" como sinônimo de "é diretoria" daria 12 meses a
+  quem a gestão deu 6.
+- **Cargo de área inteira nunca é cargo de ENTRADA.** A chave composta
+  `subareas_entry_position_da_propria_subarea` recusa no banco — é o que impede
+  a futura integração do Google Forms de atribuir uma diretoria ou o Customer
+  Success sozinha. Ninguém entra na empresa como CTO.
+
+**Consequências.**
+
+- ✅ Qualquer um dos nomes conhecidos na planilha cai no mesmo cargo.
+- ✅ Quem ocupa a cadeira fica **sem subárea**, como todo cargo de área inteira
+  desde a 0014 — a migration ajusta quem já estava preso a uma.
+- ✅ A migration é idempotente: rodar de novo não duplica apelido, não cria
+  cargo e não registra evento outra vez.
+- ⚠️ O catálogo do mock (`orgFixtures.ts`) perdeu a Presidência (−1) e ganhou o
+  Customer Success (+1): segue com **30** cargos. Ele espelha o banco; divergir
+  faria uma planilha passar no mock e falhar no Supabase.
+- ⚠️ Customer Success **não** tem proibição de liderados. Hoje ele não lidera
+  ninguém, mas isso é um fato do momento, não uma regra do cargo — transformar
+  em restrição obrigaria uma migration no dia em que a operação mudasse.
+- ⚠️ `is_directorship` é o campo que a decisão chama de `is_director`. Não
+  renomeamos: a coluna é lida em migrations, adapters e testes desde a 0003, e
+  renomear por sinônimo troca risco real por ganho nenhum.
+
+---
+
 ## Como registrar uma decisão nova
 
 Copie o formato acima. Uma decisão merece um ADR quando afeta mais de uma

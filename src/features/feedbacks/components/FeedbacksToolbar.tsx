@@ -25,7 +25,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 /** Os filtros que moram na gaveta — os que o botão redondo precisa anunciar. */
 function drawerFilterCount(filters: FeedbacksListFilters): number {
-  return [filters.area, filters.ggResponsibleId].filter(Boolean).length;
+  return [filters.areaSlug, filters.subareaSlug, filters.ggResponsibleId].filter(Boolean).length;
 }
 
 export function FeedbacksToolbar({

@@ -1,6 +1,6 @@
 import { Panel } from '@/components/ui';
-import type { ID, Member } from '@/data';
-import { daysSince, formatDate } from '@/lib/format';
+import { useMemberOrgLabels, type ID, type Member } from '@/data';
+import { daysSince, formatDate, formatPhone } from '@/lib/format';
 import { memberNameById } from '../model/membersList';
 
 /**
@@ -44,11 +44,16 @@ export function MemberInfoGrid({
   member: Member;
   directory: Map<ID, Member>;
 }) {
+  const labels = useMemberOrgLabels()(member);
+
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: 'No CITi',
       rows: [
-        { label: 'Subárea', value: member.area },
+        { label: 'Área', value: labels.area },
+        // "Área inteira" quando o cargo vale para a área toda: é diferente de
+        // não ter subárea por falta de dado.
+        { label: 'Subárea', value: labels.subarea },
         { label: 'Cargo', value: member.role || DASH },
         { label: 'Squad', value: member.squad || DASH },
         {
@@ -71,11 +76,16 @@ export function MemberInfoGrid({
       ],
     },
     {
-      title: 'Contato',
+      title: 'Pessoal e contato',
       rows: [
+        // A data de nascimento é o campo que a importação mais deixa em branco
+        // (planilha com formato estranho). Mostrá-la é o que torna visível o
+        // que precisa de correção — escondida, a pendência só existia no
+        // relatório da importação.
+        { label: 'Data de nascimento', value: formatDate(member.birthDate) },
         { label: 'E-mail institucional', value: member.email },
         { label: 'E-mail pessoal', value: member.personalEmail || DASH },
-        { label: 'Telefone', value: member.phone || DASH },
+        { label: 'Telefone', value: formatPhone(member.phone) },
       ],
     },
   ];

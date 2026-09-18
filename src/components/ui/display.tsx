@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { colorFromName, initials as toInitials } from '@/lib/format';
 
@@ -78,6 +78,7 @@ export function Avatar({
   size = 'sm',
   shape = 'rounded',
   className,
+  onPhotoError,
 }: {
   name: string;
   photoUrl?: string | null;
@@ -85,15 +86,30 @@ export function Avatar({
   /** `circle` para listagens de pessoas; `rounded` mantém o raio do sistema. */
   shape?: 'rounded' | 'circle';
   className?: string;
+  /**
+   * A imagem não carregou. Serve para quem usa URL ASSINADA pedir outra — uma
+   * assinatura expirada é o caso comum, e recarregar a página inteira só para
+   * ver uma foto seria um preço alto.
+   */
+  onPhotoError?: () => void;
 }) {
   const color = colorFromName(name);
   const radius = shape === 'circle' ? 'rounded-full' : AVATAR_RADIUS[size];
+  // Foto que não carrega volta para as iniciais SEMPRE: um quadrado quebrado no
+  // lugar do rosto de alguém é pior do que duas letras.
+  const [failed, setFailed] = useState(false);
 
-  if (photoUrl) {
+  useEffect(() => setFailed(false), [photoUrl]);
+
+  if (photoUrl && !failed) {
     return (
       <img
         src={photoUrl}
         alt={name}
+        onError={() => {
+          setFailed(true);
+          onPhotoError?.();
+        }}
         className={cn(
           AVATAR_SIZE[size],
           radius,

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { Avatar, Surface } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import { Surface } from '@/components/ui';
+import { useMemberOrgLabels, type ID, type Member } from '@/data';
 import { relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
+import { MemberAvatar } from './MemberAvatar';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
 import { memberNameById, type MemberListItem } from '../model/membersList';
 
@@ -31,6 +32,7 @@ export function MemberCard({
 }) {
   const { member, lastX1, x1Status } = item;
   const ggName = memberNameById(directory, member.ggResponsibleId);
+  const orgLabel = useMemberOrgLabels();
 
   return (
     <Surface className="rounded-[20px] border-border bg-surface-card transition-colors hover:border-border-hover">
@@ -39,9 +41,8 @@ export function MemberCard({
         className="flex flex-col gap-3 p-4 outline-none focus-visible:outline-2 focus-visible:outline-ring"
       >
         <div className="flex items-center gap-3">
-          <Avatar
-            name={member.fullName}
-            photoUrl={member.photoUrl}
+          <MemberAvatar
+            member={member}
             size="md"
             shape="circle"
             className="h-[34px] w-[34px] text-[11px]"
@@ -55,7 +56,9 @@ export function MemberCard({
         <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-[11px]">
           <div className="min-w-0">
             <dt className="text-muted-foreground">Subárea</dt>
-            <dd className="truncate font-medium text-foreground">{member.area}</dd>
+            <dd className="truncate font-medium text-foreground">
+              {orgLabel(member).subarea}
+            </dd>
           </div>
           <div className="min-w-0">
             <dt className="text-muted-foreground">GG responsável</dt>

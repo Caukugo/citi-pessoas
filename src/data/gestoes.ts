@@ -16,6 +16,14 @@ import type { Gestao } from './types';
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * A regra do ciclo vive em `cycleBounds.ts`, PURA, e é reexportada aqui para
+ * quem já a importava daqui. Ela não pode morar neste arquivo: este importa
+ * `db`, e o adapter mock precisa da regra — o ciclo de import que isso cria
+ * deixava `db` indefinido dependendo da ordem de carga dos módulos.
+ */
+export { cycleBoundsFor, type CycleBounds } from './cycleBounds';
+
 export function getGestoes(): Promise<Gestao[]> {
   return db.gestoes.list();
 }

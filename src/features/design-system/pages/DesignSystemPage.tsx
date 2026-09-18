@@ -40,7 +40,7 @@ import {
   Tooltip,
   TR,
 } from '@/components/ui';
-import { AREAS, useMembers } from '@/data';
+import { LEGACY_SUBAREA_NAMES, useMembers } from '@/data';
 import { formatDate } from '@/lib/format';
 
 /**
@@ -153,7 +153,7 @@ function FormsSection() {
               {...field}
               {...register('area')}
               placeholder="Selecione…"
-              options={AREAS.map((area) => ({ value: area, label: area }))}
+              options={LEGACY_SUBAREA_NAMES.map((name) => ({ value: name, label: name }))}
             />
           )}
         </FormField>

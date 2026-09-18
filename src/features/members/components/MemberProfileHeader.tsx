@@ -1,13 +1,20 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { Avatar, Badge, Surface } from '@/components/ui';
-import type { ID, Member, MemberX1Status } from '@/data';
+import { Badge, Surface } from '@/components/ui';
+import {
+  MEMBER_STATUS_LABEL,
+  useMemberOrgLabels,
+  type ID,
+  type Member,
+  type MemberX1Status,
+} from '@/data';
 import type { X1 } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
 import { memberNameById } from '../model/membersList';
+import { MemberAvatar } from './MemberAvatar';
 
 /**
  * Cabeçalho do Perfil: quem é a pessoa e como está o acompanhamento dela.
@@ -36,6 +43,7 @@ export function MemberProfileHeader({
   action?: ReactNode;
 }) {
   const ggName = memberNameById(directory, member.ggResponsibleId);
+  const orgLabel = useMemberOrgLabels();
 
   return (
     <Surface className="p-6">
@@ -51,7 +59,7 @@ export function MemberProfileHeader({
       </Link>
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <Avatar name={member.fullName} photoUrl={member.photoUrl} size="lg" />
+        <MemberAvatar member={member} size="lg" />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -60,20 +68,22 @@ export function MemberProfileHeader({
                 informação seria ruído repetido em todo perfil. */}
             {member.status !== 'ativo' && (
               <Badge tone="neutral">
-                {member.status === 'desligado' ? 'Desligado' : 'Arquivado'}
+                {MEMBER_STATUS_LABEL[member.status]}
               </Badge>
             )}
           </div>
 
           <p className="mt-1 break-words text-sm text-foreground-secondary">
-            {member.role || DASH} · {member.area}
+            {member.role || DASH} · {orgLabel(member).subarea}
           </p>
 
           <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-xs">
             <div className="min-w-0">
               <dt className="text-muted-foreground">GG responsável</dt>
+              {/* Nulo NÃO é dado faltando: a alocação é decisão humana que
+                  ainda não foi tomada, e um traço esconderia isso. */}
               <dd className="mt-0.5 truncate font-semibold text-foreground-secondary">
-                {ggName ?? DASH}
+                {ggName ?? <span className="text-warn">Alocação pendente</span>}
               </dd>
             </div>
             <div className="min-w-0">

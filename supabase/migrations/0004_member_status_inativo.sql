@@ -1,0 +1,24 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 0004 — Novo status de membro: `inativo`
+--
+-- POR QUÊ: o 0001 tinha três estados e faltava distinguir duas saídas que são
+-- muito diferentes para a GG:
+--
+--   ativo      → está atualmente na empresa
+--   inativo    → TERMINOU NATURALMENTE o ciclo (novo)
+--   desligado  → saiu ANTES de terminar o ciclo
+--   arquivado  → mantido apenas para histórico
+--
+-- A diferença importa porque só quem ficou `inativo` por conclusão natural
+-- pode ser reativado (ver 0009). Quem foi desligado, não.
+--
+-- ⚠️ ESTA MIGRATION FAZ UMA COISA SÓ, DE PROPÓSITO.
+-- O Postgres não permite USAR um valor de enum na mesma transação em que ele
+-- foi adicionado, e a CLI do Supabase roda cada migration numa transação. Por
+-- isso o valor é criado aqui e só é usado a partir da 0005.
+--
+-- Nenhum registro existente muda de status: `ativo`, `desligado` e `arquivado`
+-- continuam significando exatamente o que significavam.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+alter type member_status add value if not exists 'inativo' after 'ativo';

@@ -42,7 +42,15 @@ export interface MemberListItem {
  */
 export interface MembersListFilters {
   search: string;
-  area: string;
+  /**
+   * Slug da área e da subárea, não o texto legado de `members.area`.
+   *
+   * Slug (e não id) porque o recorte vira link — `?area=negocios` se lê; um
+   * uuid não. A tradução para id acontece no `useMembersList`, contra o
+   * catálogo, uma vez só.
+   */
+  areaSlug: string;
+  subareaSlug: string;
   role: string;
   ggResponsibleId: string;
   x1Status: string;
@@ -52,7 +60,8 @@ export interface MembersListFilters {
 /** Padrão da tela: quem está ativo hoje. Desligado e arquivado ficam a um filtro. */
 export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
   search: '',
-  area: '',
+  areaSlug: '',
+  subareaSlug: '',
   role: '',
   ggResponsibleId: '',
   x1Status: '',
@@ -63,7 +72,8 @@ export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
 export function hasActiveFilters(filters: MembersListFilters): boolean {
   return (
     filters.search !== '' ||
-    filters.area !== '' ||
+    filters.areaSlug !== '' ||
+    filters.subareaSlug !== '' ||
     filters.role !== '' ||
     filters.ggResponsibleId !== '' ||
     filters.x1Status !== '' ||
@@ -99,8 +109,9 @@ export function buildMemberListItems(
 /**
  * Filtros que só a camada derivada consegue aplicar.
  *
- * Busca, subárea, situação e GG responsável já foram aplicados pela camada de
- * dados (`MemberFilters`), porque um backend sabe fazer isso melhor. Sobram:
+ * Busca, área, subárea, situação e GG responsável já foram aplicados pela
+ * camada de dados (`MemberFilters`), porque um backend sabe fazer isso melhor.
+ * Sobram:
  *
  * • `x1Status` — não existe no banco por decisão de produto: é calculado.
  * • `role` — hoje não está em `MemberFilters`. Se um dia entrar, esta função

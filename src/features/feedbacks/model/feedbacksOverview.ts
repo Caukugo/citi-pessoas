@@ -115,7 +115,9 @@ function mostRecent(feedbacks: Feedback[]): Feedback | null {
  */
 export interface FeedbacksListFilters {
   search: string;
-  area: string;
+  /** Slug da área e da subárea, como na listagem de Membros. */
+  areaSlug: string;
+  subareaSlug: string;
   ggResponsibleId: string;
   /** Um `FeedbackType`, ou '' para todos. */
   type: string;
@@ -123,15 +125,29 @@ export interface FeedbacksListFilters {
 
 export const DEFAULT_FEEDBACKS_FILTERS: FeedbacksListFilters = {
   search: '',
-  area: '',
+  areaSlug: '',
+  subareaSlug: '',
   ggResponsibleId: '',
   type: '',
 };
 
+/**
+ * Os mesmos filtros de área e subárea, já traduzidos de slug para id.
+ *
+ * A função de filtro é pura e não conhece catálogo: quem traduz é o hook, uma
+ * vez. Comparar id — e não o texto de `members.area` — é o que faz o recorte
+ * "Negócios" incluir quem tem cargo de área inteira.
+ */
+export interface OrgFilterIds {
+  areaId?: ID;
+  subareaId?: ID;
+}
+
 export function hasActiveFeedbackFilters(filters: FeedbacksListFilters): boolean {
   return (
     filters.search !== '' ||
-    filters.area !== '' ||
+    filters.areaSlug !== '' ||
+    filters.subareaSlug !== '' ||
     filters.ggResponsibleId !== '' ||
     filters.type !== ''
   );
@@ -155,11 +171,15 @@ export function hasActiveFeedbackFilters(filters: FeedbacksListFilters): boolean
 export function applyFeedbackFilters(
   rows: MemberFeedbackRow[],
   filters: FeedbacksListFilters,
+  org: OrgFilterIds = {},
 ): MemberFeedbackRow[] {
   const needle = normalizeText(filters.search);
 
   return rows.filter(({ member, counts }) => {
-    if (filters.area && member.area !== filters.area) return false;
+    // Área traz a área inteira; subárea traz só quem é dela — a diretoria de
+    // área não pertence a uma subárea só e não entra naquele recorte.
+    if (org.areaId && member.areaId !== org.areaId) return false;
+    if (org.subareaId && member.subareaId !== org.subareaId) return false;
     if (filters.ggResponsibleId && member.ggResponsibleId !== filters.ggResponsibleId) {
       return false;
     }

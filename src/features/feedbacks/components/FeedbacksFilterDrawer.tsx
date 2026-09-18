@@ -1,5 +1,5 @@
 import { Button, Drawer, FormField, Select } from '@/components/ui';
-import { AREAS, type Member } from '@/data';
+import { useOrgCatalog, type Member } from '@/data';
 import type { FeedbacksListFilters } from '../model/feedbacksOverview';
 
 /**
@@ -37,6 +37,13 @@ export function FeedbacksFilterDrawer({
   onChange: <K extends keyof FeedbacksListFilters>(key: K, value: FeedbacksListFilters[K]) => void;
   onClear: () => void;
 }) {
+  const { data: catalog } = useOrgCatalog();
+  const areas = catalog?.areas ?? [];
+  const selectedArea = areas.find((area) => area.slug === filters.areaSlug) ?? null;
+  const subareas = (catalog?.subareas ?? []).filter(
+    (subarea) => !selectedArea || subarea.areaId === selectedArea.id,
+  );
+
   return (
     <Drawer
       open={open}
@@ -56,14 +63,26 @@ export function FeedbacksFilterDrawer({
       }
     >
       <div className="flex flex-col gap-4">
+        <FormField label="Área" hint="Traz a área inteira, incluindo quem tem cargo de área.">
+          {(field) => (
+            <Select
+              {...field}
+              value={filters.areaSlug}
+              onChange={(e) => onChange('areaSlug', e.target.value)}
+              placeholder="Todas as áreas"
+              options={areas.map((area) => ({ value: area.slug, label: area.name }))}
+            />
+          )}
+        </FormField>
+
         <FormField label="Subárea">
           {(field) => (
             <Select
               {...field}
-              value={filters.area}
-              onChange={(e) => onChange('area', e.target.value)}
+              value={filters.subareaSlug}
+              onChange={(e) => onChange('subareaSlug', e.target.value)}
               placeholder="Todas as subáreas"
-              options={AREAS.map((area) => ({ value: area, label: area }))}
+              options={subareas.map((subarea) => ({ value: subarea.slug, label: subarea.name }))}
             />
           )}
         </FormField>

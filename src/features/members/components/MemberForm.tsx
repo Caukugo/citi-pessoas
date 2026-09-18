@@ -1,6 +1,6 @@
 import type { UseFormReturn } from 'react-hook-form';
 import { FormField, FormSection, Input, Select } from '@/components/ui';
-import { AREAS, type Member } from '@/data';
+import { LEGACY_SUBAREA_NAMES, type Member } from '@/data';
 import type { MemberFormValues } from '../schemas/memberSchema';
 
 /**
@@ -11,7 +11,7 @@ import type { MemberFormValues } from '../schemas/memberSchema';
  * formulário decide o rodapé, o título e o que fazer ao salvar; aqui só vivem
  * os campos.
  *
- * Nenhuma opção é escrita à mão: subárea vem de `AREAS`, e GG responsável vem
+ * Nenhuma opção é escrita à mão: subárea vem de `LEGACY_SUBAREA_NAMES`, e GG responsável vem
  * dos membros de Gente e Gestão. Quando a Administração passar a manter essas
  * listas, este arquivo não muda.
  */
@@ -58,7 +58,7 @@ export function MemberForm({
               <Select
                 {...field}
                 {...register('area')}
-                options={AREAS.map((area) => ({ value: area, label: area }))}
+                options={LEGACY_SUBAREA_NAMES.map((name) => ({ value: name, label: name }))}
               />
             )}
           </FormField>

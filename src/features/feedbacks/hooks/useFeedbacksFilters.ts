@@ -9,12 +9,14 @@ import { DEFAULT_FEEDBACKS_FILTERS, type FeedbacksListFilters } from '../model/f
  * que a GG manda no grupo. Além disso o botão voltar funciona e recarregar não
  * perde o recorte — a plataforma é usada entre uma aula e outra.
  *
- *   /feedbacks?busca=iris&subarea=Desenvolvimento&tipo=carta_de_ajuste
+ *   /feedbacks?busca=iris&subarea=solucoes-desenvolvimento&tipo=carta_de_ajuste
  */
 
 const PARAM = {
   search: 'busca',
-  area: 'subarea',
+  // Slug do catálogo, não o texto legado de `members.area`.
+  areaSlug: 'area',
+  subareaSlug: 'subarea',
   ggResponsibleId: 'gg',
   type: 'tipo',
 } as const;
@@ -33,7 +35,8 @@ export function useFeedbacksFilters(): FeedbacksFiltersControl {
     const params = new URLSearchParams(serialized);
     return {
       search: params.get(PARAM.search) ?? '',
-      area: params.get(PARAM.area) ?? '',
+      areaSlug: params.get(PARAM.areaSlug) ?? '',
+      subareaSlug: params.get(PARAM.subareaSlug) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
       type: params.get(PARAM.type) ?? '',
     };

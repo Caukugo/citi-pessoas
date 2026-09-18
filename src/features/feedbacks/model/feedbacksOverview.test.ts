@@ -119,8 +119,20 @@ describe('aggregateFeedbacksByMember', () => {
 
 describe('applyFeedbackFilters', () => {
   const members = [
-    member('a', { fullName: 'Ana Souza', area: 'Dados', ggResponsibleId: 'gg1' }),
-    member('b', { fullName: 'Bruno Lima', area: 'Marketing', role: 'Analista' }),
+    member('a', {
+      fullName: 'Ana Souza',
+      area: 'Dados',
+      areaId: 'area-solucoes',
+      subareaId: 'sub-dados',
+      ggResponsibleId: 'gg1',
+    }),
+    member('b', {
+      fullName: 'Bruno Lima',
+      area: 'Marketing',
+      areaId: 'area-negocios',
+      subareaId: 'sub-marketing',
+      role: 'Analista',
+    }),
   ];
   const feedbacks = [
     feedback('f1', 'a', 'informal', '2026-01-10'),
@@ -150,8 +162,9 @@ describe('applyFeedbackFilters', () => {
   });
 
   it('filtra por subárea e por GG responsável', () => {
+    // O recorte de subárea compara CHAVE, não o texto legado de `members.area`.
     expect(
-      applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, area: 'Dados' }),
+      applyFeedbackFilters(rows, DEFAULT_FEEDBACKS_FILTERS, { subareaId: 'sub-dados' }),
     ).toHaveLength(1);
     expect(
       applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, ggResponsibleId: 'gg1' }),
