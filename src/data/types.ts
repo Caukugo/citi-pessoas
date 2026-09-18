@@ -280,7 +280,13 @@ export type MemberIntakeReviewReason =
   /** A foto passa do limite de 5 MB do bucket. */
   | 'photo_too_large'
   /** O membro entrou, mas o upload para o Storage falhou. */
-  | 'photo_upload_failed';
+  | 'photo_upload_failed'
+  /** A planilha não trouxe CPF. A pessoa entra sem ele. */
+  | 'cpf_missing'
+  /** Veio CPF, mas não é um CPF (dígito verificador, tamanho, sequência). */
+  | 'invalid_cpf'
+  /** O membro entrou, mas o CPF não chegou ao serviço que o cifra. */
+  | 'cpf_store_failed';
 
 export interface MemberImportInput {
   /** Chave estável do envio. Reenviar o mesmo CSV não cria nada de novo. */
@@ -355,6 +361,36 @@ export interface MemberPhotoUpload {
   /** `image/jpeg`, `image/png` ou `image/webp`. */
   contentType: string;
   bytes: Uint8Array;
+}
+
+// ─── CPF (dado privado) ───────────────────────────────────────────────────────
+
+/**
+ * O que a TELA pode saber sobre o CPF sem pedir o número.
+ *
+ * Vem de `citi_member_cpf_status`, que é uma consulta normal com RLS de GG.
+ * Serve para o perfil dizer "tem CPF, terminado em 4725" sem acionar o serviço
+ * de decifra — e sem gerar uma linha de auditoria de LEITURA a cada abertura de
+ * tela.
+ */
+export interface MemberCpfStatus {
+  hasCpf: boolean;
+  /** Quatro últimos dígitos, em claro. Nunca o número inteiro. */
+  last4: string | null;
+  updatedAt: ISODate | null;
+}
+
+/** O que o serviço devolve ao gravar um CPF. */
+export type MemberCpfWriteOutcome = 'criado' | 'atualizado' | 'duplicado' | 'membro_inexistente';
+
+export interface MemberCpfWriteResult {
+  outcome: MemberCpfWriteOutcome;
+  last4?: string | null;
+  /**
+   * Quando `duplicado`: de QUEM é o CPF. É id de membro (dado de cadastro) —
+   * o CPF da outra pessoa nunca volta.
+   */
+  conflictMemberId?: ID | null;
 }
 
 // ─── Correção cadastral (PERFIL-006) ─────────────────────────────────────────

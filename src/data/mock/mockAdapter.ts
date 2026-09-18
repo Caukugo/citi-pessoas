@@ -18,6 +18,13 @@ import { MOCK_USERS } from './fixtures';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
 import { cycleBoundsFor } from '../cycleBounds';
 import { currentCycleAfterRoster, planRosterContinuation } from '../import/currentRoster';
+import { checkCpf, cpfLast4 } from '../cpf';
+import {
+  CPF_REVIEW_REASONS,
+  mockCpf,
+  mockCpfAudit,
+  mockPhotoBytes,
+} from './privateStore';
 import { commit, delay, mockDb, mockId, nowISO } from './store';
 
 /**
@@ -35,14 +42,12 @@ function notifyAuth(user: AuthUser | null) {
 }
 
 /**
- * "Storage" do modo mock: os bytes da foto ficam em MEMÓRIA, indexados pelo
- * caminho, e somem ao recarregar a página.
- *
- * Fora do `mockDb` de propósito — ele é serializado no `localStorage`, e três
- * fotos de 2 MB em base64 estouram a cota do navegador e derrubam TODO o banco
- * de mentira junto.
+ * O que é de SESSÃO (bytes de foto, CPF e a trilha dele) mora em
+ * `privateStore.ts`, fora do `mockDb` que vai para o `localStorage`. CPF é dado
+ * pessoal e não fica guardado no navegador de ninguém — a mesma regra do modo
+ * real. Ver o cabeçalho daquele arquivo.
  */
-const mockPhotoBytes = new Map<string, string>();
+export { mockCpfAudit as mockCpfAuditTrail } from './privateStore';
 
 /** Bytes da foto viram `data:` URL — é o que um `<img>` sabe exibir. */
 function toDataUrl(contentType: string, bytes: Uint8Array): string {
@@ -381,6 +386,87 @@ export const mockAdapter: DataAdapter = {
       // Sem Storage: a "URL assinada" do mock é a foto que esta aba enviou.
       // Nada expira, e recarregar a página zera — é mock, não Supabase.
       return mockPhotoBytes.get(path) ?? null;
+    },
+
+    async getCpfStatus(memberId) {
+      await delay(40);
+      const guardado = mockCpf.get(memberId);
+
+      return {
+        hasCpf: Boolean(guardado),
+        last4: guardado ? cpfLast4(guardado.digits) : null,
+        updatedAt: guardado?.updatedAt ?? null,
+      };
+    },
+
+    async getCpf(memberId) {
+      await delay(60);
+      const guardado = mockCpf.get(memberId);
+
+      // Leitura é auditada também no mock: é a única forma de o teste provar
+      // que a trilha registra quem olhou o CPF de quem.
+      mockCpfAudit.push({
+        memberId,
+        action: 'read',
+        result: guardado ? 'ok' : 'not_found',
+        at: nowISO(),
+      });
+
+      return guardado?.digits ?? null;
+    },
+
+    async setCpf(memberId, cpf) {
+      await delay(80);
+      const db = mockDb();
+
+      if (!db.members.some((m) => m.id === memberId)) {
+        mockCpfAudit.push({ memberId, action: 'create', result: 'not_found', at: nowISO() });
+        return { outcome: 'membro_inexistente' as const };
+      }
+
+      // Validação de novo, com o MESMO módulo do servidor.
+      const check = checkCpf(cpf);
+      if (!check.valid || !check.digits) {
+        throw new DataError('invalid', 'CPF inválido.');
+      }
+
+      // Duplicidade entre pessoas diferentes: no banco isso é índice único
+      // sobre o HMAC. Aqui é a mesma pergunta, feita sobre os dígitos.
+      const dono = [...mockCpf.entries()].find(
+        ([outro, dados]) => outro !== memberId && dados.digits === check.digits,
+      );
+      if (dono) {
+        mockCpfAudit.push({ memberId, action: 'create', result: 'duplicate', at: nowISO() });
+        return { outcome: 'duplicado' as const, conflictMemberId: dono[0] };
+      }
+
+      const existia = mockCpf.has(memberId);
+      mockCpf.set(memberId, { digits: check.digits, updatedAt: nowISO() });
+      mockCpfAudit.push({
+        memberId,
+        action: existia ? 'update' : 'create',
+        result: 'ok',
+        at: nowISO(),
+      });
+
+      // Corrigir o CPF resolve as pendências que ele criou — e só elas.
+      await mockAdapter.members.resolveReview(memberId, CPF_REVIEW_REASONS);
+
+      return {
+        outcome: (existia ? 'atualizado' : 'criado') as 'atualizado' | 'criado',
+        last4: cpfLast4(check.digits),
+      };
+    },
+
+    async removeCpf(memberId) {
+      await delay(60);
+      const existia = mockCpf.delete(memberId);
+      mockCpfAudit.push({
+        memberId,
+        action: 'remove',
+        result: existia ? 'ok' : 'not_found',
+        at: nowISO(),
+      });
     },
 
     async listReviewReasons(memberId) {

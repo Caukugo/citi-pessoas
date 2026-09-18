@@ -13,6 +13,9 @@ import { normalizeText } from '@/lib/format';
  * REGRA DE NORMALIZAÇÃO: cabeçalhos e espaços são normalizados; e-mail vira
  * minúsculo. NOME PRÓPRIO NÃO É TOCADO além de colapsar espaços — "Luís
  * D'Ávila" não pode virar "luis d'avila" só porque foi mais fácil comparar.
+ *
+ * ⚠️ CPF NÃO ENTRA NO `payload`. A coluna é lida para `values.cpf` (memória
+ * desta sessão) e removida da cópia fiel que vai para o banco. Ver `parseMembersCsv`.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -23,6 +26,8 @@ export type CsvField =
   | 'position'
   | 'fullName'
   | 'email'
+  /** Dado PRIVADO: nunca vai para o `payload` da submissão. */
+  | 'cpf'
   | 'phone'
   | 'course'
   | 'department'
@@ -51,6 +56,7 @@ export const COLUMN_ALIASES: Record<CsvField, string[]> = {
     'email',
     'e-mail',
   ],
+  cpf: ['cpf', 'c.p.f.', 'cpf do membro'],
   phone: ['celular', 'telefone', 'contato'],
   course: ['curso', 'graduacao'],
   department: ['departamento academico', 'departamento', 'depto academico'],
@@ -92,6 +98,7 @@ export function columnLabel(field: CsvField): string {
     position: 'Cargo',
     fullName: 'Nome Completo',
     email: 'Email do CITi',
+    cpf: 'CPF',
     phone: 'Celular',
     course: 'Curso',
     department: 'Departamento Acadêmico',
@@ -218,9 +225,20 @@ export function parseMembersCsv(content: string): ParsedCsv {
 
     for (const header of headers) {
       const original = cleanValue(rawRow[header]);
-      if (original !== '') raw[header] = original;
-
       const field = headerMap.get(header);
+
+      // ⚠️ O CPF É ARRANCADO DO PAYLOAD AQUI, na leitura, antes de qualquer
+      // outra coisa acontecer com a linha.
+      //
+      // `raw` é o que vai para `member_intake_submissions.payload` — a cópia
+      // fiel da planilha que fica guardada no banco para sempre. CPF em texto
+      // puro ali anularia todo o trabalho de cifrar: bastaria um `select` na
+      // submissão para ler o CPF de setenta pessoas.
+      //
+      // O valor continua disponível em `values.cpf` para a prévia mostrar e
+      // para o serviço cifrar — mas só em memória, nesta sessão.
+      if (original !== '' && field !== 'cpf') raw[header] = original;
+
       if (!field) continue;
       if (original === '') continue;
 

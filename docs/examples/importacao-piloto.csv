@@ -1,6 +1,6 @@
-Área,Subárea,Cargo,Nome Completo,Email do CITi,Celular,Curso,Departamento Acadêmico,Data de Nascimento,Gestão de Entrada,Foto Arquivo
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto Souza,ana.piloto@teste.invalid,(81) 99999-0001,Ciência da Computação,CIn,05/03/2006,2026.2,ana-piloto.png
-Soluções,Desenvolvimento,Líder de Desenvolvimento,Bruno Piloto Lima,bruno.piloto@teste.invalid,(81) 99999-0002,Engenharia da Computação,CIn,12/07/2005,2026.2,bruno-piloto.png
-Negócios,Comercial,Gerente de Contas,Carla Piloto Nunes,carla.piloto@teste.invalid,(81) 99999-0003,Administração,CCSA,23/11/2004,2026.1,carla-piloto.png
-Soluções,,Diretoria de Soluções,Davi Piloto Rocha,davi.piloto@teste.invalid,(81) 99999-0004,Sistemas de Informação,CIn,02/01/2003,2026.2,davi-piloto.png
-Negócios,Marketing,Analista de Marketing,Enzo Piloto Barros,enzo.piloto@teste.invalid,(81) 99999-0005,Publicidade e Propaganda,CAC,17/09/2005,2025.1,enzo-piloto.png
+Área,Subárea,Cargo,Nome Completo,Email do CITi,CPF,Celular,Curso,Departamento Acadêmico,Data de Nascimento,Gestão de Entrada,Foto Arquivo
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto Souza,ana.piloto@teste.invalid,529.982.247-25,(81) 99999-0001,Ciência da Computação,CIn,05/03/2006,2026.2,ana-piloto.png
+Soluções,Desenvolvimento,Líder de Desenvolvimento,Bruno Piloto Lima,bruno.piloto@teste.invalid,111.444.777-35,(81) 99999-0002,Engenharia da Computação,CIn,12/07/2005,2026.2,bruno-piloto.png
+Negócios,Comercial,Gerente de Contas,Carla Piloto Nunes,carla.piloto@teste.invalid,012.345.678-90,(81) 99999-0003,Administração,CCSA,23/11/2004,2026.1,carla-piloto.png
+Soluções,,Diretoria de Soluções,Davi Piloto Rocha,davi.piloto@teste.invalid,,(81) 99999-0004,Sistemas de Informação,CIn,02/01/2003,2026.2,davi-piloto.png
+Negócios,Marketing,Analista de Marketing,Enzo Piloto Barros,enzo.piloto@teste.invalid,111.111.111-11,(81) 99999-0005,Publicidade e Propaganda,CAC,17/09/2005,2025.1,enzo-piloto.png

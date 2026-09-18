@@ -737,6 +737,77 @@ Duas coisas que a `0018` deixa explícitas:
 
 ---
 
+## ADR-017 — CPF cifrado fora de `members`, com chave que o banco não tem
+
+- **Data:** 2026-09-17
+- **Status:** Aceita
+- **Migration:** `0019`. Fecha também o **GERAL-012** (autorização).
+
+**Contexto.** Entrar com 70 pessoas reais significa entrar com 70 CPFs. Um CPF
+numa coluna de `members` seria lido por toda tela que faz `select *`, apareceria
+no `payload` da submissão de importação (que fica guardado para sempre), viajaria
+para o navegador em cada listagem, e sairia inteiro em qualquer dump ou backup.
+
+No caminho apareceu um segundo problema, pior: `is_gg()` — a função que TODA
+policy do projeto usa — respondia `exists (select 1 from profiles where id =
+auth.uid())`. O papel nunca era conferido. Na prática ninguém entrou sem ser de
+GG, porque o enum só tem `gg` e `gg_diretoria`; mas a garantia não existia.
+
+**Decisão.**
+
+1. **Autorização confere o papel.** `citi_is_gg()` testa
+   `role in ('gg','gg_diretoria')`. `gg` e `gg_diretoria` têm acesso **idêntico**
+   — papel é cargo organizacional, não nível de permissão. Autenticado sem
+   profile é bloqueado.
+2. **CPF em tabela separada** (`member_private_data`), cifrado com
+   **AES-256-GCM**, com **HMAC-SHA-256** de chave separada para duplicidade e
+   índice único sobre o HMAC.
+3. **O banco não decifra.** As chaves existem só nos segredos da Edge Function.
+   A tabela tem RLS ligada e **zero policies**: nenhum cliente lê CPF por
+   consulta.
+4. **Leitura é auditada.** `member_private_data_audit` registra `read` como
+   registra escrita, e nunca guarda CPF, cifrado, hash, chave ou JWT.
+5. **Grants mínimos:** `anon` sem nada além do `INSERT` do formulário público.
+
+**Alternativas consideradas.**
+
+- **Coluna `cpf` em `members`, protegida só por RLS.** Rejeitado: RLS não
+  protege de dump, de backup, de quem tem acesso administrativo ao banco, nem do
+  `payload` da importação. E não dá para auditar leitura de uma coluna.
+- **`pgcrypto` cifrando dentro do Postgres.** Rejeitado: a chave passaria por
+  parâmetro de função ou viveria em tabela/GUC — ou seja, no mesmo lugar que o
+  dado. Um dump levaria os dois. Cifrar fora é o que faz o dump ser inútil.
+- **SHA-256 do CPF para detectar duplicidade.** Rejeitado: são ~1,7 bilhão de
+  CPFs válidos; a tabela inteira de hashes se constrói num notebook. HMAC com
+  chave separada resolve.
+- **AES-CBC.** Rejeitado: não é autenticado. Um byte alterado no banco viraria
+  lixo decifrado sem ninguém perceber.
+- **Mascarar CPF por papel** (diretoria vê, GG não). Rejeitado: contraria a
+  decisão de acesso do produto. A máscara é por **ação** — a tela mostra os
+  quatro últimos e revela o resto quando alguém clica, porque cada revelação é
+  uma linha de auditoria.
+- **Validar CPF só no cliente.** Rejeitado: o servidor valida de novo, com o
+  **mesmo módulo** (`src/data/cpf.ts`, importado pela função). Duas
+  implementações divergem, e a divergência aparece como "a prévia aceitou e o
+  servidor recusou".
+
+**Consequências.**
+
+- ✅ Dump, backup ou acesso ao banco devolvem bytes inúteis sem a chave.
+- ✅ Dá para responder "quem viu o CPF dessa pessoa, e quando".
+- ✅ Duplicidade é impedida no banco, não só na tela.
+- ⚠️ **Perder `CPF_ENCRYPTION_KEY` é perder todos os CPFs**, inclusive os do
+  backup. Onde guardar a chave é decisão pendente (GERAL-013).
+- ⚠️ Ler CPF exige a Edge Function no ar. Ela cair não impede usar a
+  plataforma — só o campo de CPF deixa de abrir.
+- ⚠️ `verify_jwt = false` na função é deliberado: ela faz a autorização em duas
+  etapas por conta própria, e a verificação no gateway recusaria o pré-voo do
+  navegador antes de a função responder o CORS.
+- ⚠️ Retenção, rotação de chave e procedimento de incidente **não** foram
+  decididos — e nenhum prazo legal foi inventado. Ver `docs/RETENCAO_DADOS.md`.
+
+---
+
 ## Como registrar uma decisão nova
 
 Copie o formato acima. Uma decisão merece um ADR quando afeta mais de uma

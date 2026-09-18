@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { mockAdapter } from './mockAdapter';
+import { mockAdapter, mockCpfAuditTrail } from './mockAdapter';
 import { resetMockData } from './store';
 
 /**
@@ -638,5 +638,138 @@ describe('foto do membro e responsável de GG', () => {
     expect(eventos.some((e) => e.title === 'Responsável de GG atribuído')).toBe(true);
     expect(eventos.some((e) => e.title === 'Responsável de GG alterado')).toBe(true);
     expect(eventos.some((e) => e.title === 'Responsável de GG removido')).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('CPF (modo mock)', () => {
+  /** Fictícios, com dígitos verificadores corretos. */
+  const CPF_A = '529.982.247-25';
+  const CPF_B = '111.444.777-35';
+
+  it('membro sem CPF: status diz que não tem, e nada é revelado', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    expect(await mockAdapter.members.getCpfStatus(membro.id)).toEqual({
+      hasCpf: false,
+      last4: null,
+      updatedAt: null,
+    });
+    expect(await mockAdapter.members.getCpf(membro.id)).toBeNull();
+  });
+
+  it('grava, lê de volta e mostra só os quatro últimos no status', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    const result = await mockAdapter.members.setCpf(membro.id, CPF_A);
+    expect(result.outcome).toBe('criado');
+
+    const status = await mockAdapter.members.getCpfStatus(membro.id);
+    // O status NUNCA traz o número inteiro: é o que a tela usa para dizer
+    // "tem CPF, terminado em 4725" sem acionar o serviço de decifra.
+    expect(status).toMatchObject({ hasCpf: true, last4: '4725' });
+    expect(JSON.stringify(status)).not.toContain('52998224725');
+
+    // O número completo só pelo caminho auditado.
+    expect(await mockAdapter.members.getCpf(membro.id)).toBe('52998224725');
+  });
+
+  it('recusa CPF inválido', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    await expect(mockAdapter.members.setCpf(membro.id, '111.111.111-11')).rejects.toThrow();
+    await expect(mockAdapter.members.setCpf(membro.id, '123')).rejects.toThrow();
+    expect((await mockAdapter.members.getCpfStatus(membro.id)).hasCpf).toBe(false);
+  });
+
+  it('recusa o mesmo CPF em duas pessoas, dizendo de quem é', async () => {
+    const [primeira, segunda] = await mockAdapter.members.list();
+
+    await mockAdapter.members.setCpf(primeira.id, CPF_A);
+    const conflito = await mockAdapter.members.setCpf(segunda.id, CPF_A);
+
+    expect(conflito.outcome).toBe('duplicado');
+    expect(conflito.conflictMemberId).toBe(primeira.id);
+    // A segunda pessoa continua sem CPF: nada foi gravado pela metade.
+    expect((await mockAdapter.members.getCpfStatus(segunda.id)).hasCpf).toBe(false);
+  });
+
+  it('corrigir o CPF da MESMA pessoa é atualização, não duplicidade', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    await mockAdapter.members.setCpf(membro.id, CPF_A);
+    const result = await mockAdapter.members.setCpf(membro.id, CPF_B);
+
+    expect(result.outcome).toBe('atualizado');
+    expect(await mockAdapter.members.getCpf(membro.id)).toBe('11144477735');
+  });
+
+  it('remover apaga o CPF e NÃO o membro', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+    await mockAdapter.members.setCpf(membro.id, CPF_A);
+
+    await mockAdapter.members.removeCpf(membro.id);
+
+    expect((await mockAdapter.members.getCpfStatus(membro.id)).hasCpf).toBe(false);
+    // A pessoa continua lá, com o histórico dela.
+    expect(await mockAdapter.members.getById(membro.id)).not.toBeNull();
+  });
+
+  it('gravar o CPF resolve a pendência da importação — e só ela', async () => {
+    const catalog = await mockAdapter.org.getCatalog();
+    const subarea = catalog.subareas.find((s) => s.slug === 'solucoes-dados')!;
+    const position = catalog.positions.find((p) => p.name === 'Analista de Dados')!;
+    const gestoes = await mockAdapter.gestoes.list();
+
+    const importado = await mockAdapter.membersImport.importMember({
+      externalId: 'csv:cpf.pendente@teste.invalid',
+      payload: { 'Nome Completo': 'Pessoa Sem Cpf' },
+      fullName: 'Pessoa Sem Cpf',
+      email: 'cpf.pendente@teste.invalid',
+      positionId: position.id,
+      subareaId: subarea.id,
+      gestaoId: gestoes[0].id,
+      referenceDate: '2026-09-17',
+    });
+
+    await mockAdapter.membersImport.flagReview('csv:cpf.pendente@teste.invalid', [
+      'cpf_missing',
+      'photo_missing',
+    ]);
+
+    await mockAdapter.members.setCpf(importado.memberId!, CPF_A);
+
+    // A foto continua faltando: resolver uma pendência não apaga as outras.
+    expect(await mockAdapter.members.listReviewReasons(importado.memberId!)).toEqual([
+      'photo_missing',
+    ]);
+  });
+
+  it('a trilha registra as ações — inclusive leitura — e nunca o CPF', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+
+    await mockAdapter.members.setCpf(membro.id, CPF_A);
+    await mockAdapter.members.getCpf(membro.id);
+    await mockAdapter.members.removeCpf(membro.id);
+
+    const trilha = mockCpfAuditTrail.filter((linha) => linha.memberId === membro.id);
+    expect(trilha.map((linha) => linha.action)).toEqual(['create', 'read', 'remove']);
+
+    // Ler é auditado: é a única forma de responder "quem viu o CPF dessa
+    // pessoa?" depois de um incidente.
+    const serializada = JSON.stringify(trilha);
+    expect(serializada).not.toContain('52998224725');
+    expect(serializada).not.toContain('529.982.247-25');
+  });
+
+  it('o CPF não fica no localStorage do navegador', async () => {
+    const membro = (await mockAdapter.members.list())[0];
+    await mockAdapter.members.setCpf(membro.id, CPF_A);
+
+    // O mock guarda o banco de mentira no localStorage. O CPF é exceção
+    // deliberada: ele vive em memória e some ao recarregar a página.
+    const tudo = JSON.stringify(localStorage);
+    expect(tudo).not.toContain('52998224725');
+    expect(tudo).not.toContain('529.982.247-25');
   });
 });

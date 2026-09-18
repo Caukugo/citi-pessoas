@@ -24,6 +24,14 @@ export const queryKeys = {
     photo: (path: string) => ['members', 'photo', path] as const,
     /** Pendências de revisão que sobraram da importação desta pessoa. */
     review: (id: ID) => ['members', 'review', id] as const,
+    /**
+     * SITUAÇÃO do CPF — tem ou não tem, e os quatro últimos dígitos.
+     *
+     * ⚠️ Não existe chave para o CPF completo, e a ausência é deliberada: o
+     * número não entra em cache. Ele é buscado por ação e vive em estado local
+     * da tela, que o descarta ao sair.
+     */
+    cpfStatus: (id: ID) => ['members', 'cpf-status', id] as const,
   },
   x1: {
     all: ['x1'] as const,

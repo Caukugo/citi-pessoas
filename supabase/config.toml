@@ -384,6 +384,22 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Edge Function do CPF.
+#
+# `verify_jwt = false` é DELIBERADO, e não afrouxamento: a função faz a
+# autorização ela mesma, em duas etapas — valida o token no Auth do projeto e
+# confere o papel (`gg`/`gg_diretoria`) em `profiles`. Isso está testado em
+# `supabase/functions/member-cpf/handler.test.ts`.
+#
+# Com verificação no gateway, o PRÉ-VOO do navegador (OPTIONS, que não leva
+# Authorization) é recusado antes de chegar à função, e a tela quebra com erro
+# de CORS sem explicação. Deixando a checagem na função, o 401 e o 403 saem
+# dela — com os cabeçalhos certos e a origem conferida contra a allowlist.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.member-cpf]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

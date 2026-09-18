@@ -2,6 +2,7 @@ import type { ImportPlan, ImportReview, ImportRowPlan } from '@/data/import/impo
 import type {
   ID,
   ISODate,
+  MemberCpfWriteResult,
   MemberImportContinuation,
   MemberImportInput,
   MemberImportOutcome,
@@ -39,6 +40,14 @@ import type {
 
 export interface ImportGateway {
   importMember(input: MemberImportInput): Promise<MemberImportResult>;
+  /**
+   * Manda o CPF ao SERVIÇO que cifra.
+   *
+   * ⚠️ É o único caminho do CPF nesta importação: ele não vai no
+   * `MemberImportInput`, não entra no `payload` da submissão e não é gravado em
+   * texto puro em lugar nenhum.
+   */
+  setCpf(memberId: ID, cpf: string): Promise<MemberCpfWriteResult>;
   recordFailure(
     externalId: string,
     payload: Record<string, string>,
@@ -62,6 +71,10 @@ export interface ImportRowReport {
   continuation: MemberImportContinuation | null;
   /** A data de referência que o banco usou. `null` quando a linha não entrou. */
   referenceDate: ISODate | null;
+  /** `true` quando o CPF chegou ao serviço e foi cifrado. */
+  cpfStored: boolean;
+  /** Preenchido quando o membro entrou mas o CPF não foi guardado. */
+  cpfError: string | null;
   /** `true` quando a foto foi parar no bucket. */
   photoUploaded: boolean;
   /** Preenchido quando o membro entrou mas a foto não subiu. */
@@ -88,6 +101,10 @@ export interface ImportReport {
   failed: number;
   photosUploaded: number;
   photosFailed: number;
+  /** Quantos CPFs foram cifrados e guardados. */
+  cpfsStored: number;
+  /** Quantos CPFs válidos não chegaram ao serviço. */
+  cpfsFailed: number;
   /** Quantas pessoas ganharam ciclos de continuação pela regra da base atual. */
   inferredContinuations: number;
   /** Total de ciclos acrescentados, somando todo mundo. */
@@ -132,7 +149,12 @@ function messageOf(error: unknown): string {
 
 /** Pendências de foto previstas na prévia, que o upload bem-sucedido resolve. */
 function isPhotoReview(reason: MemberIntakeReviewReason): boolean {
-  return reason !== 'invalid_birth_date';
+  return reason.startsWith('photo_') || reason === 'invalid_photo_type';
+}
+
+/** Pendências de CPF, que o CPF guardado com sucesso resolve. */
+function isCpfReview(reason: MemberIntakeReviewReason): boolean {
+  return reason === 'cpf_missing' || reason === 'invalid_cpf' || reason === 'cpf_store_failed';
 }
 
 /** Converte uma linha do plano no que o banco espera receber. */
@@ -186,6 +208,8 @@ export async function runImport(
       status: null,
       continuation: null,
       referenceDate: null,
+      cpfStored: false,
+      cpfError: null,
       photoUploaded: false,
       photoError: null,
       errorMessage: null,
@@ -214,6 +238,30 @@ export async function runImport(
         });
     }
 
+    // ── CPF ──
+    // Passo separado, como a foto: o serviço que cifra é outro processo e não
+    // participa da transação do Postgres. Falhar aqui não desfaz o membro.
+    //
+    // ⚠️ SÓ PARA QUEM ACABOU DE SER CRIADO. Reimportar a mesma planilha não
+    // sobrescreve CPF já gravado: se alguém corrigiu o número pelo perfil, uma
+    // reimportação com a planilha velha desfaria a correção em silêncio — que é
+    // exatamente o tipo de coisa que ninguém descobre.
+    if (report.memberId && row.cpf && report.outcome === 'criado') {
+      try {
+        const result = await gateway.setCpf(report.memberId, row.cpf);
+
+        if (result.outcome === 'duplicado') {
+          // A prévia barra duplicidade DENTRO do arquivo; isto pega o CPF que
+          // já era de alguém que não está na planilha.
+          report.cpfError = 'Este CPF já está cadastrado em outro membro.';
+        } else {
+          report.cpfStored = true;
+        }
+      } catch (error) {
+        report.cpfError = messageOf(error);
+      }
+    }
+
     // A foto é um passo separado por natureza: Storage não participa da
     // transação do Postgres. Falhar aqui não desfaz o membro — vira revisão.
     if (report.memberId && row.photo && row.photo.contentType) {
@@ -236,10 +284,18 @@ export async function runImport(
     // copiada do plano.
     if (report.memberId) {
       report.reviews = [
-        ...row.reviews.filter((review) => !(report.photoUploaded && isPhotoReview(review.reason))),
+        ...row.reviews.filter(
+          (review) =>
+            !(report.photoUploaded && isPhotoReview(review.reason)) &&
+            // CPF guardado com sucesso resolve a pendência que a prévia previu.
+            !(report.cpfStored && isCpfReview(review.reason)),
+        ),
         ...(report.photoError
           ? [{ reason: 'photo_upload_failed' as const, received: row.photoFileName }]
           : []),
+        // O CPF era válido e não chegou ao serviço: fica pendente, e o valor
+        // recebido NÃO é guardado na pendência.
+        ...(report.cpfError ? [{ reason: 'cpf_store_failed' as const, received: null }] : []),
       ];
     }
 
@@ -265,6 +321,8 @@ export async function runImport(
   const alreadyExisted = rows.filter((row) => row.outcome === 'ja_existia').length;
   const alreadyImported = rows.filter((row) => row.outcome === 'ja_importado').length;
   const failed = rows.filter((row) => row.outcome === 'falhou').length;
+  const cpfsStored = rows.filter((row) => row.cpfStored).length;
+  const cpfsFailed = rows.filter((row) => row.cpfError).length;
   const photosUploaded = rows.filter((row) => row.photoUploaded).length;
   const photosFailed = rows.filter((row) => row.photoError).length;
   const needsReviewCount = rows.filter((row) => row.reviews.length > 0).length;
@@ -281,6 +339,8 @@ export async function runImport(
     failed,
     photosUploaded,
     photosFailed,
+    cpfsStored,
+    cpfsFailed,
     inferredContinuations,
     inferredCycles,
     serverReferenceDate,

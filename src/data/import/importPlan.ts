@@ -1,4 +1,5 @@
 import { normalizeText } from '@/lib/format';
+import { checkCpf, CPF_PROBLEM_LABEL, type CpfProblem } from '../cpf';
 import { cycleBoundsFor, type CycleBounds } from '../cycleBounds';
 import { findPositionsByLabel } from '../positionLabels';
 import {
@@ -143,6 +144,18 @@ export interface ImportRowPlan {
    */
   computedStatus: MemberStatus | null;
 
+  /**
+   * CPF normalizado (11 dígitos), quando a planilha trouxe um válido.
+   *
+   * ⚠️ VIVE SÓ EM MEMÓRIA, nesta sessão. Ele NÃO vai para o `payload` da
+   * submissão (arrancado na leitura), NÃO vai para o RPC de importação e NÃO é
+   * gravado em texto puro em lugar nenhum: na confirmação ele segue para o
+   * serviço que cifra, e só.
+   */
+  cpf: string | null;
+  /** Por que o CPF foi recusado, quando veio algo que não é CPF. */
+  cpfProblem: CpfProblem | null;
+
   phone: string | null;
   course: string | null;
   department: string | null;
@@ -180,6 +193,10 @@ export interface ImportPlanSummary {
    * `newMembers`: a base atual não inativa ninguém.
    */
   willBeActive: number;
+  /** Quantas linhas trazem CPF válido. */
+  withCpf: number;
+  /** Quantas ficam sem CPF (ausente ou inválido) — vira pendência, não bloqueio. */
+  withoutCpf: number;
   /** Quantas pessoas ganham ciclos de continuação inferidos pela base atual. */
   withInferredContinuation: number;
   /** Total de ciclos que a base atual vai acrescentar, somando todo mundo. */
@@ -512,6 +529,36 @@ function planRow(
     }
   }
 
+  // ── CPF ──
+  // AVISO, não bloqueio: setenta pessoas não ficam de fora porque uma planilha
+  // veio sem CPF. A pessoa entra, e a pendência (`cpf_missing` /
+  // `invalid_cpf`) fica registrada na submissão até alguém resolver pelo
+  // perfil. CPF DUPLICADO é outra história e bloqueia — ver `buildImportPlan`.
+  const cpfText = values.cpf ?? '';
+  let cpf: string | null = null;
+  let cpfProblem: CpfProblem | null = null;
+
+  if (!cpfText) {
+    cpfProblem = 'vazio';
+    warn(`${columnLabel('cpf')} não informado. O membro entra sem ele.`, 'cpf', 'cpf_missing', null);
+  } else {
+    const check = checkCpf(cpfText);
+    if (check.valid && check.digits) {
+      cpf = check.digits;
+    } else {
+      cpfProblem = check.problem;
+      // ⚠️ A mensagem NÃO repete o número recebido: ela vira texto de tela e
+      // pode acabar num print, num chamado ou num log de navegador. O valor
+      // continua visível na coluna própria da prévia, para quem confere.
+      warn(
+        `${CPF_PROBLEM_LABEL[check.problem ?? 'vazio']}. O membro entra sem CPF.`,
+        'cpf',
+        'invalid_cpf',
+        null,
+      );
+    }
+  }
+
   // ── Data de nascimento ──
   // NÃO bloqueia. A pessoa entra com `birthDate` nulo e o valor original fica
   // preservado no `payload` — é de lá que a correção sai depois.
@@ -586,6 +633,8 @@ function planRow(
     rosterContinuation,
     currentCycle,
     computedStatus,
+    cpf,
+    cpfProblem,
     phone: values.phone ?? null,
     course: values.course ?? null,
     department: values.department ?? null,
@@ -617,6 +666,38 @@ export function buildImportPlan(parsed: ParsedCsv, context: ImportPlanContext): 
   const seenEmails = new Map<string, number>();
   const rows = parsed.rows.map((row) => planRow(row, context, indexes, seenEmails));
 
+  // ── CPF repetido entre pessoas DIFERENTES: erro bloqueante ──
+  // Diferente de CPF ausente ou inválido, que são avisos: duas pessoas com o
+  // mesmo CPF significa que a planilha está errada de um jeito que a
+  // importação não pode adivinhar — ou é a mesma pessoa em duas linhas, ou é um
+  // número digitado na linha errada. O banco recusaria a segunda gravação de
+  // qualquer forma (índice único sobre o HMAC); parar aqui explica o motivo
+  // ANTES de meia importação acontecer.
+  const cpfLines = new Map<string, number[]>();
+  for (const row of rows) {
+    if (!row.cpf) continue;
+    cpfLines.set(row.cpf, [...(cpfLines.get(row.cpf) ?? []), row.line]);
+  }
+
+  for (const [, lines] of cpfLines) {
+    if (lines.length < 2) continue;
+    for (const row of rows) {
+      if (!lines.includes(row.line)) continue;
+      const outras = lines.filter((line) => line !== row.line).join(', ');
+      // A mensagem cita as LINHAS, nunca o número: quem confere abre a planilha.
+      row.issues.push({
+        severity: 'error',
+        field: 'cpf',
+        message: `Este CPF também aparece na linha ${outras}. Duas pessoas não podem ter o mesmo CPF.`,
+      });
+      row.importable = false;
+      // A pendência de CPF ausente deixa de fazer sentido: a linha não entra.
+      row.reviews = row.reviews.filter(
+        (review) => review.reason !== 'cpf_missing' && review.reason !== 'invalid_cpf',
+      );
+    }
+  }
+
   const fileIssues = [...parsed.parseErrors];
   for (const field of parsed.missingColumns) {
     fileIssues.push(`A planilha não tem a coluna obrigatória "${columnLabel(field)}".`);
@@ -646,6 +727,8 @@ export function buildImportPlan(parsed: ParsedCsv, context: ImportPlanContext): 
     ).length,
     willBeActive: valid.filter((row) => !row.existingMemberId && row.computedStatus === 'ativo')
       .length,
+    withCpf: valid.filter((row) => !row.existingMemberId && row.cpf).length,
+    withoutCpf: valid.filter((row) => !row.existingMemberId && !row.cpf).length,
     withInferredContinuation: valid.filter((row) => !row.existingMemberId && row.rosterContinuation)
       .length,
     inferredCycles: valid

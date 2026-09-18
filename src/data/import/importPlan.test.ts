@@ -27,7 +27,7 @@ const GESTOES: Gestao[] = [
 ];
 
 const CABECALHO =
-  'Área,Subárea,Cargo,Nome Completo,Email do CITi,Celular,Curso,' +
+  'Área,Subárea,Cargo,Nome Completo,Email do CITi,CPF,Celular,Curso,' +
   'Departamento Acadêmico,Data de Nascimento,Gestão de Entrada,Foto Arquivo';
 
 /** Um JPEG de mentira: só os bytes mágicos importam para a detecção. */
@@ -64,8 +64,8 @@ function avisosDe(row: { issues: { severity: string; message: string }[] }) {
 // ═══════════════════════════════════════════════════════════════════════════
 describe('CSV válido', () => {
   const CSV = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto Souza,ana.piloto@teste.invalid,81999990001,Ciência da Computação,CIn,05/03/2006,2026.2,ana.jpg
-Soluções,Desenvolvimento,Pessoa Desenvolvedora,Bruno Piloto Lima,bruno.piloto@teste.invalid,81999990002,Engenharia da Computação,CIn,12/07/2005,2026.2,bruno.jpg`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto Souza,ana.piloto@teste.invalid,529.982.247-25,81999990001,Ciência da Computação,CIn,05/03/2006,2026.2,ana.jpg
+Soluções,Desenvolvimento,Pessoa Desenvolvedora,Bruno Piloto Lima,bruno.piloto@teste.invalid,111.444.777-35,81999990002,Engenharia da Computação,CIn,12/07/2005,2026.2,bruno.jpg`;
 
   it('aprova as duas linhas e resolve área, subárea e cargo por id', () => {
     const plan = planFor(CSV, { photos: [jpegFake('ana.jpg'), jpegFake('bruno.jpg')] });
@@ -93,7 +93,7 @@ Soluções,Desenvolvimento,Pessoa Desenvolvedora,Bruno Piloto Lima,bruno.piloto@
     // Quem já está no CITi pode ser gerente ou diretor. Aplicar o cargo inicial
     // aqui rebaixaria meia empresa a analista.
     const csv = `${CABECALHO}
-Soluções,Desenvolvimento,Líder de Desenvolvimento,Chefe Piloto,chefe.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,Desenvolvimento,Líder de Desenvolvimento,Chefe Piloto,chefe.piloto@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -102,16 +102,23 @@ Soluções,Desenvolvimento,Líder de Desenvolvimento,Chefe Piloto,chefe.piloto@t
     expect(row.position?.id).not.toBe(inicial);
   });
 
-  it('não importa CPF, RG nem endereço, mesmo se a planilha trouxer', () => {
-    const csv = `${CABECALHO},CPF,RG,Endereço
-Soluções,Dados,Analista de Dados,Dado Piloto,dado.piloto@teste.invalid,,,,,2026.2,,111.222.333-44,1234567,Rua X 99`;
+  it('lê o CPF mas não o coloca no payload; RG e endereço seguem ignorados', () => {
+    const csv = `${CABECALHO},RG,Endereço
+Soluções,Dados,Analista de Dados,Dado Piloto,dado.piloto@teste.invalid,529.982.247-25,,,,,2026.2,,1234567,Rua X 99`;
 
     const plan = planFor(csv);
+    const [row] = plan.rows;
 
-    expect(plan.unknownColumns).toEqual(['CPF', 'RG', 'Endereço']);
-    // O payload guarda a linha como veio — mas nenhum desses vira coluna de
-    // membro, porque não existe campo para eles no modelo.
-    expect(Object.keys(plan.rows[0])).not.toContain('cpf');
+    expect(plan.unknownColumns).toEqual(['RG', 'Endereço']);
+
+    // O CPF é lido e validado — ele agora pertence à plataforma.
+    expect(row.cpf).toBe('52998224725');
+    // Mas NÃO vai para o payload: é dado privado, e `payload` fica guardado no
+    // banco em texto puro para sempre.
+    expect(JSON.stringify(row.payload)).not.toContain('52998224725');
+    expect(JSON.stringify(row.payload)).not.toContain('529.982.247-25');
+    // RG e endereço não viram campo de membro: não existe lugar para eles.
+    expect(Object.keys(row)).not.toContain('rg');
   });
 });
 
@@ -137,7 +144,7 @@ Negócios,Comercial,Gerente de Contas,Marina Antiga,marina@teste.invalid,2025.2`
 describe('ciclo e situação calculados', () => {
   it('gestão .1 gera ciclo de janeiro a dezembro do mesmo ano', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Um Piloto,um.piloto@teste.invalid,,,,,2026.1,`;
+Soluções,Dados,Analista de Dados,Um Piloto,um.piloto@teste.invalid,529.982.247-25,,,,,2026.1,`;
 
     const [row] = planFor(csv).rows;
 
@@ -148,7 +155,7 @@ Soluções,Dados,Analista de Dados,Um Piloto,um.piloto@teste.invalid,,,,,2026.1,
 
   it('gestão .2 gera ciclo de julho a junho do ano seguinte', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Dois Piloto,dois.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Analista de Dados,Dois Piloto,dois.piloto@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -158,7 +165,7 @@ Soluções,Dados,Analista de Dados,Dois Piloto,dois.piloto@teste.invalid,,,,,202
 
   it('ciclo já vencido NÃO entra inativo: a base atual emenda continuação', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Antigo Piloto,antigo.piloto@teste.invalid,,,,,2025.1,`;
+Soluções,Dados,Analista de Dados,Antigo Piloto,antigo.piloto@teste.invalid,012.345.678-90,,,,,2025.1,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -184,7 +191,7 @@ Soluções,Dados,Analista de Dados,Antigo Piloto,antigo.piloto@teste.invalid,,,,
 
   it('diretoria vencida recebe blocos de 12 meses, lidos do cargo', () => {
     const csv = `${CABECALHO}
-Soluções,,Diretoria de Soluções,Chefe Antigo,chefe.antigo@teste.invalid,,,,,2025.1,`;
+Soluções,,Diretoria de Soluções,Chefe Antigo,chefe.antigo@teste.invalid,087.965.432-56,,,,,2025.1,`;
 
     const [row] = planFor(csv).rows;
 
@@ -196,7 +203,7 @@ Soluções,,Diretoria de Soluções,Chefe Antigo,chefe.antigo@teste.invalid,,,,,
 
   it('a continuação depende da data de referência, não do relógio', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Tres Piloto,tres.piloto@teste.invalid,,,,,2026.1,`;
+Soluções,Dados,Analista de Dados,Tres Piloto,tres.piloto@teste.invalid,529.982.247-25,,,,,2026.1,`;
 
     // Mesmo CSV, duas datas: 2026.1 termina em 31/12/2026, e o ciclo vale
     // durante todo esse dia.
@@ -226,7 +233,7 @@ describe('apelido de cargo (Presidência = CEO = Diretor(a) Institucional)', () 
     'presidencia',
   ])('a planilha escrevendo "%s" entra no cargo canônico', (escrito) => {
     const csv = `${CABECALHO}
-Institucional,,${escrito},Chefe Piloto,chefe.${escrito.length}@teste.invalid,,,,,2026.2,`;
+Institucional,,${escrito},Chefe Piloto,chefe.${escrito.length}@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -241,7 +248,7 @@ Institucional,,${escrito},Chefe Piloto,chefe.${escrito.length}@teste.invalid,,,,
 
   it('subárea informada para a cadeira é descartada, com aviso informativo', () => {
     const csv = `${CABECALHO}
-Institucional,Institucional,Presidência,Chefe Com Subarea,chefe.subarea@teste.invalid,,,,,2026.2,`;
+Institucional,Institucional,Presidência,Chefe Com Subarea,chefe.subarea@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -253,7 +260,7 @@ Institucional,Institucional,Presidência,Chefe Com Subarea,chefe.subarea@teste.i
 
   it('diretoria vencida usa os 12 meses do cargo canônico', () => {
     const csv = `${CABECALHO}
-Institucional,,Presidência,Chefe Antigo,chefe.antigo@teste.invalid,,,,,2025.1,`;
+Institucional,,Presidência,Chefe Antigo,chefe.antigo@teste.invalid,087.965.432-56,,,,,2025.1,`;
 
     const [row] = planFor(csv).rows;
 
@@ -278,7 +285,7 @@ describe('diretorias por sigla e apelido (COO, CRO, CTO)', () => {
 
   it.each(CASOS)('"$escrito" entra como $canonico, sem subárea', ({ escrito, area, canonico }) => {
     const csv = `${CABECALHO}
-${area},,${escrito},Chefe Piloto,chefe.${escrito.length}.${area.length}@teste.invalid,,,,,2026.2,`;
+${area},,${escrito},Chefe Piloto,chefe.${escrito.length}.${area.length}@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -296,7 +303,7 @@ ${area},,${escrito},Chefe Piloto,chefe.${escrito.length}.${area.length}@teste.in
       const area =
         escrito === 'CTO' ? 'Soluções' : escrito.includes('Gente') ? 'Gente e Gestão' : 'Negócios';
       const csv = `${CABECALHO}
-${area},,${escrito},Chefe Antigo,antigo.${escrito.length}.${area.length}@teste.invalid,,,,,2025.1,`;
+${area},,${escrito},Chefe Antigo,antigo.${escrito.length}.${area.length}@teste.invalid,111.444.777-35,,,,,2025.1,`;
 
       const [row] = planFor(csv).rows;
 
@@ -312,7 +319,7 @@ ${area},,${escrito},Chefe Antigo,antigo.${escrito.length}.${area.length}@teste.i
 describe('Customer Success na importação', () => {
   it('entra sem subárea, cobrindo a área de Soluções', () => {
     const csv = `${CABECALHO}
-Soluções,,Customer Success,CS Piloto,cs.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,,Customer Success,CS Piloto,cs.piloto@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -324,7 +331,7 @@ Soluções,,Customer Success,CS Piloto,cs.piloto@teste.invalid,,,,,2026.2,`;
 
   it('subárea informada é descartada, com aviso informativo', () => {
     const csv = `${CABECALHO}
-Soluções,Produto,Customer Success,CS Com Subarea,cs.subarea@teste.invalid,,,,,2026.2,`;
+Soluções,Produto,Customer Success,CS Com Subarea,cs.subarea@teste.invalid,087.965.432-56,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -335,7 +342,7 @@ Soluções,Produto,Customer Success,CS Com Subarea,cs.subarea@teste.invalid,,,,,
 
   it('ciclo vencido recebe blocos de 6 meses — não é diretoria', () => {
     const csv = `${CABECALHO}
-Soluções,,Customer Success,CS Antigo,cs.antigo@teste.invalid,,,,,2025.1,`;
+Soluções,,Customer Success,CS Antigo,cs.antigo@teste.invalid,529.982.247-25,,,,,2025.1,`;
 
     const [row] = planFor(csv).rows;
 
@@ -348,10 +355,91 @@ Soluções,,Customer Success,CS Antigo,cs.antigo@teste.invalid,,,,,2025.1,`;
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+describe('CPF na prévia', () => {
+  it('CPF válido é normalizado para 11 dígitos', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Com Cpf,com.cpf@teste.invalid,529.982.247-25,,,,,2026.2,`;
+
+    const [row] = planFor(csv).rows;
+
+    expect(row.cpf).toBe('52998224725');
+    expect(row.cpfProblem).toBeNull();
+    expect(row.reviews.map((r) => r.reason)).not.toContain('cpf_missing');
+  });
+
+  it('CPF ausente é AVISO: a pessoa entra e a pendência fica registrada', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Sem Cpf,sem.cpf@teste.invalid,,,,,,2026.2,`;
+
+    const [row] = planFor(csv).rows;
+
+    // Setenta pessoas não ficam de fora porque a planilha veio sem CPF.
+    expect(row.importable).toBe(true);
+    expect(row.cpf).toBeNull();
+    expect(row.reviews.map((r) => r.reason)).toContain('cpf_missing');
+    expect(row.issues.every((issue) => issue.severity === 'warning')).toBe(true);
+  });
+
+  it('CPF inválido é AVISO, e a mensagem não repete o número', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Cpf Ruim,cpf.ruim@teste.invalid,111.111.111-11,,,,,2026.2,`;
+
+    const [row] = planFor(csv).rows;
+
+    expect(row.importable).toBe(true);
+    expect(row.cpf).toBeNull();
+    expect(row.reviews.map((r) => r.reason)).toContain('invalid_cpf');
+
+    // A frase vira texto de tela e pode acabar num print ou num chamado.
+    const mensagens = row.issues.map((i) => i.message).join(' ');
+    expect(mensagens).not.toContain('111.111.111-11');
+    expect(mensagens).not.toContain('11111111111');
+    // E a pendência guardada também não leva o valor.
+    expect(row.reviews.find((r) => r.reason === 'invalid_cpf')?.received).toBeNull();
+  });
+
+  it('CPF repetido entre pessoas diferentes BLOQUEIA as duas linhas', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Primeira Pessoa,primeira@teste.invalid,529.982.247-25,,,,,2026.2,
+Soluções,Dados,Analista de Dados,Segunda Pessoa,segunda@teste.invalid,529.982.247-25,,,,,2026.2,`;
+
+    const plan = planFor(csv);
+
+    // Duas pessoas com o mesmo CPF é planilha errada de um jeito que a
+    // importação não pode adivinhar. Nenhuma das duas entra.
+    expect(plan.hasBlockingErrors).toBe(true);
+    expect(plan.rows.every((row) => !row.importable)).toBe(true);
+
+    const mensagens = plan.rows.flatMap((row) => errosDa(row)).join(' ');
+    expect(mensagens).toContain('linha');
+    // A mensagem cita as LINHAS, nunca o número.
+    expect(mensagens).not.toContain('529.982.247-25');
+  });
+
+  it('a mesma pessoa com o mesmo CPF em uma linha só não bloqueia nada', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Unica Pessoa,unica@teste.invalid,529.982.247-25,,,,,2026.2,`;
+
+    expect(planFor(csv).hasBlockingErrors).toBe(false);
+  });
+
+  it('CPF com zero à esquerda comido pelo Excel é recuperado', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Zero Piloto,zero@teste.invalid,1234567890,,,,,2026.2,`;
+
+    const [row] = planFor(csv).rows;
+
+    // Dez dígitos = planilha exportada como número. É o caso mais comum de
+    // "CPF inválido" que na verdade é erro de exportação.
+    expect(row.cpf).toBe('01234567890');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('gestão inválida', () => {
   it('recusa formato fora de AAAA.1 / AAAA.2', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Erro Piloto,erro.piloto@teste.invalid,,,,,2026.3,`;
+Soluções,Dados,Analista de Dados,Erro Piloto,erro.piloto@teste.invalid,111.444.777-35,,,,,2026.3,`;
 
     const plan = planFor(csv);
 
@@ -362,7 +450,7 @@ Soluções,Dados,Analista de Dados,Erro Piloto,erro.piloto@teste.invalid,,,,,202
 
   it('recusa gestão bem formatada que não está cadastrada no banco', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Futuro Piloto,futuro.piloto@teste.invalid,,,,,2031.1,`;
+Soluções,Dados,Analista de Dados,Futuro Piloto,futuro.piloto@teste.invalid,012.345.678-90,,,,,2031.1,`;
 
     const plan = planFor(csv);
 
@@ -375,7 +463,7 @@ Soluções,Dados,Analista de Dados,Futuro Piloto,futuro.piloto@teste.invalid,,,,
 describe('e-mail duplicado', () => {
   it('recusa o mesmo e-mail duas vezes no arquivo, apontando a primeira linha', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Primeira,repetido@teste.invalid,,,,,2026.2,
+Soluções,Dados,Analista de Dados,Primeira,repetido@teste.invalid,087.965.432-56,,,,,2026.2,
 Soluções,Dados,Analista de Dados,Segunda,REPETIDO@Teste.Invalid,,,,,2026.2,`;
 
     const plan = planFor(csv);
@@ -389,7 +477,7 @@ Soluções,Dados,Analista de Dados,Segunda,REPETIDO@Teste.Invalid,,,,,2026.2,`;
 
   it('e-mail já cadastrado não é erro: é o caminho idempotente', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Já Existe,ja.existe@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Analista de Dados,Já Existe,ja.existe@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const plan = planFor(csv, { existingEmails: { 'ja.existe@teste.invalid': 'mbr-123' } });
 
@@ -405,7 +493,7 @@ Soluções,Dados,Analista de Dados,Já Existe,ja.existe@teste.invalid,,,,,2026.2
 describe('área, subárea ou cargo inexistente', () => {
   it('recusa subárea que não está no cadastro', () => {
     const csv = `${CABECALHO}
-Soluções,Setor Fantasma,Analista de Dados,X Piloto,x.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,Setor Fantasma,Analista de Dados,X Piloto,x.piloto@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const plan = planFor(csv);
 
@@ -415,7 +503,7 @@ Soluções,Setor Fantasma,Analista de Dados,X Piloto,x.piloto@teste.invalid,,,,,
 
   it('recusa área que não está no cadastro', () => {
     const csv = `${CABECALHO}
-Área Fantasma,Dados,Analista de Dados,Y Piloto,y.piloto@teste.invalid,,,,,2026.2,`;
+Área Fantasma,Dados,Analista de Dados,Y Piloto,y.piloto@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const plan = planFor(csv);
 
@@ -425,7 +513,7 @@ Soluções,Setor Fantasma,Analista de Dados,X Piloto,x.piloto@teste.invalid,,,,,
 
   it('recusa cargo que não existe em lugar nenhum', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Mestre Supremo,Z Piloto,z.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Mestre Supremo,Z Piloto,z.piloto@teste.invalid,087.965.432-56,,,,,2026.2,`;
 
     const plan = planFor(csv);
 
@@ -435,7 +523,7 @@ Soluções,Dados,Mestre Supremo,Z Piloto,z.piloto@teste.invalid,,,,,2026.2,`;
 
   it('recusa quando a subárea informada não pertence à área informada', () => {
     const csv = `${CABECALHO}
-Negócios,Dados,Analista de Dados,W Piloto,w.piloto@teste.invalid,,,,,2026.2,`;
+Negócios,Dados,Analista de Dados,W Piloto,w.piloto@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const plan = planFor(csv);
 
@@ -449,7 +537,7 @@ describe('cargo incompatível com a subárea', () => {
   it('recusa cargo de outra subárea, distinguindo de "não existe"', () => {
     // "Analista de Dados" existe — mas em Dados, não em Desenvolvimento.
     const csv = `${CABECALHO}
-Soluções,Desenvolvimento,Analista de Dados,V Piloto,v.piloto@teste.invalid,,,,,2026.2,`;
+Soluções,Desenvolvimento,Analista de Dados,V Piloto,v.piloto@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const mensagem = errosDa(plan.rows[0]).join(' ');
@@ -464,7 +552,7 @@ Soluções,Desenvolvimento,Analista de Dados,V Piloto,v.piloto@teste.invalid,,,,
     // Desenvolvimento. Nenhuma das três vira vínculo: a pessoa é da área toda.
     for (const subarea of ['Produto', 'Dados', 'Desenvolvimento']) {
       const csv = `${CABECALHO}
-Soluções,${subarea},Diretoria de Soluções,Dir Piloto,dir.${subarea}@teste.invalid,,,,,2026.2,`;
+Soluções,${subarea},Diretoria de Soluções,Dir Piloto,dir.${subarea}@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
       const [row] = planFor(csv).rows;
       expect(row.importable).toBe(true);
@@ -476,7 +564,7 @@ Soluções,${subarea},Diretoria de Soluções,Dir Piloto,dir.${subarea}@teste.in
 
   it('recusa cargo de área inteira numa subárea de OUTRA área', () => {
     const csv = `${CABECALHO}
-Negócios,Comercial,Diretoria de Soluções,U Piloto,u.piloto@teste.invalid,,,,,2026.2,`;
+Negócios,Comercial,Diretoria de Soluções,U Piloto,u.piloto@teste.invalid,087.965.432-56,,,,,2026.2,`;
 
     expect(planFor(csv).rows[0].importable).toBe(false);
   });
@@ -485,7 +573,7 @@ Negócios,Comercial,Diretoria de Soluções,U Piloto,u.piloto@teste.invalid,,,,,
 // ═══════════════════════════════════════════════════════════════════════════
 describe('data de nascimento ilegível', () => {
   const linha = (nascimento: string) => `${CABECALHO}
-Soluções,Dados,Analista de Dados,Data Piloto,data.piloto@teste.invalid,,,,${nascimento},2026.2,`;
+Soluções,Dados,Analista de Dados,Data Piloto,data.piloto@teste.invalid,529.982.247-25,,,,${nascimento},2026.2,`;
 
   it('não bloqueia a linha e deixa a data nula', () => {
     // Travar setenta pessoas por causa de uma data seria pior do que importar
@@ -526,7 +614,7 @@ Soluções,Dados,Analista de Dados,Data Piloto,data.piloto@teste.invalid,,,,${na
 // ═══════════════════════════════════════════════════════════════════════════
 describe('fotos', () => {
   const CSV = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Foto Piloto,foto.piloto@teste.invalid,,,,,2026.2,foto.jpg`;
+Soluções,Dados,Analista de Dados,Foto Piloto,foto.piloto@teste.invalid,111.444.777-35,,,,,2026.2,foto.jpg`;
 
   it('encontra a foto pelo valor de "Foto Arquivo", ignorando caixa e acento', () => {
     const plan = planFor(CSV, { photos: [jpegFake('FOTO.JPG')] });
@@ -583,7 +671,7 @@ Soluções,Dados,Analista de Dados,Foto Piloto,foto.piloto@teste.invalid,,,,,202
 
   it('linha sem "Foto Arquivo" não gera aviso nenhum', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Sem Foto,sem.foto@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Analista de Dados,Sem Foto,sem.foto@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -636,8 +724,8 @@ describe('positionFitsSubarea', () => {
 describe('bloqueio da confirmação', () => {
   it('uma linha ruim trava o arquivo inteiro', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Boa Linha,boa@teste.invalid,,,,,2026.2,
-Soluções,Setor Fantasma,Analista de Dados,Linha Ruim,ruim@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Analista de Dados,Boa Linha,boa@teste.invalid,087.965.432-56,,,,,2026.2,
+Soluções,Setor Fantasma,Analista de Dados,Linha Ruim,ruim@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const plan = planFor(csv);
 
@@ -672,7 +760,7 @@ describe('cargo de área inteira com subárea vazia', () => {
   // subárea para informar. A coluna vazia aqui NÃO é dado faltante.
   it('aceita Diretoria de Negócios na área Negócios sem subárea', () => {
     const csv = `${CABECALHO}
-Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,,,,,2026.2,`;
+Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -693,7 +781,7 @@ Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,,,,,20
 
   it('aceita Diretoria de Soluções na área Soluções sem subárea', () => {
     const csv = `${CABECALHO}
-Soluções,,Diretoria de Soluções,Dir Solucoes,dir.solucoes@teste.invalid,,,,,2026.2,`;
+Soluções,,Diretoria de Soluções,Dir Solucoes,dir.solucoes@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -707,7 +795,7 @@ Soluções,,Diretoria de Soluções,Dir Solucoes,dir.solucoes@teste.invalid,,,,,
 
   it('sem área na planilha, o próprio cargo diz de qual área ele é', () => {
     const csv = `${CABECALHO}
-,,Diretoria de Negócios,Dir Sem Area,dir.sem.area@teste.invalid,,,,,2026.2,`;
+,,Diretoria de Negócios,Dir Sem Area,dir.sem.area@teste.invalid,087.965.432-56,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -720,7 +808,7 @@ Soluções,,Diretoria de Soluções,Dir Solucoes,dir.solucoes@teste.invalid,,,,,
     // A Diretoria de Negócios não é de Soluções. Sem subárea para conferir,
     // a área é a única checagem que resta — e ela precisa valer.
     const csv = `${CABECALHO}
-Soluções,,Diretoria de Negócios,Dir Errada,dir.errada@teste.invalid,,,,,2026.2,`;
+Soluções,,Diretoria de Negócios,Dir Errada,dir.errada@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -735,7 +823,7 @@ Soluções,,Diretoria de Negócios,Dir Errada,dir.errada@teste.invalid,,,,,2026.
     // "Analista de Dados" mora em Dados. Sem subárea, ninguém saberia em que
     // time a pessoa entrou — isso continua bloqueando.
     const csv = `${CABECALHO}
-Soluções,,Analista de Dados,Sem Subarea,sem.subarea@teste.invalid,,,,,2026.2,`;
+Soluções,,Analista de Dados,Sem Subarea,sem.subarea@teste.invalid,111.444.777-35,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -749,7 +837,7 @@ Soluções,,Analista de Dados,Sem Subarea,sem.subarea@teste.invalid,,,,,2026.2,`
     // Planilha antiga trazia "Diretoria de Soluções" em Produto. A linha entra
     // — mas a pessoa não fica presa a Produto, porque ela é da área toda.
     const csv = `${CABECALHO}
-Soluções,Produto,Diretoria de Soluções,Dir Produto,dir.produto@teste.invalid,,,,,2026.2,`;
+Soluções,Produto,Diretoria de Soluções,Dir Produto,dir.produto@teste.invalid,012.345.678-90,,,,,2026.2,`;
 
     const plan = planFor(csv);
     const [row] = plan.rows;
@@ -777,7 +865,7 @@ Soluções,Produto,Diretoria de Soluções,Dir Produto,dir.produto@teste.invalid
 
   it('subárea vazia não gera aviso nenhum', () => {
     const csv = `${CABECALHO}
-Negócios,,Diretoria de Negócios,Dir Vazio,dir.vazio@teste.invalid,,,,,2026.2,`;
+Negócios,,Diretoria de Negócios,Dir Vazio,dir.vazio@teste.invalid,087.965.432-56,,,,,2026.2,`;
 
     const [row] = planFor(csv).rows;
 
@@ -788,7 +876,7 @@ Negócios,,Diretoria de Negócios,Dir Vazio,dir.vazio@teste.invalid,,,,,2026.2,`
   it('cargo e subárea vazios continuam cobrando os dois', () => {
     // Sem cargo não há como saber se a subárea vazia seria permitida.
     const csv = `${CABECALHO}
-Negócios,,,Ninguem,ninguem@teste.invalid,,,,,2026.2,`;
+Negócios,,,Ninguem,ninguem@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const mensagens = errosDa(planFor(csv).rows[0]).join(' ');
 

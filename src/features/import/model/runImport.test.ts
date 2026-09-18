@@ -32,12 +32,12 @@ const GESTOES: Gestao[] = [
 ];
 
 const CABECALHO =
-  'Área,Subárea,Cargo,Nome Completo,Email do CITi,Celular,Curso,' +
+  'Área,Subárea,Cargo,Nome Completo,Email do CITi,CPF,Celular,Curso,' +
   'Departamento Acadêmico,Data de Nascimento,Gestão de Entrada,Foto Arquivo';
 
 const CSV = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,,,,,2026.2,ana.jpg
-Soluções,Dados,Analista de Dados,Bruno Piloto,bruno.piloto@teste.invalid,,,,,2025.1,bruno.jpg`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,529.982.247-25,,,,,2026.2,ana.jpg
+Soluções,Dados,Analista de Dados,Bruno Piloto,bruno.piloto@teste.invalid,111.444.777-35,,,,,2025.1,bruno.jpg`;
 
 function jpegFake(name: string): ImportPhoto {
   const bytes = new Uint8Array(64);
@@ -63,6 +63,8 @@ function fakeGateway(
   options: {
     failFor?: string;
     failPhotoFor?: string;
+    /** CPF que o serviço recusa guardar, para exercitar a compensação. */
+    failCpfFor?: string;
     /** O que o BANCO decidiu emendar para cada e-mail. */
     continuationFor?: (email: string) => MemberImportContinuation | null;
   } = {},
@@ -71,6 +73,8 @@ function fakeGateway(
   const membersByEmail = new Map<string, string>();
   const photos: { memberId: string; fileName: string }[] = [];
   const failures: { externalId: string; error: string }[] = [];
+  /** `{ [memberId]: cpf }` — o que o serviço guardaria. */
+  const cpfs = new Map<string, string>();
   /** Espelha `member_intake_submissions.review_reasons`. */
   const reviews = new Map<string, MemberIntakeReviewReason[]>();
   let nextId = 1;
@@ -108,6 +112,18 @@ function fakeGateway(
       };
     },
 
+    async setCpf(memberId: string, cpf: string) {
+      // Espelha o serviço: valida, detecta duplicidade e guarda — sem cifrar,
+      // porque chave de cifra não existe em teste de orquestração.
+      const dono = [...cpfs.entries()].find(([outro, valor]) => outro !== memberId && valor === cpf);
+      if (dono) return { outcome: 'duplicado' as const, conflictMemberId: dono[0] };
+
+      if (options.failCpfFor === cpf) throw new Error('Falha simulada ao guardar o CPF.');
+
+      cpfs.set(memberId, cpf);
+      return { outcome: 'criado' as const, last4: cpf.slice(-4) };
+    },
+
     async recordFailure(externalId, _payload, error) {
       failures.push({ externalId, error });
     },
@@ -127,7 +143,7 @@ function fakeGateway(
     },
   };
 
-  return { gateway, submissions, membersByEmail, photos, failures, reviews };
+  return { gateway, submissions, membersByEmail, photos, failures, reviews, cpfs };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -166,7 +182,7 @@ describe('importação bem-sucedida', () => {
 
   it('não envia linhas inválidas ao banco', async () => {
     const csv = `${CABECALHO}
-Soluções,Setor Fantasma,Analista de Dados,Ruim,ruim@teste.invalid,,,,,2026.2,`;
+Soluções,Setor Fantasma,Analista de Dados,Ruim,ruim@teste.invalid,012.345.678-90,,,,,2026.2,`;
     const { gateway } = fakeGateway();
     const spy = vi.spyOn(gateway, 'importMember');
 
@@ -231,12 +247,97 @@ describe('base atual: o relatório mostra o que o BANCO decidiu', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+describe('CPF na confirmação', () => {
+  it('o CPF vai pelo SERVIÇO, e não no que é gravado como membro', async () => {
+    const { gateway, cpfs } = fakeGateway();
+    const spy = vi.spyOn(gateway, 'importMember');
+
+    const report = await runImport(planFrom(CSV), gateway, { referenceDate: HOJE });
+
+    expect(report.cpfsStored).toBe(2);
+    expect(report.rows.every((row) => row.cpfStored)).toBe(true);
+    expect([...cpfs.values()]).toHaveLength(2);
+
+    // ⚠️ A garantia central: o que foi mandado ao RPC de importação não tem
+    // CPF em lugar nenhum — nem em campo próprio, nem no payload.
+    for (const chamada of spy.mock.calls) {
+      const enviado = JSON.stringify(chamada[0]);
+      expect(enviado).not.toContain('52998224725');
+      expect(enviado).not.toContain('529.982.247-25');
+      expect(Object.keys(chamada[0])).not.toContain('cpf');
+    }
+  });
+
+  it('CPF que o serviço recusa deixa pendência, sem desfazer o membro', async () => {
+    const { gateway, reviews } = fakeGateway({ failCpfFor: '52998224725' });
+
+    const report = await runImport(planFrom(CSV), gateway, { referenceDate: HOJE });
+
+    // A pessoa entrou: o CPF é um passo à parte, como a foto.
+    expect(report.created).toBe(2);
+    expect(report.cpfsFailed).toBe(1);
+
+    const comFalha = report.rows.find((row) => row.cpfError);
+    expect(comFalha?.memberId).toBeTruthy();
+    expect(comFalha?.reviews.map((r) => r.reason)).toContain('cpf_store_failed');
+    // A pendência guardada não leva o número.
+    expect(comFalha?.reviews.find((r) => r.reason === 'cpf_store_failed')?.received).toBeNull();
+    expect(reviews.get('csv:ana.piloto@teste.invalid')).toContain('cpf_store_failed');
+  });
+
+  it('reimportar NÃO sobrescreve CPF já gravado', async () => {
+    const { gateway, cpfs } = fakeGateway();
+    const plan = planFrom(CSV);
+
+    await runImport(plan, gateway, { referenceDate: HOJE });
+    const antes = new Map(cpfs);
+
+    const spy = vi.spyOn(gateway, 'setCpf');
+    const segunda = await runImport(plan, gateway, { referenceDate: HOJE });
+
+    // Todas as linhas voltam "já importado", e o serviço de CPF não é chamado:
+    // se alguém corrigiu o número pelo perfil, uma reimportação com a planilha
+    // velha desfaria a correção em silêncio.
+    expect(segunda.rows.every((row) => row.outcome === 'ja_importado')).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+    expect(segunda.cpfsStored).toBe(0);
+    expect(cpfs).toEqual(antes);
+  });
+
+  it('CPF ausente entra como pendência, e a pessoa entra', async () => {
+    const csv = `${CABECALHO}
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Sem Cpf,sem.cpf@teste.invalid,,,,,,2026.2,`;
+    const { gateway, reviews } = fakeGateway();
+
+    const report = await runImport(planFrom(csv), gateway, { referenceDate: HOJE });
+
+    expect(report.created).toBe(1);
+    expect(report.cpfsStored).toBe(0);
+    expect(reviews.get('csv:sem.cpf@teste.invalid')).toEqual(['cpf_missing']);
+  });
+
+  it('CPF guardado resolve a pendência que a prévia previu', async () => {
+    // A prévia marcou `invalid_cpf`? Então o CPF não é válido e nem é enviado.
+    // Este caso é o oposto: CPF válido, guardado, e nenhuma pendência de CPF
+    // sobra na submissão.
+    const { gateway, reviews } = fakeGateway();
+
+    await runImport(planFrom(CSV), gateway, { referenceDate: HOJE });
+
+    for (const motivos of reviews.values()) {
+      expect(motivos).not.toContain('cpf_missing');
+      expect(motivos).not.toContain('invalid_cpf');
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('data de nascimento inválida', () => {
   // 31/02 não existe: o calendário é conferido de verdade, senão `new Date`
   // devolveria 3 de março e ninguém veria a data errada.
   const CSV_DATA_RUIM = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,,,,31/02/2006,2026.2,ana.jpg
-Soluções,Dados,Analista de Dados,Bruno Piloto,bruno.piloto@teste.invalid,,,,,2025.1,bruno.jpg`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,087.965.432-56,,,,31/02/2006,2026.2,ana.jpg
+Soluções,Dados,Analista de Dados,Bruno Piloto,bruno.piloto@teste.invalid,529.982.247-25,,,,,2025.1,bruno.jpg`;
 
   it('não bloqueia: a pessoa entra, com a data em branco', async () => {
     const { gateway } = fakeGateway();
@@ -303,7 +404,7 @@ Soluções,Dados,Analista de Dados,Bruno Piloto,bruno.piloto@teste.invalid,,,,,2
 // ═══════════════════════════════════════════════════════════════════════════
 describe('foto pendente vira revisão', () => {
   const CSV_SEM_FOTO_NO_ZIP = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,,,,,2026.2,nao-esta-no-zip.jpg`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,111.444.777-35,,,,,2026.2,nao-esta-no-zip.jpg`;
 
   it('foto informada que não está no .zip marca revisão', async () => {
     const { gateway, reviews } = fakeGateway();
@@ -329,7 +430,7 @@ Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.pilot
 
   it('coluna de foto vazia não gera revisão', async () => {
     const csv = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,,,,,2026.2,`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,012.345.678-90,,,,,2026.2,`;
     const { gateway, reviews } = fakeGateway();
 
     const report = await runImport(planFrom(csv), gateway, { referenceDate: HOJE });
@@ -374,7 +475,7 @@ describe('importação repetida', () => {
     // planilha — que continua com a data ruim — não pode marcar de novo o que
     // alguém acabou de corrigir.
     const csv = `${CABECALHO}
-Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,,,,31/02/2006,2026.2,ana.jpg`;
+Gente e Gestão,Gente e Gestão,Analista de Gente e Gestão,Ana Piloto,ana.piloto@teste.invalid,087.965.432-56,,,,31/02/2006,2026.2,ana.jpg`;
     const shared = fakeGateway();
 
     await runImport(planFrom(csv), shared.gateway, { referenceDate: HOJE });
@@ -470,7 +571,7 @@ describe('falha no meio da operação', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 describe('cargo de área inteira', () => {
   const CSV_AREA_INTEIRA = `${CABECALHO}
-Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,,,,,2026.2,`;
+Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
   it('manda subárea NULA ao banco, e uma pessoa só', async () => {
     const { gateway, membersByEmail } = fakeGateway();
@@ -490,7 +591,7 @@ Negócios,,Diretoria de Negócios,Dir Negocios,dir.negocios@teste.invalid,,,,,20
     // A planilha pode trazer "Diretoria de Soluções" em Produto. O que vai
     // para o banco é subárea NULA: o vínculo com uma subárea só não existe.
     const csv = `${CABECALHO}
-Soluções,Produto,Diretoria de Soluções,Dir Produto,dir.produto@teste.invalid,,,,,2026.2,`;
+Soluções,Produto,Diretoria de Soluções,Dir Produto,dir.produto@teste.invalid,111.444.777-35,,,,,2026.2,`;
     const { gateway } = fakeGateway();
     const spy = vi.spyOn(gateway, 'importMember');
     const flag = vi.spyOn(gateway, 'flagReview');

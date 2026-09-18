@@ -4,6 +4,8 @@ import { queryKeys } from './queryKeys';
 import type {
   ID,
   Member,
+  MemberCpfStatus,
+  MemberCpfWriteResult,
   MemberCreateInput,
   MemberFilters,
   MemberIntakeReviewReason,
@@ -216,6 +218,90 @@ export function useResolveMemberReview() {
       resolveMemberReview(memberId, reasons),
     onSuccess: (_remaining, { memberId }) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.members.review(memberId) });
+    },
+  });
+}
+
+// ─── CPF (dado privado) ───────────────────────────────────────────────────────
+
+/**
+ * Existe CPF? Quais os quatro últimos dígitos?
+ *
+ * Consulta normal, em cache: abrir um perfil não é "consultar o CPF de
+ * alguém", e por isso isto não passa pelo serviço de decifra nem gera linha de
+ * auditoria de leitura.
+ */
+export function getMemberCpfStatus(memberId: ID): Promise<MemberCpfStatus> {
+  return db.members.getCpfStatus(memberId);
+}
+
+/**
+ * O CPF COMPLETO.
+ *
+ * ⚠️ NÃO existe hook de consulta para isto, e a ausência é deliberada: o
+ * TanStack Query guardaria o número em cache de memória, com chave previsível,
+ * e ele sobreviveria à saída da tela. CPF é buscado por AÇÃO ("Mostrar"),
+ * guardado em estado local do componente e limpo ao desmontar.
+ *
+ * Toda chamada vira linha de auditoria no servidor.
+ */
+export function getMemberCpf(memberId: ID): Promise<string | null> {
+  return db.members.getCpf(memberId);
+}
+
+export function setMemberCpf(
+  memberId: ID,
+  cpf: string,
+  origin: 'perfil' | 'importacao' = 'perfil',
+): Promise<MemberCpfWriteResult> {
+  return db.members.setCpf(memberId, cpf, origin);
+}
+
+export function removeMemberCpf(memberId: ID): Promise<void> {
+  return db.members.removeCpf(memberId);
+}
+
+/** Situação do CPF do membro — sem o número. */
+export function useMemberCpfStatus(memberId: ID | undefined) {
+  return useQuery({
+    queryKey: queryKeys.members.cpfStatus(memberId ?? ''),
+    queryFn: () => getMemberCpfStatus(memberId as ID),
+    enabled: Boolean(memberId),
+  });
+}
+
+/**
+ * Grava o CPF.
+ *
+ * ⚠️ O valor NÃO entra no cache do React Query em momento nenhum: a mutação
+ * devolve só o desfecho e os quatro últimos dígitos.
+ */
+export function useSetMemberCpf() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      memberId,
+      cpf,
+      origin,
+    }: {
+      memberId: ID;
+      cpf: string;
+      origin?: 'perfil' | 'importacao';
+    }) => setMemberCpf(memberId, cpf, origin),
+    onSuccess: (_result, { memberId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.cpfStatus(memberId) });
+      // Gravar o CPF pode ter resolvido uma pendência da importação.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.review(memberId) });
+    },
+  });
+}
+
+export function useRemoveMemberCpf() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: ID) => removeMemberCpf(memberId),
+    onSuccess: (_result, memberId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.cpfStatus(memberId) });
     },
   });
 }

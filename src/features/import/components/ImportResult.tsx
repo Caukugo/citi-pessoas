@@ -57,6 +57,18 @@ const REVIEW: Record<MemberIntakeReviewReason, { label: string; fix: string }> =
     label: 'A foto não chegou ao Storage',
     fix: 'Reimportar a mesma planilha: só o que faltou é reenviado.',
   },
+  cpf_missing: {
+    label: 'CPF não informado',
+    fix: 'Preencher pelo perfil, em Editar cadastro. Reimportar com o CPF também resolve — a importação não sobrescreve CPF já gravado.',
+  },
+  invalid_cpf: {
+    label: 'CPF não confere',
+    fix: 'Conferir o número com a pessoa e corrigir pelo perfil. Dígito verificador errado costuma ser erro de digitação na planilha.',
+  },
+  cpf_store_failed: {
+    label: 'O CPF não chegou ao serviço que o guarda',
+    fix: 'Reimportar a mesma planilha: a pessoa já entrou, só o CPF faltou.',
+  },
 };
 
 function outcomeBadge(row: ImportRowReport) {
@@ -99,7 +111,8 @@ export function ImportResult({ report }: { report: ImportReport }) {
             <p className="mt-1 text-xs text-foreground-secondary">
               {report.created} criado(s) · {report.alreadyExisted} já existia(m) ·{' '}
               {report.alreadyImported} já importado(s) · {report.failed} falha(s) ·{' '}
-              {report.photosUploaded} foto(s) enviada(s) · {report.needsReviewCount} para revisar
+              {report.photosUploaded} foto(s) enviada(s) · {report.cpfsStored} CPF(s) guardado(s) ·{' '}
+              {report.needsReviewCount} para revisar
             </p>
             {/* A base atual: quantas pessoas ganharam ciclo emendado para
                 chegar até hoje, e com que data o BANCO decidiu isso — a prévia
@@ -191,6 +204,7 @@ export function ImportResult({ report }: { report: ImportReport }) {
                 <TH>Pessoa</TH>
                 <TH>Resultado</TH>
                 <TH>Situação</TH>
+                <TH>CPF</TH>
                 <TH>Foto</TH>
                 <TH>Detalhe</TH>
               </TR>
@@ -213,6 +227,16 @@ export function ImportResult({ report }: { report: ImportReport }) {
                         +{row.continuation.cyclesAdded} ciclo(s) até{' '}
                         {formatDate(row.continuation.finalEndOn)}
                       </span>
+                    )}
+                  </TD>
+                  {/* Só o desfecho: o número não aparece no relatório. */}
+                  <TD>
+                    {row.cpfStored ? (
+                      <Badge tone="ok">Guardado</Badge>
+                    ) : row.cpfError ? (
+                      <Badge tone="warn">Pendente</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">·</span>
                     )}
                   </TD>
                   <TD>

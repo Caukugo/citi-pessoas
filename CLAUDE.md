@@ -74,6 +74,19 @@ criadas por convite. Nunca adicione tela de cadastro.
 GG e Diretoria de GG têm o **mesmo acesso funcional**. Não crie RBAC nem
 esconda funcionalidade por papel.
 
+**Quem entra (decisão registrada, migration `0019`).** Só quem tem `profile`
+com papel **`gg`** ou **`gg_diretoria`**. Os papéis são **cargo
+organizacional**, não nível de permissão: os dois veem CPF completo, importam
+planilha, editam qualquer membro, atribuem responsável, editam lotação e cargo,
+desligam, arquivam e reativam.
+
+Bloqueados: `anon`; autenticado **sem profile**; profile com papel fora da
+lista; conta desativada ou removida.
+
+⚠️ `citi_is_gg()` confere o **papel**, explicitamente. Nunca escreva
+autorização como "existe linha em `profiles`" — era assim antes da 0019, e
+qualquer linha autorizava tudo.
+
 ### X1
 
 - Conversa individual entre gerente e membro. **Não é avaliação de desempenho.**
@@ -129,6 +142,29 @@ definição antiga foi explicitamente substituída. É Fase 3; não implemente a
 Não modele acontecimentos importantes sobrescrevendo o passado. Mudança de
 cargo/subárea gera um registro em `member_events`. **Não existe exclusão de
 membro** — existe arquivamento.
+
+### CPF e dado privado
+
+CPF **não** fica em `members` e **não** fica em texto puro. Ele vive em
+`member_private_data`, cifrado com AES-256-GCM, com HMAC-SHA-256 à parte para
+detectar duplicidade. As chaves existem **somente** nos segredos da Edge
+Function `member-cpf` — o banco guarda o cifrado e não sabe decifrá-lo.
+
+Ao mexer em qualquer coisa perto disso:
+
+- **Nunca** coloque CPF em `member_events`, no `payload` de
+  `member_intake_submissions`, em log, em URL, em analytics ou em mensagem de
+  erro. O parser arranca o CPF do payload na leitura (`parseMembersCsv`).
+- **Nunca** guarde CPF em `localStorage`, `sessionStorage` ou cache de consulta.
+  Não existe hook de consulta para o número completo, e a ausência é
+  deliberada: ele é buscado por ação e vive em estado local da tela.
+- **Nunca** use CPF como identificador público.
+- Toda leitura do número completo passa pela Edge Function e **vira linha de
+  auditoria**. É por isso que a tela mostra os quatro últimos dígitos e só
+  revela o resto quando alguém clica.
+- `CPF_ENCRYPTION_KEY` e `CPF_HASH_KEY` nunca levam prefixo `VITE_`, nunca
+  entram em migration, `.env.local`, documentação ou terminal. A `service_role`
+  **não** é chave criptográfica e **não** vai ao frontend.
 
 ### IA
 

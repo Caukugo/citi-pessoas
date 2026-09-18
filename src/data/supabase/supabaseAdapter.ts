@@ -6,6 +6,8 @@ import type {
   ID,
   Member,
   MemberCreateInput,
+  MemberCpfStatus,
+  MemberCpfWriteResult,
   MemberImportOutcome,
   MemberImportResult,
   MemberIntakeReviewReason,
@@ -13,6 +15,7 @@ import type {
   MemberStatus,
   X1,
 } from '../types';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/env';
 import { supabase } from './client';
 import {
   fromAnonymousFeedbackRow,
@@ -87,6 +90,84 @@ function safeFileName(name: string): string {
     .toLowerCase();
 
   return normalized || 'foto';
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A porta do CPF: a Edge Function `member-cpf`.
+ *
+ * NÃO é uma consulta ao banco, de propósito. `member_private_data` não tem
+ * policy de RLS nenhuma — nem o GG mais autorizado lê aquela tabela por
+ * consulta. Quem decifra é a função, que tem a chave; quem autoriza é ela
+ * também, conferindo o token e o papel.
+ *
+ * O token da sessão vai no cabeçalho. A `service_role` não existe aqui e nunca
+ * vai existir: ela mora só no ambiente da função (CLAUDE.md §13).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+async function callCpfFunction(
+  method: 'GET' | 'PUT' | 'DELETE',
+  options: { memberId: ID; body?: Record<string, unknown>; query?: string } = { memberId: '' },
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  const { data: sessionData } = await supabase().auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    throw new DataError('unauthorized', 'Sessão expirada. Entre de novo para ver ou editar o CPF.');
+  }
+
+  const base = SUPABASE_URL.replace(/\/$/, '');
+  const url = `${base}/functions/v1/member-cpf${options.query ?? ''}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        // Correlaciona a tela com a trilha de auditoria sem guardar conteúdo.
+        'x-request-id': crypto.randomUUID(),
+      },
+      // Sem cache em nenhuma camada: é dado pessoal.
+      cache: 'no-store',
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (cause) {
+    // O `fetch` nunca chegou a ter resposta: rede fora do ar, ou o navegador
+    // bloqueou a chamada por CORS (preflight recusou um cabeçalho que a
+    // chamada real manda). As duas aparecem como `TypeError: Failed to fetch`,
+    // sem detalhe nenhum — por isso a mensagem cobre as duas possibilidades em
+    // vez de fingir que sabe qual foi.
+    throw new DataError(
+      'unavailable',
+      'Não foi possível falar com o serviço de CPF. Confira a conexão e tente de novo.',
+      cause,
+    );
+  }
+
+  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: response.status, data };
+}
+
+/** Traduz o erro do serviço em algo que a tela pode mostrar — sem eco de CPF. */
+function cpfFailure(status: number, data: Record<string, unknown>): DataError {
+  const code = String(data.error ?? '');
+
+  if (status === 401) {
+    return new DataError('unauthorized', 'Sessão expirada. Entre de novo.');
+  }
+  if (status === 403) {
+    return new DataError('unauthorized', 'Seu perfil não tem acesso ao CPF.');
+  }
+  if (status === 404) {
+    return new DataError('not_found', 'Membro não encontrado.');
+  }
+  if (code === 'cpf_invalido') {
+    return new DataError('invalid', 'CPF inválido.');
+  }
+  return new DataError('unavailable', 'Não foi possível falar com o serviço de CPF.');
 }
 
 export const supabaseAdapter: DataAdapter = {
@@ -190,6 +271,67 @@ export const supabaseAdapter: DataAdapter = {
       }
 
       return data?.signedUrl ?? null;
+    },
+
+    async getCpfStatus(memberId): Promise<MemberCpfStatus> {
+      // Consulta normal: diz se TEM CPF e os quatro últimos dígitos. Não
+      // aciona o serviço de decifra e não gera auditoria de leitura — abrir um
+      // perfil não é "consultar o CPF de alguém".
+      const { data, error } = await supabase().rpc('citi_member_cpf_status', {
+        p_member_id: memberId,
+      });
+      if (error) fail(error, 'Erro ao verificar o CPF');
+
+      const row = (data ?? {}) as Record<string, unknown>;
+      return {
+        hasCpf: Boolean(row.has_cpf),
+        last4: (row.last4 as string) ?? null,
+        updatedAt: (row.updated_at as string) ?? null,
+      };
+    },
+
+    async getCpf(memberId) {
+      const { status, data } = await callCpfFunction('GET', {
+        memberId,
+        query: `?member_id=${encodeURIComponent(memberId)}`,
+      });
+
+      if (status !== 200) throw cpfFailure(status, data);
+      return data.has_cpf ? ((data.cpf as string) ?? null) : null;
+    },
+
+    async setCpf(memberId, cpf, origin = 'perfil'): Promise<MemberCpfWriteResult> {
+      const { status, data } = await callCpfFunction('PUT', {
+        memberId,
+        body: { member_id: memberId, cpf, origin },
+      });
+
+      // Duplicidade não é falha técnica: é uma decisão que a tela precisa
+      // apresentar ("este CPF já é de outra pessoa").
+      if (status === 409) {
+        return {
+          outcome: 'duplicado',
+          conflictMemberId: (data.conflict_member_id as ID) ?? null,
+        };
+      }
+
+      if (status !== 200) throw cpfFailure(status, data);
+
+      return {
+        outcome: (data.outcome as MemberCpfWriteResult['outcome']) ?? 'criado',
+        last4: (data.last4 as string) ?? null,
+      };
+    },
+
+    async removeCpf(memberId) {
+      // `confirm` explícito: apagar dado pessoal não acontece por requisição
+      // malformada. Quem pergunta para a pessoa é a tela.
+      const { status, data } = await callCpfFunction('DELETE', {
+        memberId,
+        body: { member_id: memberId, confirm: true },
+      });
+
+      if (status !== 200) throw cpfFailure(status, data);
     },
 
     async listReviewReasons(memberId) {
@@ -386,20 +528,40 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async submit(input) {
-      // Inserção pública (sem login). A policy de RLS permite apenas INSERT
-      // nesta tabela e não guarda nenhum dado de quem enviou.
-      const { data, error } = await supabase()
-        .from('anonymous_feedbacks')
-        .insert({
-          content: input.content,
-          target_type: input.targetType,
-          target_member_id: input.targetMemberId ?? null,
-          target_label: input.targetLabel ?? null,
-        })
-        .select()
-        .single();
+      // Inserção pública (sem login), e SÓ inserção.
+      //
+      // ⚠️ SEM `.select()`, de propósito. `anon` tem INSERT e mais nada: não
+      // existe policy nem grant de leitura nesta tabela para quem não é GG.
+      // Pedir a linha de volta fazia o PostgREST tentar um SELECT depois do
+      // INSERT e a requisição falhava por RLS — o formulário público quebrava
+      // depois de gravar, e a pessoa reenviava o relato achando que não foi.
+      //
+      // Ler o próprio envio também não é desejável: um relato anônimo devolvido
+      // ao remetente é uma confirmação que o fluxo não precisa dar.
+      const { error } = await supabase().from('anonymous_feedbacks').insert({
+        content: input.content,
+        target_type: input.targetType,
+        target_member_id: input.targetMemberId ?? null,
+        target_label: input.targetLabel ?? null,
+      });
       if (error) fail(error, 'Erro ao enviar feedback');
-      return fromAnonymousFeedbackRow(data);
+
+      // O que volta é o que a tela precisa para dizer "recebemos": não é uma
+      // leitura do banco, e não tem id — quem modera é que vai ver o registro.
+      return {
+        id: '',
+        content: input.content,
+        targetType: input.targetType,
+        targetMemberId: input.targetMemberId ?? null,
+        targetLabel: input.targetLabel ?? null,
+        status: 'pendente',
+        directedMemberId: null,
+        moderationNote: null,
+        moderatedById: null,
+        moderatedAt: null,
+        submittedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
     },
 
     async moderate(id, decision) {

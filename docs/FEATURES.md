@@ -164,6 +164,7 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 | PERFIL-004 | Timeline inicial | ✅ Implementado |
 | PERFIL-005 | Integração de X1 e Feedback | Parcial — X1 integrado; falta Feedbacks (FB-007) |
 | PERFIL-006 | Editar dados cadastrais | ✅ Implementado — gaveta "Editar cadastro", lotação e cargo, foto, responsável de GG |
+| PERFIL-007 | CPF no perfil | ✅ Implementado — cifrado (AES-256-GCM) fora de `members`, revelado sob ação e auditado. Ver ADR-017 |
 
 ### EPIC 3 — X1 · Bia
 

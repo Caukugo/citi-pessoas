@@ -23,6 +23,7 @@ import { useMemberFeedbacks } from '@/features/feedbacks/hooks/useMemberFeedback
 import { useMemberDirectory } from '../hooks/useMembersList';
 import { EditMemberDrawer } from '../components/EditMemberDrawer';
 import { GgResponsibleField } from '../components/GgResponsibleField';
+import { MemberCpfField } from '../components/MemberCpfField';
 import { MemberActivityTimeline } from '../components/MemberActivityTimeline';
 import { MemberInfoGrid } from '../components/MemberInfoGrid';
 import { MemberProfileHeader } from '../components/MemberProfileHeader';
@@ -174,6 +175,10 @@ export function MemberProfilePage() {
       {activeTab === 'visao-geral' && (
         <div {...tabPanelProps(TAB_PREFIX, 'visao-geral')} className="flex flex-col gap-6">
           <MemberInfoGrid member={member} directory={directory.byId} />
+          {/* CPF em cartão próprio, e NÃO na grade de dados cadastrais: é o
+              único campo cuja leitura é auditada, e misturá-lo com curso e
+              telefone faria parecer um dado como os outros. */}
+          <MemberCpfField member={member} />
           <GgResponsibleField member={member} />
           <MemberActivityTimeline memberId={member.id} />
         </div>

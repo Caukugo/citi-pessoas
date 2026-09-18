@@ -11,13 +11,13 @@ import { columnLabel, isGestaoName, parseFlexibleDate, parseMembersCsv } from '.
  */
 
 const CABECALHO =
-  'Área,Subárea,Cargo,Nome Completo,Email do CITi,Celular,Curso,' +
+  'Área,Subárea,Cargo,Nome Completo,Email do CITi,CPF,Celular,Curso,' +
   'Departamento Acadêmico,Data de Nascimento,Gestão de Entrada,Foto Arquivo';
 
 describe('parseMembersCsv — colunas oficiais', () => {
-  it('lê as onze colunas e normaliza o que deve ser normalizado', () => {
+  it('lê as doze colunas e normaliza o que deve ser normalizado', () => {
     const csv = `${CABECALHO}
-Soluções,Desenvolvimento,Pessoa Desenvolvedora,  Helena   Vasconcelos ,HELENA.Vasconcelos@Teste.Invalid,(81) 99999-0000,Ciência da Computação,CIn,05/03/2006,2026.1,helena.jpg`;
+Soluções,Desenvolvimento,Pessoa Desenvolvedora,  Helena   Vasconcelos ,HELENA.Vasconcelos@Teste.Invalid,529.982.247-25,(81) 99999-0000,Ciência da Computação,CIn,05/03/2006,2026.1,helena.jpg`;
 
     const { rows, missingColumns, unknownColumns } = parseMembersCsv(csv);
 
@@ -37,6 +37,7 @@ Soluções,Desenvolvimento,Pessoa Desenvolvedora,  Helena   Vasconcelos ,HELENA.
     expect(row.values.gestao).toBe('2026.1');
     expect(row.values.photoFile).toBe('helena.jpg');
     expect(row.values.department).toBe('CIn');
+    expect(row.values.cpf).toBe('529.982.247-25');
   });
 
   it('aceita cabeçalho sem acento, com caixa trocada e espaço sobrando', () => {
@@ -52,7 +53,7 @@ Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,2026.2`
 
   it('remove o BOM que o Excel coloca no começo do arquivo', () => {
     const csv = `\uFEFF${CABECALHO}
-Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,,,,,2026.2,`;
+Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,529.982.247-25,,,,,2026.2,`;
 
     const { rows, missingColumns } = parseMembersCsv(csv);
 
@@ -63,7 +64,7 @@ Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,,,,,202
 
   it('guarda a linha original inteira, para o payload da submissão', () => {
     const csv = `${CABECALHO}
-Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,81999990000,Estatística,CCEN,,2026.2,solange.png`;
+Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,111.444.777-35,81999990000,Estatística,CCEN,,2026.2,solange.png`;
 
     expect(parseMembersCsv(csv).rows[0].raw).toMatchObject({
       'Nome Completo': 'Solange Peixoto',
@@ -73,14 +74,33 @@ Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,8199999
   });
 
   it('lista as colunas que não reconheceu em vez de ignorá-las em silêncio', () => {
-    const csv = `${CABECALHO},CPF,Endereço
-Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,,,,,2026.2,,123,Rua X`;
+    const csv = `${CABECALHO},RG,Endereço
+Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,012.345.678-90,,,,,2026.2,,123,Rua X`;
 
     const { unknownColumns } = parseMembersCsv(csv);
 
-    // CPF e endereço não pertencem a esta plataforma: aparecem como
-    // desconhecidos e nunca são importados.
-    expect(unknownColumns).toEqual(['CPF', 'Endereço']);
+    // RG e endereço não pertencem a esta plataforma: aparecem como
+    // desconhecidos e nunca são importados. CPF, desde a 0019, PERTENCE — mas
+    // por um caminho próprio, e nunca no payload.
+    expect(unknownColumns).toEqual(['RG', 'Endereço']);
+  });
+
+  it('o CPF é lido, mas NÃO entra no payload da submissão', () => {
+    const csv = `${CABECALHO}
+Soluções,Dados,Analista de Dados,Solange Peixoto,solange@teste.invalid,012.345.678-90,,,,,2026.2,`;
+
+    const [row] = parseMembersCsv(csv).rows;
+
+    // Disponível para a prévia e para o serviço que cifra…
+    expect(row.values.cpf).toBe('012.345.678-90');
+    // …e ARRANCADO da cópia fiel que vai para o banco. `payload` fica guardado
+    // para sempre em `member_intake_submissions`: CPF em texto puro ali
+    // anularia todo o trabalho de cifrar.
+    expect(Object.keys(row.raw)).not.toContain('CPF');
+    expect(JSON.stringify(row.raw)).not.toContain('012.345.678-90');
+    expect(JSON.stringify(row.raw)).not.toContain('01234567890');
+    // As outras colunas continuam no payload, como sempre.
+    expect(row.raw['Email do CITi']).toBe('solange@teste.invalid');
   });
 
   it('avisa quando falta uma coluna obrigatória', () => {

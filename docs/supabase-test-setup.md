@@ -27,6 +27,7 @@ como rodar as verificações e como desfazer.
 | `0016_correcao_cadastral.sql` | correção de cadastro pelo Perfil (PERFIL-006): evento `correcao_cadastral`, `citi_correct_member_record`, `citi_resolve_member_review` |
 | `0017_cargo_canonico_institucional.sql` | **Presidência vira apelido**: uma posição canônica `Diretor(a) Institucional` (sigla CEO, área inteira), tabela `position_aliases` e `citi_resolve_position` |
 | `0018_diretorias_e_customer_success.sql` | COO, CRO e CTO consolidados (reaproveitando os ids), **Customer Success** criado, e a regra "cargo de área inteira nunca é cargo de entrada" |
+| `0019_autorizacao_e_cpf.sql` | **autorização por papel** (`citi_is_gg`), grants mínimos, trava do último GG, e o **CPF cifrado** em `member_private_data` + trilha de auditoria |
 
 Fora das migrations:
 
@@ -39,6 +40,16 @@ Fora das migrations:
 - `supabase/tests/0006_correcao_cadastral.sql` — 10 verificações da correção cadastral
 - `supabase/tests/0007_cargo_canonico_institucional.sql` — 10 verificações do cargo canônico e dos apelidos
 - `supabase/tests/0008_diretorias_e_customer_success.sql` — 10 verificações das quatro diretorias e do Customer Success
+- `supabase/tests/0009_autorizacao_e_cpf.sql` — 13 verificações de autorização, RLS e CPF
+
+Fora das migrations, do lado do servidor:
+
+- `supabase/functions/member-cpf/` — Edge Function que cifra, decifra e audita o
+  CPF. Autorização em duas etapas (token no Auth + papel em `profiles`), CORS
+  com allowlist, tudo `no-store`. Testada em `handler.test.ts` e
+  `_shared/crypto.test.ts`, que rodam no `npm test`.
+- Segredos (**só** no projeto, nunca no repositório): `CPF_ENCRYPTION_KEY`,
+  `CPF_HASH_KEY`, `CPF_KEY_VERSION`, `ALLOWED_ORIGINS`.
 - `supabase/scripts/piloto_dry_run.sql` — o que a limpeza do piloto removeria (não apaga nada)
 - `supabase/scripts/piloto_cleanup.sql` — a limpeza em si; **termina em `rollback`** por padrão
 

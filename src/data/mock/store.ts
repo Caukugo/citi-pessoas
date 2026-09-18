@@ -10,6 +10,7 @@ import type {
   Settings,
   X1,
 } from '../types';
+import { resetMockPrivateData } from './privateStore';
 import {
   ANONYMOUS_FEEDBACKS,
   FEEDBACKS,
@@ -125,6 +126,9 @@ export function commit() {
 /** Apaga tudo e volta aos dados de exemplo originais. */
 export function resetMockData() {
   db = seed();
+  // O que é de sessão (CPF, bytes de foto, trilha) zera junto: sem isto, os
+  // membros recém-semeados voltariam carregando o CPF de antes do reset.
+  resetMockPrivateData();
   persist();
 }
 

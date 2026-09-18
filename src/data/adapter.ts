@@ -16,6 +16,8 @@ import type {
   MemberImportInput,
   MemberImportResult,
   MemberIntakeReviewReason,
+  MemberCpfStatus,
+  MemberCpfWriteResult,
   MemberPhotoUpload,
   MemberRecordCorrection,
   MemberUpdateInput,
@@ -86,6 +88,36 @@ export interface MembersRepository {
    * pior do que nenhum.
    */
   getPhotoUrl(path: string, expiresInSeconds?: number): Promise<string | null>;
+
+  /**
+   * ── CPF ──
+   * Existe CPF? Quais os quatro últimos dígitos? Consulta normal, com RLS de
+   * GG. NÃO devolve o número, e por isso não gera auditoria de leitura.
+   */
+  getCpfStatus(memberId: ID): Promise<MemberCpfStatus>;
+
+  /**
+   * O CPF COMPLETO, para o GG autorizado ver na tela.
+   *
+   * ⚠️ Passa pelo SERVIÇO SERVIDOR (Edge Function), que é o único lugar com a
+   * chave de decifra. Toda chamada vira linha de auditoria — inclusive esta,
+   * que é só leitura. `null` quando a pessoa não tem CPF.
+   *
+   * O valor devolvido NÃO deve ser guardado em cache, storage, URL ou log.
+   */
+  getCpf(memberId: ID): Promise<string | null>;
+
+  /**
+   * Grava ou corrige o CPF. O número é validado de novo no servidor, cifrado
+   * lá, e a duplicidade é detectada por HMAC — o texto puro nunca chega ao
+   * banco.
+   *
+   * `origin` identifica na auditoria se veio do perfil ou da importação.
+   */
+  setCpf(memberId: ID, cpf: string, origin?: 'perfil' | 'importacao'): Promise<MemberCpfWriteResult>;
+
+  /** Apaga o CPF (não o membro). Exige confirmação de quem chama. */
+  removeCpf(memberId: ID): Promise<void>;
 
   /** O que ainda falta corrigir nesta pessoa, vindo da submissão de importação. */
   listReviewReasons(memberId: ID): Promise<MemberIntakeReviewReason[]>;

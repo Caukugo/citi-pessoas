@@ -2141,7 +2141,7 @@
     {
       "id": "GERAL-012",
       "title": "Revisar a autorizacao antes da carga dos 70 membros reais",
-      "description": "Hoje qualquer perfil de GG pode tudo (is_gg()). Antes de entrar dado real de 70 pessoas, revisar policies de RLS, as funcoes security definer, os grants e o acesso ao bucket privado member-photos.",
+      "description": "Revisada na migration 0019: citi_is_gg() confere o papel (gg/gg_diretoria), anon perdeu todos os grants exceto INSERT em anonymous_feedbacks, toda funcao security definer tem search_path fixo, e um trigger impede remover o ultimo profile com acesso.",
       "priority": "Alta",
       "difficulty": "assistida",
       "acceptanceCriteria": [
@@ -2151,6 +2151,54 @@
         "Decisão registrada em DECISIONS.md"
       ],
       "aiInstructions": "Duas fontes concorrentes é exatamente o problema que a plataforma existe para resolver — evite desenhar sincronização permanente.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Implementada",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-013",
+      "title": "Retencao de CPF: prazo, aprovacao, rotacao de chave, backup e incidente",
+      "description": "Decisao de GESTAO, nao tecnica. Nenhum prazo legal foi inventado. Itens em aberto: prazo para manter CPF depois do desligamento, quem aprova a remocao, processo de correcao e exclusao, rotacao das chaves de cifra e de hash, recuperacao em backup e procedimento de incidente. Ver docs/RETENCAO_DADOS.md.",
+      "priority": "Alta",
+      "difficulty": "assistida",
+      "acceptanceCriteria": [
+        "Decidido: importação única ou período de coexistência",
+        "Se houver coexistência: definido quem é a fonte de verdade de cada campo",
+        "Data combinada para a planilha deixar de ser usada no acompanhamento",
+        "Decisão registrada em DECISIONS.md"
+      ],
+      "aiInstructions": "Pendencia registrada antes da carga real. Nao implementar sem decisao de gestao.",
+      "epic": "EPIC-9",
+      "owner": "A definir",
+      "reviewer": "A definir",
+      "status": "Ready",
+      "branch": "—",
+      "labels": [
+        "area: infra",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
+      "id": "GERAL-014",
+      "title": "Tela de administracao de usuarios e papeis",
+      "description": "As garantias de integridade ja estao no banco (0019): profile exige auth.users, papel vem de enum fechado, e o ultimo profile com acesso nao pode ser removido. Falta a interface e a decisao de SMTP para o convite, que usa a Auth admin API e portanto precisa de Edge Function.",
+      "priority": "Media",
+      "difficulty": "assistida",
+      "acceptanceCriteria": [
+        "Decidido: importação única ou período de coexistência",
+        "Se houver coexistência: definido quem é a fonte de verdade de cada campo",
+        "Data combinada para a planilha deixar de ser usada no acompanhamento",
+        "Decisão registrada em DECISIONS.md"
+      ],
+      "aiInstructions": "Nao criar autorregistro publico. Convite pela Auth admin API, em Edge Function com service_role.",
       "epic": "EPIC-9",
       "owner": "A definir",
       "reviewer": "A definir",

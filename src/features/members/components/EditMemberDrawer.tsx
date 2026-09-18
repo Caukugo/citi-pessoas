@@ -68,6 +68,9 @@ const REVIEW_LABEL: Record<MemberIntakeReviewReason, string> = {
   invalid_photo_type: 'Foto em formato não aceito',
   photo_too_large: 'Foto acima de 5 MB',
   photo_upload_failed: 'A foto não chegou ao Storage',
+  cpf_missing: 'CPF não informado na importação',
+  invalid_cpf: 'CPF da planilha não confere',
+  cpf_store_failed: 'O CPF não chegou ao serviço que o guarda',
 };
 
 export function EditMemberDrawer({

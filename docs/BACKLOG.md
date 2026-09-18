@@ -744,7 +744,9 @@ Execução. Sem dono fixo — quem estiver livre pega.
 | GERAL-009 | Definir a política de retenção de dados | Média | Ready |
 | GERAL-010 | Decidir se o repositório vai para uma organização do CITi | Média | Ready |
 | GERAL-011 | Definir a estratégia de sincronização com a planilha CITi Pessoas | Média | Bloqueada por IMPORT-001 |
-| GERAL-012 | **Revisar a autorização antes da carga dos 70 reais** — hoje todo perfil de GG pode tudo (`is_gg()`); com gente real no banco, conferir policies, `security definer` e o acesso ao bucket privado | Alta | Ready |
+| GERAL-012 | **Revisar a autorização antes da carga dos 70 reais** | Alta | ✅ **Concluída** (migration `0019`) — `citi_is_gg()` passou a conferir o papel; `anon` ficou sem grant nenhum além do INSERT do feedback anônimo; toda `security definer` com `search_path`; trava do último GG |
+| GERAL-013 | **Retenção de CPF**: prazo depois do desligamento, quem aprova a remoção, processo de correção/exclusão, rotação de chave, recuperação em backup e procedimento de incidente | Alta | Ready — **decisão de gestão, não técnica**. Ver `docs/RETENCAO_DADOS.md` |
+| GERAL-014 | **Tela de administração de usuários e papéis** (convite via Auth admin API, troca de papel, desativação). As garantias de integridade já estão no banco (`0019`); falta a interface e a decisão de SMTP do convite | Média | Ready |
 
 > ⚠️ **GERAL-001 é o mais urgente.** A stack foi decidida por necessidade (ADR-011)
 > e precisa do aval do time **antes** de `BASE-006` — depois que houver dado real

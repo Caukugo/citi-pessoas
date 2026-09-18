@@ -113,8 +113,10 @@ describe('planilha e fotos de exemplo do piloto', () => {
     expect(diretoria?.subarea).toBeNull();
     expect(diretoria?.areaWide).toBe(true);
     expect(diretoria?.area?.name).toBe('Soluções');
-    // Sem subárea informada não há nem o aviso informativo.
-    expect(diretoria?.issues).toEqual([]);
+    // O único aviso dele é o CPF ausente — que é de propósito no exemplo:
+    // a planilha do piloto precisa demonstrar esse caso.
+    expect(diretoria?.issues.map((issue) => issue.severity)).toEqual(['warning']);
+    expect(diretoria?.cpf).toBeNull();
 
     // Uma entrada por gestão .1, com ciclo de janeiro a dezembro.
     const gestaoUm = plan.rows.find((row) => row.gestao?.name === '2026.1');
@@ -122,6 +124,40 @@ describe('planilha e fotos de exemplo do piloto', () => {
 
     // Nenhuma pessoa vem com responsável de GG: a alocação é decisão posterior.
     expect(plan.rows.every((row) => !row.existingMemberId)).toBe(true);
+  });
+
+  it('demonstra os três casos de CPF, sem bloquear ninguém', async () => {
+    const plan = buildImportPlan(parseMembersCsv(readFileSync(CSV, 'utf-8')), {
+      catalog: MOCK_ORG_CATALOG,
+      gestoes: GESTOES,
+      existingEmails: {},
+      photos: await lerFotos(),
+      referenceDate: '2026-09-17',
+    });
+
+    // Três com CPF válido, um sem CPF, um com CPF que não confere.
+    expect(plan.summary.withCpf).toBe(3);
+    expect(plan.summary.withoutCpf).toBe(2);
+
+    const ausente = plan.rows.find((row) => row.cpfProblem === 'vazio');
+    const invalido = plan.rows.find((row) => row.cpfProblem === 'sequencia_repetida');
+
+    expect(ausente?.reviews.map((r) => r.reason)).toContain('cpf_missing');
+    expect(invalido?.reviews.map((r) => r.reason)).toContain('invalid_cpf');
+
+    // AVISO, não bloqueio: ninguém fica de fora por causa de CPF.
+    expect(ausente?.importable).toBe(true);
+    expect(invalido?.importable).toBe(true);
+    expect(plan.hasBlockingErrors).toBe(false);
+  });
+
+  it('nenhum CPF do exemplo vaza para o payload da submissão', () => {
+    const plan = parseMembersCsv(readFileSync(CSV, 'utf-8'));
+    const payloads = JSON.stringify(plan.rows.map((row) => row.raw));
+
+    for (const cpf of ['52998224725', '11144477735', '01234567890', '529.982.247-25']) {
+      expect(payloads).not.toContain(cpf);
+    }
   });
 
   it('todos os e-mails são obviamente fictícios', () => {

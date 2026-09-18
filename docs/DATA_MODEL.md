@@ -688,6 +688,83 @@ setenta pessoas pede setenta URLs — não uma por renderização.
 
 ---
 
+## 8c. Autorização e dado privado (migration 0019)
+
+### Quem entra
+
+`citi_is_gg()` confere o **papel**, contra uma lista fechada:
+
+```sql
+select exists (select 1 from profiles p
+                where p.id = auth.uid() and p.role in ('gg','gg_diretoria'));
+```
+
+⚠️ Antes da `0019` era `exists (select 1 from profiles where id = auth.uid())` —
+**qualquer** linha em `profiles` autorizava tudo, sem olhar o papel. `is_gg()`
+continua existindo (as 21 policies a chamam pelo nome) e agora só delega.
+
+| Quem | Acesso |
+| --- | --- |
+| `gg` | tudo |
+| `gg_diretoria` | **o mesmo que `gg`** — papel é cargo, não permissão |
+| autenticado sem profile | **nada** |
+| papel fora da lista | **nada** |
+| `anon` | só `INSERT` em `anonymous_feedbacks` |
+| `service_role` | tudo, **só no servidor** (Edge Function) |
+
+**Grants mínimos.** `anon` perdeu todos os grants do schema `public`; recebeu de
+volta apenas o `INSERT` do formulário público — sem `SELECT`, então ele não lê
+nem o que acabou de enviar. `authenticated` perdeu `TRUNCATE`, `REFERENCES` e
+`TRIGGER`; o que ele vê continua sendo decidido pela RLS.
+
+**A plataforma nunca fica sem GG.** Um trigger em `profiles` impede remover ou
+rebaixar o último perfil com papel autorizado — sem nenhum, ninguém entra, e o
+conserto passaria a ser no SQL Editor com a plataforma fora do ar.
+
+### CPF (`member_private_data`)
+
+| Coluna | O que é |
+| --- | --- |
+| `cpf_ciphertext` | AES-256-GCM (texto cifrado **+ tag**, como o Web Crypto devolve) |
+| `cpf_iv` | nonce de 12 bytes, **novo a cada gravação** |
+| `cpf_key_version` | qual chave cifrou — é o que torna a rotação possível |
+| `cpf_hash` | HMAC-SHA-256 com chave **separada**, com índice único |
+| `cpf_last4` | quatro últimos dígitos, em claro |
+
+**A tabela não tem policy nenhuma, de propósito.** Com RLS ligada e zero
+policies, nenhum cliente lê CPF por consulta — nem o GG mais autorizado. Só a
+Edge Function `member-cpf`, com `service_role`, e é ela que decifra: **o banco
+não tem a chave**.
+
+Por que HMAC e não SHA simples: existem ~1,7 bilhão de CPFs válidos, e uma
+tabela de SHA-256 de todos eles se constrói num notebook. Com chave separada,
+quem tem só o banco não monta essa tabela.
+
+| Função | Quem executa | O que faz |
+| --- | --- | --- |
+| `citi_set_member_cpf(...)` | `service_role` | grava o já-cifrado, detecta duplicidade por HMAC, audita, resolve a pendência de revisão |
+| `citi_get_member_cpf(...)` | `service_role` | devolve o cifrado e **audita a leitura** |
+| `citi_remove_member_cpf(...)` | `service_role` | apaga o CPF (não o membro) e audita |
+| `citi_member_cpf_status(...)` | `authenticated` (GG) | diz se tem CPF e os quatro últimos — **nunca** o número |
+
+### Trilha (`member_private_data_audit`)
+
+Registra `create`, `read`, `update`, `remove` e `import`, com autor, membro,
+resultado, `request_id` e metadados não sensíveis. **Leitura é auditada** — é a
+única forma de responder "quem viu o CPF dessa pessoa?" depois de um incidente.
+
+**Nunca** entra ali: CPF, ciphertext, hash, chave, JWT ou payload cru. A GG lê a
+trilha; ninguém a escreve nem apaga pela API.
+
+### Onde o CPF NÃO está
+
+- `members` — nenhuma coluna;
+- `member_events` — nenhum evento carrega CPF;
+- `member_intake_submissions.payload` — o parser **arranca** a coluna na leitura;
+- cache de consulta, `localStorage`, `sessionStorage`, URL, log ou analytics.
+
+---
+
 ## 9. Convenções
 
 | Assunto | Convenção |

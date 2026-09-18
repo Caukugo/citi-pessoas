@@ -7,6 +7,7 @@ import {
   messageFor,
   queryKeys,
   recordImportFailure,
+  setMemberCpf,
   uploadMemberPhoto,
   useGestoes,
   useOrgCatalog,
@@ -138,6 +139,9 @@ export function useMembersImport() {
 
     const gateway: ImportGateway = {
       importMember,
+      // O CPF vai pelo SERVIÇO que cifra, identificado como importação na
+      // trilha de auditoria. Ele não passa pelo RPC de importação.
+      setCpf: (memberId, cpf) => setMemberCpf(memberId, cpf, 'importacao'),
       recordFailure: recordImportFailure,
       flagReview: flagImportReview,
       uploadPhoto: uploadMemberPhoto,

@@ -17,6 +17,7 @@ import type {
   ImportRowPlan,
   PhotoStatus,
 } from '@/data/import/importPlan';
+import { formatCpf } from '@/data';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/cn';
 
@@ -126,6 +127,12 @@ export function ImportPreview({ plan }: { plan: ImportPlan }) {
           value={summary.existingEmails}
           hint="Não serão alterados"
         />
+        <Stat
+          label="Com CPF"
+          value={summary.withCpf}
+          hint={summary.withoutCpf > 0 ? `${summary.withoutCpf} sem CPF` : undefined}
+          tone={summary.withoutCpf > 0 ? 'warn' : 'neutral'}
+        />
         <Stat label="Fotos encontradas" value={summary.photosFound} />
         <Stat
           label="Fotos ausentes"
@@ -195,6 +202,7 @@ export function ImportPreview({ plan }: { plan: ImportPlan }) {
               <TR>
                 <TH>Linha</TH>
                 <TH>Pessoa</TH>
+                <TH>CPF</TH>
                 <TH>Subárea · Cargo</TH>
                 <TH>Gestão e ciclo</TH>
                 <TH>Situação</TH>
@@ -210,6 +218,20 @@ export function ImportPreview({ plan }: { plan: ImportPlan }) {
                   <TD>
                     <span className="block font-medium text-foreground">{row.fullName || '·'}</span>
                     <span className="block text-xs text-muted-foreground">{row.email || '·'}</span>
+                  </TD>
+
+                  {/* CPF completo, para o GG conferir contra a planilha ANTES
+                      de gravar. Está em memória, nesta sessão: não foi para o
+                      banco, não vai para o payload da submissão, e não é
+                      guardado em cache nem em storage. */}
+                  <TD>
+                    {row.cpf ? (
+                      <span className="font-mono text-xs tabular-nums">{formatCpf(row.cpf)}</span>
+                    ) : row.cpfProblem === 'vazio' ? (
+                      <Badge tone="warn">Ausente</Badge>
+                    ) : (
+                      <Badge tone="warn">Inválido</Badge>
+                    )}
                   </TD>
 
                   <TD>
