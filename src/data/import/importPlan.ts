@@ -2,6 +2,7 @@ import { normalizeText } from '@/lib/format';
 import { checkCpf, CPF_PROBLEM_LABEL, type CpfProblem } from '../cpf';
 import { cycleBoundsFor, type CycleBounds } from '../cycleBounds';
 import { findPositionsByLabel } from '../positionLabels';
+import { MAX_PHOTO_BYTES } from '../photoValidation';
 import {
   currentCycleAfterRoster,
   planRosterContinuation,
@@ -234,37 +235,15 @@ export interface ImportPlanContext {
   referenceDate: ISODate;
 }
 
-/** Limite do bucket `member-photos`, definido na migration 0010. */
-export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
-
-export const ACCEPTED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
-
 /**
- * Descobre o tipo da imagem pelo CONTEÚDO, não pela extensão.
- *
- * Um arquivo `.jpg` que na verdade é um HEIC do iPhone renomeado passaria pela
- * checagem de extensão e seria recusado lá no bucket, depois de o membro já ter
- * sido criado. Melhor descobrir aqui.
+ * Limite e detecção de tipo de foto: movidos para `../photoValidation.ts`
+ * (zero-dependência) porque a Edge Function `google-forms-intake` também
+ * precisa deles e não pode importar este arquivo (arrasta `cycleBounds`,
+ * `positionLabels` e `currentRoster`, inviáveis num Deno sem import map).
+ * Reexportado aqui para nenhuma chamada existente mudar.
  */
-export function detectImageType(bytes: Uint8Array): string | null {
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
-    return 'image/jpeg';
-  }
-
-  const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length >= 8 && PNG.every((byte, i) => bytes[i] === byte)) {
-    return 'image/png';
-  }
-
-  // WebP é um contêiner RIFF: 'RIFF' ....(tamanho).... 'WEBP'
-  if (bytes.length >= 12) {
-    const ascii = (start: number, end: number) =>
-      String.fromCharCode(...Array.from(bytes.subarray(start, end)));
-    if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
-  }
-
-  return null;
-}
+export { ACCEPTED_PHOTO_TYPES, detectImageType } from '../photoValidation';
+export { MAX_PHOTO_BYTES };
 
 /** Chave de comparação de nome de arquivo: sem pasta, sem acento, sem caixa. */
 function photoKey(fileName: string): string {

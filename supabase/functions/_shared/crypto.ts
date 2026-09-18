@@ -147,3 +147,49 @@ export async function fingerprint(value: string, secret: string): Promise<string
 
   return toBase64(new Uint8Array(mac));
 }
+
+/**
+ * HMAC-SHA-256 em hexadecimal — mesmo primitivo de `fingerprint()`, só muda a
+ * codificação de saída. Existe para a assinatura do webhook do Google Forms
+ * (`google-forms-intake`): o Apps Script gera a assinatura com
+ * `Utilities.computeHmacSha256Signature`, que é mais simples de converter para
+ * hex do lado de lá do que para base64. Não tem nenhuma relação com CPF — usa
+ * `GOOGLE_FORMS_WEBHOOK_SECRET`, nunca `CPF_HASH_KEY`.
+ *
+ * Aceita a chave como texto simples (o segredo do webhook não precisa ter
+ * exatamente 32 bytes como as chaves de CPF — é comparado por HMAC, não usado
+ * para cifrar).
+ */
+export async function hmacHex(value: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret) as unknown as ArrayBuffer,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const mac = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(value) as unknown as ArrayBuffer,
+  );
+
+  return Array.from(new Uint8Array(mac))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Compara duas strings em tempo constante — usada para conferir a assinatura
+ * do webhook sem vazar, pelo tempo de resposta, quantos caracteres iniciais
+ * batem. `===` vaza isso; este loop não.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}

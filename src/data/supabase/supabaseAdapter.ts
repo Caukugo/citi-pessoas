@@ -16,6 +16,7 @@ import type {
   X1,
 } from '../types';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/env';
+import { safeFileName } from '../photoValidation';
 import { supabase } from './client';
 import {
   fromAnonymousFeedbackRow,
@@ -73,24 +74,6 @@ const PHOTO_URL_TTL_SECONDS = 60 * 60;
  * outro caminho — nem, com `..`, para fora da pasta da pessoa.
  */
 const PHOTO_PATH_PATTERN = /^[0-9a-fA-F-]{36}\/[^/]+$/;
-
-/**
- * Deixa o nome do arquivo seguro para virar chave no Storage.
- *
- * Acento e espaço funcionam na maioria dos casos, mas viram escape na URL
- * assinada e tornam impossível conferir um caminho a olho no painel.
- */
-function safeFileName(name: string): string {
-  const normalized = name
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-
-  return normalized || 'foto';
-}
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────

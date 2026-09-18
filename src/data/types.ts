@@ -133,6 +133,8 @@ export interface Member {
   university?: string | null;
   /** Departamento acadêmico: CIn, CCSA, CCS, CAC… Usado nos recortes institucionais. */
   department?: string | null;
+  /** Campus da UFPE (Recife, Caruaru, Vitória de Santo Antão). Migration 0022. */
+  campus?: string | null;
 
   // Ciclo de vida
   status: MemberStatus;
@@ -243,6 +245,47 @@ export interface OrgCatalog {
   areas: OrgArea[];
   subareas: OrgSubarea[];
   positions: OrgPosition[];
+}
+
+// ─── Catálogo acadêmico (UFPE) ────────────────────────────────────────────────
+//
+// Migration 0020. Usado para validar a resposta do Google Forms (campus ×
+// curso) antes de criar um membro — ver `citi_resolve_academic_course`. Ainda
+// sem tela própria nesta fase, do mesmo jeito que `OrgArea`/`OrgSubarea`
+// existiram antes de qualquer tela de Administração para elas.
+
+export interface AcademicCampus {
+  id: ID;
+  /** "Recife", "Caruaru", "Vitória de Santo Antão" — o que aparece no Forms. */
+  name: string;
+  /** Nome oficial da UFPE (ex.: "Campus Acadêmico do Agreste, em Caruaru"). */
+  officialName: string;
+  slug: string;
+  isActive: boolean;
+}
+
+/** "Unidade acadêmica" — NUNCA "departamento". CIn, CAC, CTG, CAA e CAV são Centros. */
+export interface AcademicUnit {
+  id: ID;
+  sigla: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface AcademicCourse {
+  id: ID;
+  campusId: ID;
+  academicUnitId: ID;
+  /** Nome do curso, sem grau: "Educação Física", não "Educação Física - Bacharelado". */
+  name: string;
+  degree: 'Bacharelado' | 'Licenciatura' | 'Bacharelado Interdisciplinar' | 'Licenciatura Intercultural';
+  /**
+   * Rótulo pronto para a opção do Google Forms — já com o campus explícito
+   * quando o mesmo curso existe em mais de um campus.
+   */
+  formsLabel: string;
+  isActive: boolean;
+  sourceUrl: string;
 }
 
 // ─── Importação de membros ────────────────────────────────────────────────────

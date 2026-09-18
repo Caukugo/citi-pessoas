@@ -45,6 +45,7 @@ export function fromMemberRow(row: Row): Member {
     semester: row.semester,
     university: row.university,
     department: row.department,
+    campus: row.campus,
     status: row.status,
     joinedAt: row.joined_at,
     exitedAt: row.exited_at,
@@ -75,6 +76,7 @@ export function toMemberRow(input: Partial<Member>): Row {
   if (input.semester !== undefined) row.semester = input.semester;
   if (input.university !== undefined) row.university = input.university;
   if (input.department !== undefined) row.department = input.department;
+  if (input.campus !== undefined) row.campus = input.campus;
   if (input.status !== undefined) row.status = input.status;
   if (input.joinedAt !== undefined) row.joined_at = input.joinedAt;
   if (input.exitedAt !== undefined) row.exited_at = input.exitedAt;

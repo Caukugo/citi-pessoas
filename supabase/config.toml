@@ -400,6 +400,15 @@ deno_version = 2
 [functions.member-cpf]
 verify_jwt = false
 
+# `google-forms-intake` é chamada pelo Apps Script vinculado ao formulário de
+# entrada — nunca pelo navegador, e sem sessão de usuário Supabase. A
+# autenticação é HMAC (corpo + timestamp assinados com
+# GOOGLE_FORMS_WEBHOOK_SECRET, conferidos dentro de handleRequest), não JWT.
+# `verify_jwt = false` só é seguro aqui porque essa checagem existe e é
+# testada — ver supabase/functions/google-forms-intake/handler.test.ts.
+[functions.google-forms-intake]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

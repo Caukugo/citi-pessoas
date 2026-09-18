@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeKeyMaterial, fingerprint, open, seal } from './crypto.ts';
+import { decodeKeyMaterial, fingerprint, hmacHex, open, seal, timingSafeEqual } from './crypto.ts';
 
 /**
  * Cifra autenticada e HMAC.
@@ -103,5 +103,60 @@ describe('HMAC de duplicidade', () => {
     const comChaveB = await fingerprint(CPF_FICTICIO, CHAVE_CIFRA);
 
     expect(comChaveA).not.toBe(comChaveB);
+  });
+});
+
+describe('hmacHex (assinatura do webhook do Google Forms)', () => {
+  const SEGREDO_WEBHOOK = 'segredo-de-teste-do-webhook';
+
+  it('é determinístico e em hexadecimal', async () => {
+    const a = await hmacHex('1234.{"a":1}', SEGREDO_WEBHOOK);
+    const b = await hmacHex('1234.{"a":1}', SEGREDO_WEBHOOK);
+
+    expect(a).toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('corpo ou timestamp diferentes dão assinaturas diferentes', async () => {
+    const original = await hmacHex('1234.{"a":1}', SEGREDO_WEBHOOK);
+    const outroCorpo = await hmacHex('1234.{"a":2}', SEGREDO_WEBHOOK);
+    const outroTimestamp = await hmacHex('5678.{"a":1}', SEGREDO_WEBHOOK);
+
+    expect(outroCorpo).not.toBe(original);
+    expect(outroTimestamp).not.toBe(original);
+  });
+
+  it('segredo diferente dá assinatura diferente para a mesma mensagem', async () => {
+    const comSegredoA = await hmacHex('1234.corpo', SEGREDO_WEBHOOK);
+    const comSegredoB = await hmacHex('1234.corpo', 'outro-segredo-qualquer');
+
+    expect(comSegredoA).not.toBe(comSegredoB);
+  });
+
+  it('não reaproveita a chave de CPF: mesmo valor cifrado com CHAVE_HASH dá resultado diferente de fingerprint()', async () => {
+    // `fingerprint()` decodifica o segredo como material de chave (base64/hex
+    // de 32 bytes — `decodeKeyMaterial`); `hmacHex()` usa o segredo como texto
+    // simples (o segredo do webhook não precisa ter 32 bytes). Por desenho as
+    // duas NUNCA produzem o mesmo HMAC para a mesma chave nominal — o que
+    // reforça, na prática, que não dá para usar CPF_HASH_KEY no lugar de
+    // GOOGLE_FORMS_WEBHOOK_SECRET (ou vice-versa) e esperar compatibilidade.
+    const hex = await hmacHex(CPF_FICTICIO, CHAVE_HASH);
+    const base64 = await fingerprint(CPF_FICTICIO, CHAVE_HASH);
+
+    expect(hex).not.toBe(base64);
+  });
+});
+
+describe('timingSafeEqual', () => {
+  it('compara strings iguais como iguais', () => {
+    expect(timingSafeEqual('abc123', 'abc123')).toBe(true);
+  });
+
+  it('compara strings diferentes como diferentes', () => {
+    expect(timingSafeEqual('abc123', 'abc124')).toBe(false);
+  });
+
+  it('tamanhos diferentes nunca são iguais', () => {
+    expect(timingSafeEqual('abc', 'abcd')).toBe(false);
   });
 });
