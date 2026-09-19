@@ -71,6 +71,7 @@ const REVIEW_LABEL: Record<MemberIntakeReviewReason, string> = {
   cpf_missing: 'CPF não informado na importação',
   invalid_cpf: 'CPF da planilha não confere',
   cpf_store_failed: 'O CPF não chegou ao serviço que o guarda',
+  cpf_duplicado: 'Este CPF já pertence a outro membro',
 };
 
 export function EditMemberDrawer({

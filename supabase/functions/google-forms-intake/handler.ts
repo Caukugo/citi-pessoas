@@ -423,8 +423,18 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
           },
           fetchImpl,
         );
-        if (!cpfRpc.ok || cpfRpc.data.outcome === 'duplicado' || cpfRpc.data.outcome === 'membro_inexistente') {
+        if (!cpfRpc.ok || cpfRpc.data.outcome === 'membro_inexistente') {
+          // Falha técnica de verdade: erro de rede/RPC, ou um membro que
+          // deveria existir (acabou de ser criado) e a função não achou —
+          // isso seria bug, nunca comportamento esperado.
           reviewReasons.add('cpf_store_failed');
+        } else if (cpfRpc.data.outcome === 'duplicado') {
+          // CPF válido, mas já é de outra pessoa. Não é falha de
+          // armazenamento — é um conflito de dado. citi_set_member_cpf (0024)
+          // não tocou member_private_data nem limpou pendência nenhuma
+          // quando devolveu isto; a auditoria já registrou de quem é o
+          // conflito (member_private_data_audit, sem CPF nenhum ali).
+          reviewReasons.add('cpf_duplicado');
         }
       } catch (error) {
         deps.onError?.('falha ao gravar CPF da integração', {

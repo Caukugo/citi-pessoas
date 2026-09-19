@@ -328,8 +328,20 @@ export type MemberIntakeReviewReason =
   | 'cpf_missing'
   /** Veio CPF, mas não é um CPF (dígito verificador, tamanho, sequência). */
   | 'invalid_cpf'
-  /** O membro entrou, mas o CPF não chegou ao serviço que o cifra. */
-  | 'cpf_store_failed';
+  /**
+   * O membro entrou, mas o CPF não chegou ao serviço que o cifra — falha
+   * TÉCNICA (erro de rede, exceção, `membro_inexistente`). Não confundir com
+   * `cpf_duplicado`: aqui o problema é a gravação em si, não o dado.
+   */
+  | 'cpf_store_failed'
+  /**
+   * CPF válido, mas já pertence a OUTRO membro (`citi_set_member_cpf`
+   * devolveu `outcome: 'duplicado'`). Não é falha técnica — é um conflito de
+   * dado que precisa de decisão humana (qual cadastro está certo). Reimportar
+   * ou reprocessar sozinho não resolve; `cpf_store_failed` sugeriria "tenta
+   * de novo", o que seria enganoso aqui.
+   */
+  | 'cpf_duplicado';
 
 export interface MemberImportInput {
   /** Chave estável do envio. Reenviar o mesmo CSV não cria nada de novo. */

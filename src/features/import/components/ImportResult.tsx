@@ -69,6 +69,10 @@ const REVIEW: Record<MemberIntakeReviewReason, { label: string; fix: string }> =
     label: 'O CPF não chegou ao serviço que o guarda',
     fix: 'Reimportar a mesma planilha: a pessoa já entrou, só o CPF faltou.',
   },
+  cpf_duplicado: {
+    label: 'Este CPF já pertence a outro membro',
+    fix: 'Não é falha técnica — reimportar ou reprocessar sozinho não resolve. Conferir com a pessoa qual é o CPF correto e decidir qual cadastro está certo antes de corrigir pelo perfil.',
+  },
 };
 
 function outcomeBadge(row: ImportRowReport) {

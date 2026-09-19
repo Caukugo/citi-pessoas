@@ -13,9 +13,39 @@ abaixo são para você fazer manualmente.
 | `QuestionMap.gs` | Mapa **por título de pergunta** — a allowlist do que é enviado. Ajuste os títulos aqui. |
 | `Signing.gs` | Assina o corpo com HMAC-SHA-256, em hexadecimal — o mesmo esquema que a Edge Function confere. |
 | `Photo.gs` | Lê a foto do Drive (bytes reais, não confia na extensão). |
-| `Sheet.gs` | Escreve status/ID do membro/pendências na planilha de respostas, por nome de coluna. |
-| `Code.gs` | Ponto de entrada do gatilho + montagem do payload. |
-| `Reprocess.gs` | Menu manual "CITi Pessoas → Reprocessar linha selecionada", sem duplicar nada. |
+| `Sheet.gs` | Cria/mantém a aba própria **"Status da Integração (CITi Pessoas)"**, indexada por `response_id`, com `LockService`. Nunca toca a aba nativa de respostas. |
+| `Code.gs` | Ponto de entrada do gatilho, validação do formato do evento, montagem do payload e `reprocessResponseById_`. |
+| `Reprocess.gs` | Menu no editor do Forms ("CITi Pessoas → Reprocessar resposta por ID...") + alternativa por Script Property, sem duplicar nada. |
+| `Tests.gs` | Testes manuais (rode `runAllTests` pelo seletor de função) — nenhum toca rede, Drive ou Forms de verdade. |
+
+## A aba "Status da Integração (CITi Pessoas)"
+
+Criada automaticamente (na primeira resposta processada) na MESMA planilha
+para onde o formulário manda as respostas — mas numa aba **separada** da
+nativa "Respostas do formulário 1". **A aba nativa nunca é lida nem escrita
+por este script.**
+
+Colunas, e só estas — nunca CPF, resposta completa, segredo ou dado de foto:
+
+| Coluna | O que é |
+| --- | --- |
+| ID da resposta (Forms) | `response_id` — a chave. Uma linha por resposta. |
+| Status da integração | O que a Edge Function devolveu (`processed`, `needs_review`, `failed`, `already_processed`, `ja_existia`...). |
+| ID do membro | Preenchido quando um membro foi criado (ou já existia). |
+| Data de processamento | Quando este script gravou o resultado. |
+| Pendências | Lista separada por vírgula (`cpf_missing, photo_missing`...). |
+| Erro (resumo) | Só para falha técnica — pendência de revisão não é erro. |
+
+Por quê uma aba própria, e não a nativa: a aba nativa não tem (e não pode
+ganhar, sem competir com o que o Forms escreve nela) uma coluna com o
+`response_id`. Sem essa chave, a única forma de saber "que linha corresponde
+a esta resposta" seria posição (`getLastRow()` ou índice), e as duas quebram
+sob concorrência ou sob qualquer reordenação manual da aba nativa.
+
+**A idempotência de verdade continua sendo do backend** (`external_id`,
+migration `0022`) — esta aba é só acompanhamento operacional. Apagar a aba
+inteira não afeta nenhuma garantia de não duplicar membro, CPF, ciclo ou
+foto; só faz o script recriá-la vazia na próxima resposta.
 
 ## Passo a passo
 
@@ -24,20 +54,48 @@ abaixo são para você fazer manualmente.
 No formulário do Google Forms: menu **⋮ (mais opções) → Editor de scripts**
 (ou, na planilha de respostas vinculada: **Extensões → Apps Script**).
 
-### 2. Colar os seis arquivos
+### 2. Colar os arquivos
 
-Crie um arquivo de script (`.gs`) para cada um dos seis arquivos desta pasta,
-com o mesmo nome, e cole o conteúdo exatamente. A ordem não importa — Apps
-Script resolve tudo no mesmo escopo global.
+Sete arquivos obrigatórios — `Config`, `QuestionMap`, `Signing`, `Photo`,
+`Sheet`, `Code`, `Reprocess` — mais `Tests.gs`, opcional mas recomendado.
+Crie um arquivo de script (`.gs`) para cada um, com o mesmo nome, e cole o
+conteúdo exatamente. A ordem não importa — Apps Script resolve tudo no mesmo
+escopo global.
 
-### 3. Ajustar `QuestionMap.gs`
+Depois de colar, rode `runAllTests` (seletor de função, no topo do editor)
+uma vez — confirma que a validação do formato do evento está funcionando,
+sem precisar enviar nenhuma resposta de verdade.
 
-Troque os `titles` de cada campo pelos títulos **exatos** das perguntas do seu
-formulário (só o texto do título, sem a descrição de ajuda). Se um campo
-tiver mais de uma redação possível (por exemplo, se o título mudar no futuro
-sem avisar quem mantém o script), liste as duas em `titles`.
+### 3. Conferir `QuestionMap.gs`
 
-Confira, em particular, se as opções da pergunta de **curso** estão escritas
+Os títulos já vêm preenchidos com os títulos reais deste formulário
+(auditados depois de um teste real revelar incompatibilidade). A busca é por
+**prefixo**, não igualdade exata — um título real com texto a mais no final
+ainda bate com o candidato mais curto do mapa.
+
+⚠️ **Uma exceção exige sua conferência manual**: o campo `emailLocalPart` usa
+o prefixo `'Nome para e-mail do CITi'` — o título completo real tem uma
+continuação entre parênteses que não foi confirmada byte a byte na hora de
+escrever este mapa. Abra o formulário, copie o título completo dessa
+pergunta e, se o prefixo acima não bater com o começo dele, ajuste em
+`QuestionMap.gs`. Depois de ajustar, rode `runAllTests` de novo.
+
+**Não crie perguntas separadas de Área e Subárea.** A pergunta `'Área e
+subárea de entrada'` é uma só, com respostas no formato `"Área — Subárea"`
+(ex.: `"Soluções — Desenvolvimento"`). `splitAreaSubarea_()` separa isso e
+só aceita os oito pares que existem no catálogo organizacional
+(`VALID_AREA_SUBAREA_PAIRS_`, em `QuestionMap.gs` — espelha
+`supabase/migrations/0003_estrutura_organizacional.sql`). Uma resposta fora
+dessa lista, ou sem separador reconhecível, falha **antes do envio**, com
+mensagem clara, sem criar membro.
+
+O e-mail institucional também não é enviado como veio: a pergunta
+`'Nome para e-mail do CITi...'` traz só a parte antes de `@citi.org.br`, e
+`buildInstitutionalEmail_()` monta o e-mail completo, normalizando espaço e
+caixa, sem duplicar o domínio se a pessoa já tiver digitado o e-mail inteiro
+por engano.
+
+Se as opções da pergunta de **curso** mudarem, confira se estão escritas
 como o catálogo em `supabase/migrations/0020_catalogo_academico_ufpe.sql`
 espera: cada linha ali tem uma coluna `forms_label` pronta para virar opção do
 Forms, já com o campus explícito quando o mesmo curso existe em mais de um
@@ -92,25 +150,58 @@ script. As permissões relevantes:
 | Permissão | Por quê |
 | --- | --- |
 | **Ver, editar, criar e excluir seus formulários do Google** | Ler as respostas do formulário (`FormApp`, `e.response`). |
-| **Ver, editar, criar e excluir suas planilhas do Google Drive** | Escrever o status na planilha de respostas (`Sheet.gs`). |
+| **Ver, editar, criar e excluir suas planilhas do Google Drive** | Escrever o status na aba própria "Status da Integração (CITi Pessoas)" (`Sheet.gs`) — nunca na aba nativa de respostas. |
 | **Ver e baixar seus arquivos do Google Drive** (`drive.readonly`) | `DriveApp.getFileById` em `Photo.gs` — ler o ARQUIVO que a própria resposta do formulário gerou. O script nunca lista pastas nem acessa outros arquivos do Drive. |
 | **Conectar-se a um serviço externo** | `UrlFetchApp.fetch` para a Edge Function `google-forms-intake`. |
 
 Não é pedida nenhuma permissão de e-mail, calendário ou administração do
 Workspace.
 
-## Reprocessar uma resposta
+## Reprocessar uma resposta, por `response_id`
 
-Depois do primeiro envio bem-sucedido (mesmo que com pendências), a planilha
-tem uma coluna **"ID da resposta (Forms)"**. Para reprocessar:
+Não depende de selecionar nada na planilha — este projeto está vinculado ao
+formulário, não à planilha, então não existe seleção ativa de spreadsheet
+garantida. As duas formas abaixo pedem o `response_id` diretamente e chamam a
+mesma função por baixo (`reprocessResponseById_`, em `Code.gs`), que busca a
+resposta de verdade com `findFormResponseById_` — percorre
+`form.getResponses()` comparando o ID exato. **Não usa
+`form.getResponse(responseId)`**: em teste real, essa chamada lançou
+`Exception: Invalid data updating form` mesmo com um `response_id` que existe
+e bate exatamente — um comportamento observado da API do Forms, não do nosso
+código.
 
-1. Clique em qualquer célula da linha da resposta.
-2. Menu **CITi Pessoas → Reprocessar linha selecionada** (aparece depois que a
-   planilha é reaberta, porque `onOpen()` cria o menu).
+**Forma 1 — menu no editor do Forms** (a mais simples):
 
-Isso reenvia a integração com o **mesmo `responseId`** — se já tinha dado
-certo, a Edge Function devolve `already_processed` e nada é duplicado; se
-tinha falhado, tenta de novo do zero.
+1. No editor do **formulário** (não da planilha): menu **CITi Pessoas →
+   Reprocessar resposta por ID...** (aparece depois de reabrir o formulário,
+   porque `onOpen()` cria o menu).
+2. Cole o `response_id` — está na coluna "ID da resposta (Forms)" da aba
+   "Status da Integração (CITi Pessoas)".
+
+**Forma 2 — sem UI, pelo seletor de função:**
+
+1. Configurações do projeto → Propriedades do script → adicione
+   `REPROCESS_RESPONSE_ID` com o `response_id`.
+2. No editor: seletor de função → `reprocessFromProperty` (sem `_` no final —
+   é de propósito para aparecer clara no seletor) → Executar.
+3. A propriedade é apagada sozinha ao final — nunca fica um `response_id`
+   esquecido configurado.
+
+Nas duas formas, isso reenvia a integração com o **mesmo `response_id`** — se
+já tinha dado certo, a Edge Function devolve `already_processed` e nada é
+duplicado; se tinha falhado, tenta de novo do zero.
+
+⚠️ **A primeira resposta de teste, que falhou antes desta correção (erro
+`Cannot read properties of undefined (reading 'getSheet')`), não aparece
+automaticamente na aba nova** — o gatilho quebrou antes de gravar qualquer
+coisa, e o `response_id` dela nunca chegou a ficar registrado em lugar
+nenhum que este script controle. Para reprocessá-la especificamente, seria
+preciso localizar o `response_id` dela pela aba nativa "Respostas do
+formulário 1" (que o Forms sempre escreve, independente deste script) — ela
+não expõe o `response_id` diretamente na interface, então o caminho mais
+simples no ambiente de teste é aceitar que aquela tentativa específica não
+será recuperada e enviar uma nova resposta de teste depois que a integração
+estiver habilitada.
 
 ## O que NÃO fazer
 

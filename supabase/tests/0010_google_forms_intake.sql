@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DA ENTRADA VIA GOOGLE FORMS (migrations 0020, 0021, 0022, 0023)
+-- TESTES DA ENTRADA VIA GOOGLE FORMS (migrations 0020, 0021, 0022, 0023, 0024, 0025)
 --
 -- Como rodar:
 --   npx supabase db query --linked -f supabase/tests/0010_google_forms_intake.sql
@@ -36,6 +36,28 @@
 --       executa — `public`, `anon` e `authenticated` não. Verificação
 --       PERMANENTE: se alguém um dia recriar esta função sem repetir os
 --       `revoke`, este teste falha antes que a lacuna volte a existir.
+--   18. (0024) gravação bem-sucedida resolve cpf_store_failed E cpf_duplicado
+--       (não só cpf_missing/invalid_cpf), preservando photo_missing intacta
+--   19. (0024) tentativa duplicada NÃO limpa a pendência do segundo membro
+--       nem sobrescreve um byte do CPF do dono original
+--   20. (0024) resolve_member_review nunca toca invalid_birth_date/photo_*
+--   21. (0025) rótulo curto "Nome — Grau" resolve dentro do campus certo,
+--       mesmo sem o sufixo "(Campus)" do forms_label
+--   22. (0025) o MESMO rótulo curto, em campus onde só existe o outro grau,
+--       é recusado como campus_incompativel — nunca aceita o curso errado
+--   23. (0025) o rótulo curto distingue Bacharelado de Licenciatura dentro
+--       do MESMO campus (Física, Recife) — cada grau resolve para o curso certo
+--   24. (0025) forms_label completo com sufixo de campus continua resolvendo
+--       (compatibilidade com o que já funcionava antes desta migration)
+--   25. (0025) forms_label completo de um curso de OUTRO campus nunca é
+--       aceito — campus_incompativel, mesmo com o rótulo "correto"
+--   26. (0025) nome puro resolve sozinho quando é único naquele campus
+--       (Ciência da Computação, Recife) — sem precisar informar o grau
+--   27. (0025) nome puro ambíguo (Física, Recife — Bacharelado E
+--       Licenciatura) é recusado como curso_ambiguo, nunca por ordem alfabética
+--   28. (0025) checagem geral: TODO curso ativo do catálogo resolve pelo
+--       forms_label completo E pelo rótulo curto, combinado com seu próprio
+--       campus, sempre apontando para o próprio course_id
 -- ─────────────────────────────────────────────────────────────────────────────
 
 begin;
@@ -48,6 +70,13 @@ declare
   c_gestao       constant uuid := '7e57f000-0000-4000-8000-000000000001';
   c_email_1      constant text := 'fulana.forms.teste@teste.invalid';
   c_email_2      constant text := 'ciclano.forms.teste@teste.invalid';
+  c_email_4      constant text := 'beltrana.forms.teste@teste.invalid';
+  c_email_5      constant text := 'sicrano.forms.teste@teste.invalid';
+
+  v_member_id_4 uuid;
+  v_member_id_5 uuid;
+  v_cpf_antes   bytea;
+  v_cpf_depois  bytea;
 
   v_area_id     uuid;
   v_subarea_id  uuid;
@@ -59,6 +88,14 @@ declare
   v_cycle_count integer;
   v_count       integer;
   v_passou      integer := 0;
+
+  -- ── 0025 ──
+  v_res_b       jsonb;
+  v_course_id   uuid;
+  v_catalogo    academic_courses%rowtype;
+  v_campus_nome text;
+  v_curto       text;
+  v_total_catalogo integer := 0;
 begin
   select s.id, s.area_id, s.entry_position_id into v_subarea_id, v_area_id, v_cargo_id
     from subareas s where s.slug = c_subarea_slug;
@@ -340,8 +377,278 @@ begin
   end;
   v_passou := v_passou + 1;
 
+  -- ═══ 18. (0024) gravação bem-sucedida resolve cpf_store_failed E ═════════
+  -- ═══     cpf_duplicado, mas preserva pendência sem relação com CPF ═══════
+  v_res := citi_import_member_via_forms(
+    p_external_id => 'google_forms:form-teste:resposta-4',
+    p_payload     => '{}'::jsonb,
+    p_full_name   => 'Beltrana Forms Teste',
+    p_email       => c_email_4,
+    p_subarea_id  => v_subarea_id,
+    p_gestao_id   => c_gestao,
+    p_joined_on   => date '2099-01-01'
+  );
+  if v_res ->> 'outcome' <> 'criado' then
+    raise exception '% 18a: quarta pessoa deveria ser criada, outcome %.', marcador, v_res ->> 'outcome';
+  end if;
+  v_member_id_4 := (v_res ->> 'member_id')::uuid;
+
+  -- Simula o estado "já tentou e falhou tecnicamente, já bateu num
+  -- duplicado numa tentativa anterior, E ainda falta a foto" — três
+  -- pendências de origens diferentes na mesma submissão.
+  perform citi_flag_intake_review(
+    'google_forms:form-teste:resposta-4',
+    array['cpf_store_failed', 'cpf_duplicado', 'photo_missing'],
+    'google_forms'
+  );
+
+  if not exists (
+    select 1 from member_intake_submissions
+     where source = 'google_forms' and external_id = 'google_forms:form-teste:resposta-4'
+       and status = 'needs_review'
+       and review_reasons @> array['cpf_store_failed', 'cpf_duplicado', 'photo_missing']
+  ) then
+    raise exception '% 18b: fixture não ficou com as três pendências esperadas antes da gravação.', marcador;
+  end if;
+
+  -- Agora grava um CPF de verdade, com hash NUNCA usado neste arquivo.
+  v_res := citi_set_member_cpf(
+    p_member_id   => v_member_id_4,
+    p_ciphertext  => encode(decode('aabbccddeeff00112233445566778899', 'hex'), 'base64'),
+    p_iv          => encode(decode('0102030405060708090a0b0c', 'hex'), 'base64'),
+    p_hash        => encode(sha256('cpf-ficticio-forms-unico-0024'::bytea), 'base64'),
+    p_last4       => '9999',
+    p_key_version => 1::smallint,
+    p_actor       => null::uuid,
+    p_actor_email => 'google-forms-intake',
+    p_request_id  => 'teste-forms-cpf-0024-a',
+    p_origin      => 'google_forms'
+  );
+
+  if v_res ->> 'outcome' <> 'criado' then
+    raise exception '% 18c: CPF único deveria gravar como ''criado'', veio %.', marcador, v_res ->> 'outcome';
+  end if;
+
+  if exists (
+    select 1 from member_intake_submissions
+     where source = 'google_forms' and external_id = 'google_forms:form-teste:resposta-4'
+       and ('cpf_store_failed' = any(review_reasons) or 'cpf_duplicado' = any(review_reasons))
+  ) then
+    raise exception '% 18d: cpf_store_failed/cpf_duplicado deveriam ter sido resolvidos pela 0024.', marcador;
+  end if;
+
+  if not exists (
+    select 1 from member_intake_submissions
+     where source = 'google_forms' and external_id = 'google_forms:form-teste:resposta-4'
+       and status = 'needs_review'
+       and review_reasons = array['photo_missing']
+  ) then
+    raise exception '% 18e: photo_missing (sem relação com CPF) deveria ter sobrevivido sozinho.', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 19. (0024) tentativa duplicada NÃO limpa pendência nem sobrescreve ══
+  -- ═══     o CPF do dono original ═══════════════════════════════════════
+  v_res := citi_import_member_via_forms(
+    p_external_id => 'google_forms:form-teste:resposta-5',
+    p_payload     => '{}'::jsonb,
+    p_full_name   => 'Sicrano Forms Teste',
+    p_email       => c_email_5,
+    p_subarea_id  => v_subarea_id,
+    p_gestao_id   => c_gestao,
+    p_joined_on   => date '2099-01-01'
+  );
+  if v_res ->> 'outcome' <> 'criado' then
+    raise exception '% 19a: quinta pessoa deveria ser criada, outcome %.', marcador, v_res ->> 'outcome';
+  end if;
+  v_member_id_5 := (v_res ->> 'member_id')::uuid;
+
+  perform citi_flag_intake_review(
+    'google_forms:form-teste:resposta-5', array['cpf_missing'], 'google_forms'
+  );
+
+  select cpf_ciphertext into v_cpf_antes from member_private_data where member_id = v_member_id_4;
+
+  -- Tenta gravar, para o QUINTO membro, o MESMO hash que já é do QUARTO.
+  v_res := citi_set_member_cpf(
+    p_member_id   => v_member_id_5,
+    p_ciphertext  => encode(decode('4cb3e7b49ca595497560522399cf57d8', 'hex'), 'base64'),
+    p_iv          => encode(decode('c106fc43e6ace81514a94aae', 'hex'), 'base64'),
+    p_hash        => encode(sha256('cpf-ficticio-forms-unico-0024'::bytea), 'base64'), -- MESMO hash do 18
+    p_last4       => '9999',
+    p_key_version => 1::smallint,
+    p_actor       => null::uuid,
+    p_actor_email => 'google-forms-intake',
+    p_request_id  => 'teste-forms-cpf-0024-b',
+    p_origin      => 'google_forms'
+  );
+
+  if v_res ->> 'outcome' <> 'duplicado' then
+    raise exception '% 19b: CPF repetido deveria ser recusado como ''duplicado'', veio %.', marcador, v_res ->> 'outcome';
+  end if;
+  if (v_res ->> 'member_id')::uuid <> v_member_id_4 then
+    raise exception '% 19c: o conflito deveria apontar para o dono original (membro 4).', marcador;
+  end if;
+
+  -- A pendência do QUINTO membro não pode ter sido tocada.
+  if not exists (
+    select 1 from member_intake_submissions
+     where source = 'google_forms' and external_id = 'google_forms:form-teste:resposta-5'
+       and status = 'needs_review' and review_reasons = array['cpf_missing']
+  ) then
+    raise exception '% 19d: tentativa duplicada alterou a pendência do quinto membro — não deveria.', marcador;
+  end if;
+
+  -- E não pode existir CPF nenhum gravado para o quinto membro.
+  if exists (select 1 from member_private_data where member_id = v_member_id_5) then
+    raise exception '% 19e: tentativa duplicada gravou CPF para o quinto membro — não deveria.', marcador;
+  end if;
+
+  -- O CPF do dono original (quarto membro) não pode ter mudado um byte.
+  select cpf_ciphertext into v_cpf_depois from member_private_data where member_id = v_member_id_4;
+  if v_cpf_antes is distinct from v_cpf_depois then
+    raise exception '% 19f: a tentativa duplicada sobrescreveu o CPF do dono original.', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 20. (0024) resolve_member_review nunca mexe em pendência de foto ═════
+  -- ═══     nem de data de nascimento por engano ════════════════════════════
+  perform citi_flag_intake_review(
+    'google_forms:form-teste:resposta-5',
+    array['invalid_birth_date', 'photo_missing'],
+    'google_forms'
+  );
+
+  v_res := citi_set_member_cpf(
+    p_member_id   => v_member_id_5,
+    p_ciphertext  => encode(decode('99887766554433221100ffeeddccbbaa', 'hex'), 'base64'),
+    p_iv          => encode(decode('0b7af08b62adfff9ae0ba6f9', 'hex'), 'base64'),
+    p_hash        => encode(sha256('cpf-ficticio-forms-unico-0024-b'::bytea), 'base64'),
+    p_last4       => '8888',
+    p_key_version => 1::smallint,
+    p_actor       => null::uuid,
+    p_actor_email => 'google-forms-intake',
+    p_request_id  => 'teste-forms-cpf-0024-c',
+    p_origin      => 'google_forms'
+  );
+
+  if v_res ->> 'outcome' <> 'criado' then
+    raise exception '% 20a: CPF único do quinto membro deveria gravar como ''criado'', veio %.', marcador, v_res ->> 'outcome';
+  end if;
+
+  if not exists (
+    select 1 from member_intake_submissions
+     where source = 'google_forms' and external_id = 'google_forms:form-teste:resposta-5'
+       and status = 'needs_review'
+       and review_reasons = array['invalid_birth_date', 'photo_missing']
+  ) then
+    raise exception '% 20b: pendências sem relação com CPF (invalid_birth_date, photo_missing) não deveriam ter sido tocadas.', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 21. (0025) rótulo curto resolve no campus certo, sem sufixo ═══════════
+  select id into v_course_id
+    from academic_courses
+   where campus_id = (select id from academic_campuses where slug = 'recife')
+     and name = 'Ciências Biológicas' and degree = 'Bacharelado';
+
+  v_res := citi_resolve_academic_course('Recife', 'Ciências Biológicas — Bacharelado');
+  if v_res ->> 'outcome' <> 'ok' then
+    raise exception '% 21a: rótulo curto em Recife deveria resolver ok, veio %.', marcador, v_res ->> 'outcome';
+  end if;
+  if (v_res ->> 'course_id')::uuid <> v_course_id then
+    raise exception '% 21b: rótulo curto resolveu para o curso errado.', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 22. (0025) mesmo rótulo curto, campus onde só existe o outro grau ═════
+  -- Vitória de Santo Antão só tem "Ciências Biológicas — Licenciatura" — o
+  -- Bacharelado só existe em Recife. Pedir Bacharelado em Vitória nunca pode
+  -- devolver o curso de Recife.
+  v_res := citi_resolve_academic_course('Vitória de Santo Antão', 'Ciências Biológicas — Bacharelado');
+  if v_res ->> 'outcome' <> 'campus_incompativel' then
+    raise exception '% 22: esperado campus_incompativel, veio %.', marcador, v_res ->> 'outcome';
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 23. (0025) rótulo curto distingue Bacharelado de Licenciatura no ══════
+  -- ═══     MESMO campus (Física, Recife) ═════════════════════════════════════
+  v_res := citi_resolve_academic_course('Recife', 'Física — Bacharelado');
+  v_res_b := citi_resolve_academic_course('Recife', 'Física — Licenciatura');
+
+  if v_res ->> 'outcome' <> 'ok' or v_res_b ->> 'outcome' <> 'ok' then
+    raise exception '% 23a: Física — Bacharelado/Licenciatura em Recife deveriam resolver ok (% / %).',
+      marcador, v_res ->> 'outcome', v_res_b ->> 'outcome';
+  end if;
+  if v_res ->> 'degree' <> 'Bacharelado' or v_res_b ->> 'degree' <> 'Licenciatura' then
+    raise exception '% 23b: grau devolvido não confere com o rótulo curto pedido.', marcador;
+  end if;
+  if (v_res ->> 'course_id') = (v_res_b ->> 'course_id') then
+    raise exception '% 23c: Bacharelado e Licenciatura resolveram para o mesmo course_id.', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 24. (0025) forms_label completo com sufixo de campus continua ═════════
+  -- ═══     funcionando (compatibilidade) ═════════════════════════════════════
+  v_res := citi_resolve_academic_course('Recife', 'Ciências Biológicas — Bacharelado (Recife)');
+  if v_res ->> 'outcome' <> 'ok' or (v_res ->> 'course_id')::uuid <> v_course_id then
+    raise exception '% 24: forms_label completo deixou de resolver o mesmo curso de sempre (outcome %).',
+      marcador, v_res ->> 'outcome';
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 25. (0025) forms_label completo de OUTRO campus nunca é aceito ════════
+  v_res := citi_resolve_academic_course(
+    'Vitória de Santo Antão', 'Ciências Biológicas — Bacharelado (Recife)'
+  );
+  if v_res ->> 'outcome' <> 'campus_incompativel' then
+    raise exception '% 25: forms_label de outro campus deveria ser campus_incompativel, veio %.',
+      marcador, v_res ->> 'outcome';
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 26. (0025) nome puro resolve sozinho quando é único no campus ═════════
+  v_res := citi_resolve_academic_course('Recife', 'Ciência da Computação');
+  if v_res ->> 'outcome' <> 'ok' then
+    raise exception '% 26: nome puro único deveria resolver ok, veio %.', marcador, v_res ->> 'outcome';
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 27. (0025) nome puro ambíguo é recusado, nunca por ordem alfabética ═══
+  v_res := citi_resolve_academic_course('Recife', 'Física');
+  if v_res ->> 'outcome' <> 'curso_ambiguo' then
+    raise exception '% 27: nome puro ambíguo deveria devolver curso_ambiguo, veio %.', marcador, v_res ->> 'outcome';
+  end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 28. (0025) checagem geral: todo o catálogo resolve por forms_label ════
+  -- ═══     E por rótulo curto, sempre apontando para o próprio curso ═════════
+  for v_catalogo in select * from academic_courses where is_active loop
+    select name into v_campus_nome from academic_campuses where id = v_catalogo.campus_id;
+    v_curto := v_catalogo.name || ' — ' || v_catalogo.degree;
+
+    v_res := citi_resolve_academic_course(v_campus_nome, v_catalogo.forms_label);
+    if v_res ->> 'outcome' <> 'ok' or (v_res ->> 'course_id')::uuid <> v_catalogo.id then
+      raise exception '% 28a: forms_label ''%'' em ''%'' não resolveu para o próprio curso (outcome %).',
+        marcador, v_catalogo.forms_label, v_campus_nome, v_res ->> 'outcome';
+    end if;
+
+    v_res_b := citi_resolve_academic_course(v_campus_nome, v_curto);
+    if v_res_b ->> 'outcome' <> 'ok' or (v_res_b ->> 'course_id')::uuid <> v_catalogo.id then
+      raise exception '% 28b: rótulo curto ''%'' em ''%'' não resolveu para o próprio curso (outcome %).',
+        marcador, v_curto, v_campus_nome, v_res_b ->> 'outcome';
+    end if;
+
+    v_total_catalogo := v_total_catalogo + 1;
+  end loop;
+
+  if v_total_catalogo = 0 then
+    raise exception '% 28c: catálogo de academic_courses veio vazio — 0020 não está aplicada?', marcador;
+  end if;
+  v_passou := v_passou + 1;
+
   raise notice '─────────────────────────────────────────────';
-  raise notice '  % de 17 verificações passaram.', v_passou;
+  raise notice '  % de 28 verificações passaram (checagem 28 cobriu % cursos do catálogo).', v_passou, v_total_catalogo;
   raise notice '  Nada foi gravado: a transação termina em rollback.';
   raise notice '─────────────────────────────────────────────';
 end

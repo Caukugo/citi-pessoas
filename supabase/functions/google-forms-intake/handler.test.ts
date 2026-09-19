@@ -391,12 +391,22 @@ describe('google-forms-intake — caminho feliz e pendências', () => {
     expect(json.review_reasons).toContain('invalid_cpf');
   });
 
-  it('CPF duplicado (citi_set_member_cpf devolve duplicado) gera cpf_store_failed', async () => {
+  it('CPF duplicado (citi_set_member_cpf devolve duplicado) gera cpf_duplicado, não cpf_store_failed', async () => {
     const { fetchImpl } = fakeBackend({ cpfOutcome: { outcome: 'duplicado', member_id: 'outro-membro' } });
     const request = await requisicaoAssinada(basePayload());
     const response = await handleRequest(request, { env, fetchImpl });
     const json = await response.json();
+    expect(json.review_reasons).toContain('cpf_duplicado');
+    expect(json.review_reasons).not.toContain('cpf_store_failed');
+  });
+
+  it('membro_inexistente (citi_set_member_cpf) continua gerando cpf_store_failed — é falha técnica, não duplicidade', async () => {
+    const { fetchImpl } = fakeBackend({ cpfOutcome: { outcome: 'membro_inexistente' } });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
     expect(json.review_reasons).toContain('cpf_store_failed');
+    expect(json.review_reasons).not.toContain('cpf_duplicado');
   });
 
   it('falha técnica do serviço de CPF gera cpf_store_failed, membro continua criado', async () => {
