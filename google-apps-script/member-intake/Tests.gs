@@ -532,6 +532,47 @@ function test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes() {
   Logger.log('OK: installSyncTriggerCore_ com vários duplicados mantém 1, remove os excedentes, nunca toca gatilho de outra função.');
 }
 
+// ─── Pontos de entrada públicos (seletor do Apps Script) ────────────────────
+//
+// Uma função terminada em "_" não aparece no seletor "Executar → escolher
+// função" do editor — já tivemos esse problema antes. Este teste é
+// estrutural (checa a referência da função, nunca CHAMA nenhuma delas — elas
+// tocam ScriptApp/FormApp de verdade) para pegar exatamente essa regressão:
+// nome errado ou parâmetro exigido quebraria tanto o seletor manual quanto um
+// gatilho de tempo (que nunca entrega argumento nenhum).
+
+function test_pontosDeEntradaPublicos_semUnderscoreSemParametro() {
+  var pontos = [
+    { nome: 'installSyncTrigger', fn: typeof installSyncTrigger !== 'undefined' ? installSyncTrigger : null },
+    { nome: 'syncFormNow', fn: typeof syncFormNow !== 'undefined' ? syncFormNow : null },
+    { nome: 'removeSyncTrigger', fn: typeof removeSyncTrigger !== 'undefined' ? removeSyncTrigger : null },
+    {
+      nome: 'syncFormAcceptingResponses',
+      fn: typeof syncFormAcceptingResponses !== 'undefined' ? syncFormAcceptingResponses : null,
+    },
+  ];
+
+  pontos.forEach(function (ponto) {
+    if (typeof ponto.fn !== 'function') {
+      throw new Error('FALHOU: ' + ponto.nome + ' deveria existir como função de nível superior.');
+    }
+    if (ponto.nome.charAt(ponto.nome.length - 1) === '_') {
+      throw new Error('FALHOU: ' + ponto.nome + ' termina em "_" — não apareceria no seletor do Apps Script.');
+    }
+    if (ponto.fn.length !== 0) {
+      throw new Error(
+        'FALHOU: ' + ponto.nome + ' deveria aceitar zero parâmetros (compatível com "Executar" e com ' +
+        'gatilho de tempo, que nunca entrega argumento) — tem ' + ponto.fn.length + '.',
+      );
+    }
+  });
+
+  Logger.log(
+    'OK: installSyncTrigger, syncFormNow, removeSyncTrigger e syncFormAcceptingResponses são públicas, ' +
+    'sem "_" no final, sem parâmetro.',
+  );
+}
+
 // ─── applyFallbackOnFetchFailure_ — falha de rede antes/depois do prazo ─────
 // (Sync.gs) — usa applyFallbackOnFetchFailureCore_ (sem PropertiesService,
 // FormApp nem Date.now() de verdade).
@@ -623,6 +664,8 @@ function runAllTests() {
   test_findFormResponseById_naoAchaIdInexistente();
   test_normalizarReprocessResponseId();
   test_writeStatusRow_reprocessarAtualizaLinhaExistenteSemDuplicar();
+
+  test_pontosDeEntradaPublicos_semUnderscoreSemParametro();
 
   test_installSyncTrigger_zeroGatilhos_cria();
   test_installSyncTrigger_umGatilho_naoMexe();

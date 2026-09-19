@@ -286,3 +286,39 @@ function removeSyncTrigger_() {
   });
   Logger.log('removeSyncTrigger_: ' + removidos + ' gatilho(s) removido(s).');
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PONTOS DE ENTRADA PÚBLICOS — os únicos três que devem aparecer no seletor
+ * de função do editor do Apps Script ("Executar" → escolher função).
+ *
+ * Uma função que termina em `_` (convenção deste projeto para "privada") NÃO
+ * aparece nesse seletor — já tivemos esse problema antes. Por isso as três
+ * operações que alguém precisa disparar manualmente ganham aqui um wrapper
+ * público, sem parâmetro (compatível com "Executar" e com gatilho de tempo,
+ * que nunca chamam a função com argumento nenhum) e sem lógica própria — só
+ * delegam para a função real.
+ *
+ *   installSyncTrigger()  → instala/saneia o gatilho (rode uma vez só)
+ *   syncFormNow()          → roda uma sincronização imediatamente (manual,
+ *                             fora do intervalo do gatilho)
+ *   removeSyncTrigger()    → remove o gatilho (desfazer, raro)
+ *
+ * O HANDLER do próprio gatilho, `syncFormAcceptingResponses` (acima), já é
+ * público e sem parâmetro — ele PRECISA ser assim para o `ScriptApp` poder
+ * chamá-lo pelo nome (`SYNC_TRIGGER_FUNCTION_NAME`); não recebe evento porque
+ * um gatilho de tempo (`timeBased`) nunca entrega um.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+function installSyncTrigger() {
+  return installSyncTrigger_();
+}
+
+function syncFormNow() {
+  return syncFormAcceptingResponses();
+}
+
+function removeSyncTrigger() {
+  return removeSyncTrigger_();
+}
