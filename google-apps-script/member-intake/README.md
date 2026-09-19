@@ -162,26 +162,35 @@ Diferente do gatilho de envio (passo 5, um evento por resposta), este é um
 nunca recriado a cada gestão.
 
 1. No editor do Apps Script, seletor de função (topo) → escolha
-   `installSyncTrigger_` → **Executar**.
+   `installSyncTrigger` (sem `_` no final — é de propósito, para aparecer no
+   seletor) → **Executar**.
 2. Autorize as permissões pedidas, se for a primeira vez (inclui "Executar
    quando eu não estiver presente", necessária para o gatilho rodar sozinho).
-3. Confira em **Acionadores** (ícone de relógio): deve aparecer um gatilho de
-   tempo para `syncFormAcceptingResponses`, a cada 15 minutos.
-4. **Não rode `installSyncTrigger_` de novo** nas próximas gestões — a função
-   é idempotente (recusa duplicar o gatilho), mas o procedimento correto é
+3. `installSyncTrigger` já roda uma sincronização IMEDIATA ao final — o Forms
+   não fica com o estado antigo esperando o primeiro minuto do gatilho.
+4. Confira em **Acionadores** (ícone de relógio): deve aparecer **exatamente
+   um** gatilho de tempo para `syncFormAcceptingResponses`, a cada 1 minuto.
+5. **Não rode `installSyncTrigger` de novo** nas próximas gestões — a função é
+   idempotente (mantém exatamente um gatilho: remove duplicados se houver mais
+   de um, não cria um segundo se já existir um), mas o procedimento correto é
    simplesmente não mexer aqui: abrir e fechar o formulário a cada campanha é
    o próprio gatilho que faz, sozinho, consultando o backend.
 
 O que ele faz a cada execução: pergunta ao backend (GET autenticado por HMAC,
 mesmo esquema do envio) se há campanha ativa dentro do prazo; se sim, chama
 `form.setAcceptingResponses(true)`; se não, define a mensagem de formulário
-fechado e chama `form.setAcceptingResponses(false)`. **O backend, não este
-gatilho, é quem decide o prazo de verdade** — mesmo que este acionador atrase
-ou falhe uma execução, uma resposta que chegar depois do prazo real continua
-sendo recusada em `citi_import_member_via_forms`.
+fechado e chama `form.setAcceptingResponses(false)`. Se a consulta ao backend
+falhar (rede, HTTP não-2xx), decide com base no último prazo válido que uma
+sincronização anterior confirmou (salvo em Script Properties): se esse prazo
+já passou, fecha; se nunca houve uma sincronização válida, mantém fechado; se
+o prazo ainda não passou, preserva o estado atual sem mexer. **O backend, não
+este gatilho, é quem decide o prazo de verdade** — mesmo que este acionador
+atrase ou falhe uma execução, uma resposta que chegar depois do prazo real
+continua sendo recusada em `citi_import_member_via_forms`.
 
-Para desativar (uso raro — só se a integração for descontinuada), rode
-`removeSyncTrigger_` pelo mesmo seletor de função.
+Para rodar uma sincronização manualmente, fora do intervalo do gatilho, use
+`syncFormNow` pelo mesmo seletor de função. Para desativar (uso raro — só se a
+integração for descontinuada), rode `removeSyncTrigger` pelo mesmo seletor.
 
 ### 6. Permissões pedidas — e por quê
 
@@ -194,7 +203,7 @@ script. As permissões relevantes:
 | **Ver, editar, criar e excluir suas planilhas do Google Drive** | Escrever o status na aba própria "Status da Integração (CITi Pessoas)" (`Sheet.gs`) — nunca na aba nativa de respostas. |
 | **Ver e baixar seus arquivos do Google Drive** (`drive.readonly`) | `DriveApp.getFileById` em `Photo.gs` — ler o ARQUIVO que a própria resposta do formulário gerou. O script nunca lista pastas nem acessa outros arquivos do Drive. |
 | **Conectar-se a um serviço externo** | `UrlFetchApp.fetch` para a Edge Function `google-forms-intake` — tanto o envio de resposta quanto o GET de status (0027, `Sync.gs`). |
-| **Executar quando você não estiver presente** | O acionador de TEMPO (`Sync.gs`) roda sozinho, a cada 15 minutos, sem ninguém com o editor aberto. |
+| **Executar quando você não estiver presente** | O acionador de TEMPO (`Sync.gs`) roda sozinho, a cada 1 minuto, sem ninguém com o editor aberto. |
 
 Não é pedida nenhuma permissão de e-mail, calendário ou administração do
 Workspace.
@@ -255,7 +264,8 @@ estiver habilitada.
   continuam só na planilha de respostas do Forms, nunca chegam à plataforma.
 - Não coloque o segredo, a URL da função ou qualquer chave em comentário, log
   (`Logger.log`) ou nas colunas escritas por `Sheet.gs`.
-- Não rode `installSyncTrigger_` de novo a cada gestão — um segundo gatilho
-  rodando em paralelo pode abrir e fechar o mesmo formulário em disputa. O
-  gatilho é instalado uma vez, para o formulário permanente; quem muda a cada
-  gestão é a campanha, na Administração do CITi Pessoas, nunca o Apps Script.
+- Não rode `installSyncTrigger` de novo a cada gestão — mesmo sendo
+  idempotente (remove duplicados em vez de empilhar), o procedimento correto é
+  não mexer aqui. O gatilho é instalado uma vez, para o formulário permanente;
+  quem muda a cada gestão é a campanha, na Administração do CITi Pessoas,
+  nunca o Apps Script.
