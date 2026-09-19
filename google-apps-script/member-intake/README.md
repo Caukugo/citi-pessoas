@@ -5,6 +5,18 @@ entrada**, não neste repositório. Este ambiente não está autenticado no
 Google, então nada aqui foi colado nem executado automaticamente — os passos
 abaixo são para você fazer manualmente.
 
+> ⚠️ **Pendência da migration 0027**: `Sync.gs` é um arquivo NOVO (fechamento
+> automático do formulário por prazo de campanha) e `Signing.gs` não mudou,
+> mas passou a ser reaproveitado pelo GET de status. Se o Apps Script REAL já
+> estiver colado num formulário de produção, os arquivos a **substituir/
+> adicionar** quando isto for implantado de verdade são:
+>   • `Sync.gs` — **novo**, adicionar;
+>   • os demais (`Code.gs`, `Config.gs`, `Photo.gs`, `QuestionMap.gs`,
+>     `README.md`, `Reprocess.gs`, `Sheet.gs`, `Signing.gs`, `Tests.gs`) —
+>     sem mudança nesta migration, não precisam ser recolados.
+> Nada disto foi implantado nem executado contra o Apps Script real — só os
+> arquivos deste repositório foram alterados, como pedido.
+
 ## O que esta pasta contém
 
 | Arquivo | Papel |
@@ -16,6 +28,7 @@ abaixo são para você fazer manualmente.
 | `Sheet.gs` | Cria/mantém a aba própria **"Status da Integração (CITi Pessoas)"**, indexada por `response_id`, com `LockService`. Nunca toca a aba nativa de respostas. |
 | `Code.gs` | Ponto de entrada do gatilho, validação do formato do evento, montagem do payload e `reprocessResponseById_`. |
 | `Reprocess.gs` | Menu no editor do Forms ("CITi Pessoas → Reprocessar resposta por ID...") + alternativa por Script Property, sem duplicar nada. |
+| `Sync.gs` | **Novo (0027).** Acionador de tempo instalado UMA VEZ: consulta o status da campanha (GET autenticado) e abre/fecha o formulário sozinho, com a mensagem de prazo encerrado. |
 | `Tests.gs` | Testes manuais (rode `runAllTests` pelo seletor de função) — nenhum toca rede, Drive ou Forms de verdade. |
 
 ## A aba "Status da Integração (CITi Pessoas)"
@@ -56,11 +69,11 @@ No formulário do Google Forms: menu **⋮ (mais opções) → Editor de scripts
 
 ### 2. Colar os arquivos
 
-Sete arquivos obrigatórios — `Config`, `QuestionMap`, `Signing`, `Photo`,
-`Sheet`, `Code`, `Reprocess` — mais `Tests.gs`, opcional mas recomendado.
-Crie um arquivo de script (`.gs`) para cada um, com o mesmo nome, e cole o
-conteúdo exatamente. A ordem não importa — Apps Script resolve tudo no mesmo
-escopo global.
+Oito arquivos obrigatórios — `Config`, `QuestionMap`, `Signing`, `Photo`,
+`Sheet`, `Code`, `Reprocess`, `Sync` — mais `Tests.gs`, opcional mas
+recomendado. Crie um arquivo de script (`.gs`) para cada um, com o mesmo
+nome, e cole o conteúdo exatamente. A ordem não importa — Apps Script resolve
+tudo no mesmo escopo global.
 
 Depois de colar, rode `runAllTests` (seletor de função, no topo do editor)
 uma vez — confirma que a validação do formato do evento está funcionando,
@@ -142,6 +155,43 @@ No editor do Apps Script: ícone de **relógio (Acionadores/Triggers)** →
 
 Salve e autorize as permissões pedidas (próxima seção).
 
+### 5.1. Instalar o gatilho de sincronização automática (0027) — UMA VEZ SÓ
+
+Diferente do gatilho de envio (passo 5, um evento por resposta), este é um
+**acionador de TEMPO**, instalado uma única vez para o formulário inteiro —
+nunca recriado a cada gestão.
+
+1. No editor do Apps Script, seletor de função (topo) → escolha
+   `installSyncTrigger` (sem `_` no final — é de propósito, para aparecer no
+   seletor) → **Executar**.
+2. Autorize as permissões pedidas, se for a primeira vez (inclui "Executar
+   quando eu não estiver presente", necessária para o gatilho rodar sozinho).
+3. `installSyncTrigger` já roda uma sincronização IMEDIATA ao final — o Forms
+   não fica com o estado antigo esperando o primeiro minuto do gatilho.
+4. Confira em **Acionadores** (ícone de relógio): deve aparecer **exatamente
+   um** gatilho de tempo para `syncFormAcceptingResponses`, a cada 1 minuto.
+5. **Não rode `installSyncTrigger` de novo** nas próximas gestões — a função é
+   idempotente (mantém exatamente um gatilho: remove duplicados se houver mais
+   de um, não cria um segundo se já existir um), mas o procedimento correto é
+   simplesmente não mexer aqui: abrir e fechar o formulário a cada campanha é
+   o próprio gatilho que faz, sozinho, consultando o backend.
+
+O que ele faz a cada execução: pergunta ao backend (GET autenticado por HMAC,
+mesmo esquema do envio) se há campanha ativa dentro do prazo; se sim, chama
+`form.setAcceptingResponses(true)`; se não, define a mensagem de formulário
+fechado e chama `form.setAcceptingResponses(false)`. Se a consulta ao backend
+falhar (rede, HTTP não-2xx), decide com base no último prazo válido que uma
+sincronização anterior confirmou (salvo em Script Properties): se esse prazo
+já passou, fecha; se nunca houve uma sincronização válida, mantém fechado; se
+o prazo ainda não passou, preserva o estado atual sem mexer. **O backend, não
+este gatilho, é quem decide o prazo de verdade** — mesmo que este acionador
+atrase ou falhe uma execução, uma resposta que chegar depois do prazo real
+continua sendo recusada em `citi_import_member_via_forms`.
+
+Para rodar uma sincronização manualmente, fora do intervalo do gatilho, use
+`syncFormNow` pelo mesmo seletor de função. Para desativar (uso raro — só se a
+integração for descontinuada), rode `removeSyncTrigger` pelo mesmo seletor.
+
 ### 6. Permissões pedidas — e por quê
 
 Na primeira execução (ou ao salvar o gatilho), o Google pede para autorizar o
@@ -152,7 +202,8 @@ script. As permissões relevantes:
 | **Ver, editar, criar e excluir seus formulários do Google** | Ler as respostas do formulário (`FormApp`, `e.response`). |
 | **Ver, editar, criar e excluir suas planilhas do Google Drive** | Escrever o status na aba própria "Status da Integração (CITi Pessoas)" (`Sheet.gs`) — nunca na aba nativa de respostas. |
 | **Ver e baixar seus arquivos do Google Drive** (`drive.readonly`) | `DriveApp.getFileById` em `Photo.gs` — ler o ARQUIVO que a própria resposta do formulário gerou. O script nunca lista pastas nem acessa outros arquivos do Drive. |
-| **Conectar-se a um serviço externo** | `UrlFetchApp.fetch` para a Edge Function `google-forms-intake`. |
+| **Conectar-se a um serviço externo** | `UrlFetchApp.fetch` para a Edge Function `google-forms-intake` — tanto o envio de resposta quanto o GET de status (0027, `Sync.gs`). |
+| **Executar quando você não estiver presente** | O acionador de TEMPO (`Sync.gs`) roda sozinho, a cada 1 minuto, sem ninguém com o editor aberto. |
 
 Não é pedida nenhuma permissão de e-mail, calendário ou administração do
 Workspace.
@@ -213,3 +264,8 @@ estiver habilitada.
   continuam só na planilha de respostas do Forms, nunca chegam à plataforma.
 - Não coloque o segredo, a URL da função ou qualquer chave em comentário, log
   (`Logger.log`) ou nas colunas escritas por `Sheet.gs`.
+- Não rode `installSyncTrigger` de novo a cada gestão — mesmo sendo
+  idempotente (remove duplicados em vez de empilhar), o procedimento correto é
+  não mexer aqui. O gatilho é instalado uma vez, para o formulário permanente;
+  quem muda a cada gestão é a campanha, na Administração do CITi Pessoas,
+  nunca o Apps Script.

@@ -63,15 +63,26 @@ interface IntakePayload {
 
 interface ConfigRow {
   enabled: boolean;
-  gestao_id: string | null;
-  entry_date: string | null;
   form_id: string | null;
 }
 
 type ResolveOutcome = { outcome: string; [key: string]: unknown };
 
 type ImportOutcome = {
-  outcome: 'criado' | 'ja_importado' | 'ja_existia';
+  outcome:
+    | 'criado'
+    | 'ja_importado'
+    | 'ja_existia'
+    | 'fora_da_janela_de_campanha'
+    | 'timestamp_resposta_ausente'
+    | 'timestamp_resposta_invalido'
+    | 'timestamp_resposta_divergente'
+    | 'falha_tecnica'
+    // Códigos históricos (0027) — só aparecem em `rejection_reason` de uma
+    // linha antiga já rejeitada permanentemente antes desta migration (0030).
+    | 'sem_campanha_ativa'
+    | 'prazo_encerrado';
+  /** Ausente em qualquer outcome que não seja `criado`/`ja_importado`/`ja_existia` — nenhum membro foi criado/reconhecido. */
   member_id: string;
   submission_id: string;
   cycle_id?: string;
@@ -128,6 +139,20 @@ function decodeBase64(value: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * ISO 8601 com fuso explícito ('Z' ou '+hh:mm'/'-hh:mm') — nunca uma data ou
+ * hora "solta" que dependeria de fuso implícito. `Date.parse` sozinho aceita
+ * formatos ambíguos demais (e alguns não-ISO); o regex garante a FORMA antes
+ * de confiar no valor.
+ */
+const ISO_8601_COM_FUSO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+function isIso8601WithTimezone(value: string | null | undefined): value is string {
+  if (!value || !ISO_8601_COM_FUSO_RE.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
+}
+
 /** Data de calendário real e não futura. Só isso — regra igual à da importação CSV. */
 function parseBirthDate(value: string | null | undefined): string | null {
   if (!value || !DATE_RE.test(value)) return null;
@@ -144,13 +169,91 @@ function parseBirthDate(value: string | null | undefined): string | null {
 
 async function fetchConfig(env: Env, fetchImpl: FetchLike): Promise<ConfigRow | null> {
   const response = await fetchImpl(
-    `${env.supabaseUrl}/rest/v1/google_forms_intake_config?id=eq.1&select=enabled,gestao_id,entry_date,form_id`,
+    `${env.supabaseUrl}/rest/v1/google_forms_intake_config?id=eq.1&select=enabled,form_id`,
     { headers: { apikey: env.serviceKey, Authorization: `Bearer ${env.serviceKey}` } },
   );
   if (!response.ok) return null;
 
   const rows = (await response.json()) as ConfigRow[];
   return rows[0] ?? null;
+}
+
+interface ActiveCampaignRow {
+  response_deadline_at: string;
+}
+
+async function fetchActiveCampaign(env: Env, fetchImpl: FetchLike): Promise<ActiveCampaignRow | null> {
+  const response = await fetchImpl(
+    `${env.supabaseUrl}/rest/v1/member_intake_campaigns?status=eq.ativa&select=response_deadline_at`,
+    { headers: { apikey: env.serviceKey, Authorization: `Bearer ${env.serviceKey}` } },
+  );
+  if (!response.ok) return null;
+
+  const rows = (await response.json()) as ActiveCampaignRow[];
+  return rows[0] ?? null;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SINCRONIZAÇÃO (GET) — para o Apps Script abrir/fechar o formulário sozinho.
+ *
+ * Mesmo esquema de autenticação do POST (HMAC de `${timestamp}.${corpo}`,
+ * corpo vazio aqui) — nunca menos rigoroso só porque é leitura. Devolve o
+ * MÍNIMO necessário: se está habilitada, se há campanha ativa e o prazo dela.
+ * Nunca devolve gestão, nome de campanha, configuração administrativa ou
+ * qualquer coisa que não seja isto — requisito explícito (0027 §27).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+async function handleStatusRequest(deps: HandlerDeps, request: Request, id: string): Promise<Response> {
+  const { env, fetchImpl } = deps;
+
+  const timestampHeader = request.headers.get('x-citi-timestamp');
+  const signatureHeader = request.headers.get('x-citi-signature');
+  if (!timestampHeader || !signatureHeader) {
+    return errorResponse('assinatura_ausente', 401, id);
+  }
+
+  const timestamp = Number(timestampHeader);
+  if (!Number.isFinite(timestamp)) {
+    return errorResponse('assinatura_invalida', 401, id);
+  }
+  if (Math.abs(Date.now() - timestamp) > env.signatureToleranceMs) {
+    return errorResponse('assinatura_expirada', 401, id);
+  }
+
+  // Corpo vazio: a assinatura cobre só `${timestamp}.` — mesma fórmula do
+  // POST, com corpo `''`.
+  const expectedSignature = await hmacHex(`${timestampHeader}.`, env.webhookSecret);
+  if (!timingSafeEqual(signatureHeader.toLowerCase(), expectedSignature)) {
+    return errorResponse('assinatura_invalida', 401, id);
+  }
+
+  const config = await fetchConfig(env, fetchImpl);
+  const enabled = Boolean(config?.enabled);
+
+  // Só consulta campanha se a integração estiver habilitada — sem isso,
+  // "aceitando respostas" já é `false` de qualquer forma.
+  const campaign = enabled ? await fetchActiveCampaign(env, fetchImpl) : null;
+  const responseDeadlineAt = campaign?.response_deadline_at ?? null;
+  const campaignActive = Boolean(campaign);
+
+  // O BACKEND decide "aceitando" com a mesma regra exata que
+  // `citi_import_member_via_forms` aplica — nunca confia só no acionador do
+  // Google, que pode atrasar (0027 §26).
+  const accepting =
+    enabled && campaignActive && responseDeadlineAt !== null && new Date(responseDeadlineAt).getTime() > Date.now();
+
+  return jsonResponse(
+    {
+      enabled,
+      campaign_active: campaignActive,
+      response_deadline_at: responseDeadlineAt,
+      accepting,
+      request_id: id,
+    },
+    200,
+    null,
+  );
 }
 
 async function uploadPhoto(
@@ -196,6 +299,11 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
   const { env, fetchImpl } = deps;
   const id = requestId(request);
 
+  // GET: sincronização de estado (Apps Script), nunca a entrada de membro.
+  if (request.method === 'GET') {
+    return handleStatusRequest(deps, request, id);
+  }
+
   if (request.method !== 'POST') {
     return errorResponse('metodo_nao_suportado', 405, id);
   }
@@ -238,11 +346,15 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
   }
 
   try {
-    // ── Configuração da integração ──
+    // ── Configuração permanente da integração ──
+    // Gestão e data oficial de entrada NÃO vivem mais aqui — são resolvidas
+    // pela campanha ativa, dentro de `citi_import_member_via_forms` (0026).
+    // Aqui só se confere o que é do FORMULÁRIO em si: está ligado, e é o
+    // Form autorizado.
     const config = await fetchConfig(env, fetchImpl);
     if (!config) return errorResponse('configuracao_ausente', 503, id);
     if (!config.enabled) return errorResponse('integracao_desabilitada', 503, id);
-    if (!config.gestao_id || !config.entry_date || !config.form_id) {
+    if (!config.form_id) {
       return errorResponse('configuracao_incompleta', 503, id);
     }
 
@@ -266,6 +378,43 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
     }
 
     const externalId = `google_forms:${payload.formId}:${payload.responseId}`;
+
+    // ── Timestamp real da resposta: validado ANTES da RPC (a RPC também se
+    // protege — nunca confia só no handler — mas falhar rápido aqui evita um
+    // round-trip inteiro para um valor obviamente malformado). Mesmos códigos
+    // de domínio que a RPC devolveria para o mesmo problema, retryable (não é
+    // rejeição permanente: um reenvio do Apps Script com o campo corrigido
+    // pode capturar a janela certa depois).
+    if (!payload.respondedAt) {
+      await callRpc(
+        env,
+        'citi_record_intake_failure',
+        {
+          p_external_id: externalId,
+          p_payload: { form_id: payload.formId, response_id: payload.responseId, responded_at: null },
+          p_error: 'Timestamp de resposta ausente (respondedAt).',
+        },
+        fetchImpl,
+      );
+      return jsonResponse({ outcome: 'failed', reason: 'timestamp_resposta_ausente', request_id: id }, 422, null);
+    }
+    if (!isIso8601WithTimezone(payload.respondedAt)) {
+      await callRpc(
+        env,
+        'citi_record_intake_failure',
+        {
+          p_external_id: externalId,
+          p_payload: {
+            form_id: payload.formId,
+            response_id: payload.responseId,
+            responded_at: payload.respondedAt,
+          },
+          p_error: `Timestamp de resposta inválido (não é ISO 8601 com fuso): "${payload.respondedAt}".`,
+        },
+        fetchImpl,
+      );
+      return jsonResponse({ outcome: 'failed', reason: 'timestamp_resposta_invalido', request_id: id }, 422, null);
+    }
 
     // Allowlist estrita: só o que pode ir para a plataforma. Nunca CPF, nunca
     // bytes de foto — o que a 0007/0011 chamam de "payload fiel" aqui é fiel
@@ -338,6 +487,9 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
     const birthDateInvalid = Boolean(payload.birthDate) && !birthDate;
 
     // ── Cria o membro (ou reconhece idempotência/e-mail já existente) ──
+    // Gestão e data oficial de entrada NÃO são mais parâmetro: a função
+    // resolve sozinha, atomicamente, a partir da campanha ativa (ou do
+    // snapshot já gravado nesta submissão, se houver — nunca recalcula).
     const importResult = await callRpc<ImportOutcome>(
       env,
       'citi_import_member_via_forms',
@@ -347,8 +499,6 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
         p_full_name: payload.fullName,
         p_email: payload.institutionalEmail,
         p_subarea_id: subareaId,
-        p_gestao_id: config.gestao_id,
-        p_joined_on: config.entry_date,
         p_phone: payload.phone ?? null,
         p_campus: payload.campus,
         p_course: payload.course,
@@ -364,6 +514,61 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
     }
 
     const result = importResult.data;
+
+    // Nenhuma campanha com janela contendo o instante real da resposta
+    // (0030): rejeição PERMANENTE (`campaign_rejected`) — reprocessar esta
+    // mesma resposta depois sempre devolve o mesmo outcome, nunca captura uma
+    // campanha diferente que passe a existir. `sem_campanha_ativa`/
+    // `prazo_encerrado` só aparecem em linhas rejeitadas antes da 0030.
+    if (
+      result.outcome === 'fora_da_janela_de_campanha' ||
+      result.outcome === 'sem_campanha_ativa' ||
+      result.outcome === 'prazo_encerrado'
+    ) {
+      return jsonResponse(
+        {
+          outcome: result.outcome,
+          submission_id: result.submission_id,
+          message: 'Nenhuma campanha de entrada válida para o instante em que esta resposta foi enviada.',
+          request_id: id,
+        },
+        503,
+        null,
+      );
+    }
+
+    // Timestamp ausente/inválido/divergente: o handler já valida antes da
+    // RPC (acima) — só chega aqui numa chamada direta à RPC ou numa condição
+    // de corrida rara. Retryable (não marca campaign_rejected): um reenvio
+    // com o campo corrigido pode capturar a janela certa depois.
+    if (
+      result.outcome === 'timestamp_resposta_ausente' ||
+      result.outcome === 'timestamp_resposta_invalido' ||
+      result.outcome === 'timestamp_resposta_divergente'
+    ) {
+      return jsonResponse(
+        { outcome: result.outcome, submission_id: result.submission_id, request_id: id },
+        422,
+        null,
+      );
+    }
+
+    // Falha técnica DEPOIS de capturar o snapshot (campanha/timestamp já
+    // gravados) — ex.: subárea/cargo ausente ou inativo. Retryable: o
+    // snapshot já gravado é reaproveitado no próximo reprocessamento, mesmo
+    // que a campanha tenha sido encerrada nesse meio-tempo.
+    if (result.outcome === 'falha_tecnica') {
+      return jsonResponse(
+        {
+          outcome: 'falha_tecnica',
+          submission_id: result.submission_id,
+          message: 'Falha técnica ao criar o membro. Corrija a causa (ver aba de status) e reenvie.',
+          request_id: id,
+        },
+        502,
+        null,
+      );
+    }
 
     // Réplica de uma resposta já processada, ou e-mail que já pertence a
     // outra pessoa: NUNCA toca CPF, foto ou pendências de novo. É isto que

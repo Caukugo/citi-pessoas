@@ -20,6 +20,14 @@ import { cycleBoundsFor } from '../cycleBounds';
 import { currentCycleAfterRoster, planRosterContinuation } from '../import/currentRoster';
 import { checkCpf, cpfLast4 } from '../cpf';
 import {
+  computeGestaoPeriod,
+  isDeadlineBeforeEntryDate,
+  isDeadlineInFuture,
+  isValidGestaoLabel,
+  isWithinHorizon,
+  recifeTodayISO,
+} from '../gestaoLabel';
+import {
   CPF_REVIEW_REASONS,
   mockCpf,
   mockCpfAudit,
@@ -876,6 +884,10 @@ export const mockAdapter: DataAdapter = {
           payload: input.payload,
           errorMessage: null,
           reviewReasons: [],
+          // CSV não tem campanha — snapshot é exclusivo de google_forms.
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         };
         db.intakeSubmissions.push(submission);
         return submission.id;
@@ -1066,6 +1078,9 @@ export const mockAdapter: DataAdapter = {
           payload,
           errorMessage: error,
           reviewReasons: [],
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         });
       }
       commit();
@@ -1107,6 +1122,163 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = { ...db.members[index], photoPath: path, updatedAt: nowISO() };
       commit();
       return path;
+    },
+  },
+
+  googleFormsIntake: {
+    async getConfig() {
+      await delay();
+      return mockDb().googleFormsIntakeConfig;
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.googleFormsIntakeConfig = {
+        ...db.googleFormsIntakeConfig,
+        ...input,
+        updatedAt: nowISO(),
+      };
+      commit();
+      return db.googleFormsIntakeConfig;
+    },
+
+    async getActiveCampaign() {
+      await delay();
+      return mockDb().intakeCampaigns.find((c) => c.status === 'ativa') ?? null;
+    },
+
+    async listCampaigns() {
+      await delay();
+      return [...mockDb().intakeCampaigns].sort((a, b) =>
+        b.activatedAt.localeCompare(a.activatedAt),
+      );
+    },
+
+    async startCampaign(input) {
+      await delay();
+      const db = mockDb();
+
+      const label = input.gestaoLabel.trim();
+      if (!isValidGestaoLabel(label)) {
+        throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
+      }
+
+      const hoje = recifeTodayISO();
+      const existente = db.gestoes.find((g) => g.name === label);
+
+      // A gestão nova só é EMPURRADA para `db.gestoes` depois de TODAS as
+      // validações abaixo passarem (perto do fim da função) — nunca aqui.
+      // Isso é o que garante a mesma atomicidade da RPC real: uma falha em
+      // QUALQUER validação posterior não deixa uma gestão "planejada" órfã,
+      // nem em memória, nem persistida.
+      let gestao = existente;
+      let gestaoNovaPendente: (typeof db.gestoes)[number] | null = null;
+
+      if (!gestao) {
+        const periodo = computeGestaoPeriod(label);
+        if (!periodo) {
+          throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
+        }
+        if (!isWithinHorizon(periodo.startDate, hoje)) {
+          throw new DataError(
+            'invalid',
+            `Gestão "${label}" está além do horizonte permitido (5 anos). Confira o ano digitado.`,
+          );
+        }
+        if (periodo.startDate <= hoje) {
+          throw new DataError('invalid', `Gestão "${label}" não está no futuro — não pode ser criada como campanha nova.`);
+        }
+
+        gestaoNovaPendente = {
+          id: mockId('gst'),
+          name: label,
+          startDate: periodo.startDate,
+          endDate: periodo.endDate,
+          status: 'planejada',
+        };
+        gestao = gestaoNovaPendente;
+      }
+
+      // Nunca presuma "diferente de ativa" = "finalizada": os três estados
+      // são conferidos pelo nome.
+      if (gestao.status !== 'planejada') {
+        throw new DataError(
+          'invalid',
+          `Gestão "${gestao.name}" está com status ${gestao.status} — só gestão planejada pode receber campanha.`,
+        );
+      }
+      if (gestao.startDate <= hoje) {
+        throw new DataError('invalid', `Gestão "${gestao.name}" já começou (em ${gestao.startDate}) — não pode receber uma nova campanha.`);
+      }
+      if (input.entryDate < gestao.startDate || input.entryDate > gestao.endDate) {
+        throw new DataError(
+          'invalid',
+          `Data oficial de entrada precisa estar dentro do período da gestão "${gestao.name}" (${gestao.startDate} a ${gestao.endDate}).`,
+        );
+      }
+      if (!input.responseDeadlineAt || !isDeadlineInFuture(input.responseDeadlineAt)) {
+        throw new DataError('invalid', 'prazo_no_passado: o prazo de resposta precisa estar no futuro.');
+      }
+      if (!isDeadlineBeforeEntryDate(input.responseDeadlineAt, input.entryDate)) {
+        throw new DataError(
+          'invalid',
+          `prazo_apos_entrada: o prazo de resposta precisa ser anterior à data oficial de entrada (meia-noite de ${input.entryDate}, América/Recife).`,
+        );
+      }
+      // 0029: uma campanha por gestão, para sempre — mesmo encerrada.
+      if (db.intakeCampaigns.some((c) => c.gestaoId === gestao.id)) {
+        throw new DataError(
+          'conflict',
+          `gestao_ja_possui_campanha: a gestão "${gestao.name}" já teve uma campanha de entrada.`,
+        );
+      }
+      // Mesma trava do banco (índice único parcial): no máximo uma campanha
+      // `ativa` por vez.
+      if (db.intakeCampaigns.some((c) => c.status === 'ativa')) {
+        throw new DataError('conflict', 'campanha_ativa_ja_existe: já existe uma campanha de entrada ativa.');
+      }
+
+      // Só agora — depois de TODAS as validações — a gestão nova (se houver)
+      // entra de fato no banco de mentira, junto com a campanha.
+      if (gestaoNovaPendente) {
+        db.gestoes.push(gestaoNovaPendente);
+      }
+
+      const campaign = {
+        id: mockId('campaign'),
+        gestaoId: gestao.id,
+        entryDate: input.entryDate,
+        responseDeadlineAt: input.responseDeadlineAt,
+        status: 'ativa' as const,
+        activatedAt: nowISO(),
+        activatedById: db.currentUser?.id ?? null,
+        closedAt: null,
+        closedById: null,
+      };
+      db.intakeCampaigns.push(campaign);
+      commit();
+      return campaign;
+    },
+
+    async closeCampaign(campaignId) {
+      await delay();
+      const db = mockDb();
+      const campaign = db.intakeCampaigns.find((c) => c.id === campaignId && c.status === 'ativa');
+      if (!campaign) {
+        throw new DataError('not_found', 'Campanha não encontrada ou já encerrada.');
+      }
+
+      campaign.status = 'encerrada';
+      campaign.closedAt = nowISO();
+      campaign.closedById = db.currentUser?.id ?? null;
+      commit();
+      return campaign;
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      await delay();
+      return mockDb().intakeSubmissions.filter((s) => s.campaignId === campaignId).length;
     },
   },
 };
