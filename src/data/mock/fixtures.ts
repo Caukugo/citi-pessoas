@@ -47,6 +47,7 @@ export const GESTOES: Gestao[] = [
     startDate: '2026-07-01',
     endDate: '2026-12-31',
     status: 'ativa',
+    googleFormsEligible: false,
   },
   {
     id: 'gst-2026-1',
@@ -54,6 +55,7 @@ export const GESTOES: Gestao[] = [
     startDate: '2026-01-01',
     endDate: '2026-06-30',
     status: 'finalizada',
+    googleFormsEligible: false,
   },
   {
     id: 'gst-2025-2',
@@ -61,6 +63,42 @@ export const GESTOES: Gestao[] = [
     startDate: '2025-07-01',
     endDate: '2025-12-31',
     status: 'finalizada',
+    googleFormsEligible: false,
+  },
+  // ─── Futuras, elegíveis para campanha de entrada via Google Forms (0027) ──
+  // Preenchidas por importação manual quando a gestão chegar — o Forms só
+  // serve para o processo seletivo destas quatro, nunca para gestão corrente.
+  {
+    id: 'gst-2027-1',
+    name: '2027.1',
+    startDate: '2027-01-01',
+    endDate: '2027-06-30',
+    status: 'finalizada',
+    googleFormsEligible: true,
+  },
+  {
+    id: 'gst-2027-2',
+    name: '2027.2',
+    startDate: '2027-07-01',
+    endDate: '2027-12-31',
+    status: 'finalizada',
+    googleFormsEligible: true,
+  },
+  {
+    id: 'gst-2028-1',
+    name: '2028.1',
+    startDate: '2028-01-01',
+    endDate: '2028-06-30',
+    status: 'finalizada',
+    googleFormsEligible: true,
+  },
+  {
+    id: 'gst-2028-2',
+    name: '2028.2',
+    startDate: '2028-07-01',
+    endDate: '2028-12-31',
+    status: 'finalizada',
+    googleFormsEligible: true,
   },
 ];
 

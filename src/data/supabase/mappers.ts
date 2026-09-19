@@ -211,6 +211,7 @@ export function fromGestaoRow(row: Row): Gestao {
     startDate: row.start_date,
     endDate: row.end_date,
     status: row.status,
+    googleFormsEligible: row.google_forms_eligible,
   };
 }
 
@@ -228,6 +229,7 @@ export function fromIntakeCampaignRow(row: Row): IntakeCampaign {
     id: row.id,
     gestaoId: row.gestao_id,
     entryDate: row.entry_date,
+    responseDeadlineAt: row.response_deadline_at,
     status: row.status,
     activatedAt: row.activated_at,
     activatedById: row.activated_by_id,

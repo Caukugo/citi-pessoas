@@ -1151,8 +1151,34 @@ export const mockAdapter: DataAdapter = {
       await delay();
       const db = mockDb();
 
-      // Mesma trava do banco (índice único parcial, migration 0026): no
-      // máximo uma campanha `ativa` por vez.
+      const gestao = db.gestoes.find((g) => g.id === input.gestaoId);
+      if (!gestao) {
+        throw new DataError('not_found', 'Gestão não encontrada.');
+      }
+      if (!gestao.googleFormsEligible) {
+        throw new DataError(
+          'invalid',
+          `A gestão "${gestao.name}" não está habilitada para entrada via Google Forms.`,
+        );
+      }
+      if (input.entryDate < gestao.startDate || input.entryDate > gestao.endDate) {
+        throw new DataError(
+          'invalid',
+          `Data oficial de entrada precisa estar dentro do período da gestão "${gestao.name}" (${gestao.startDate} a ${gestao.endDate}).`,
+        );
+      }
+      if (!input.responseDeadlineAt || new Date(input.responseDeadlineAt).getTime() <= Date.now()) {
+        throw new DataError('invalid', 'O prazo de resposta precisa estar no futuro.');
+      }
+      // 0027: uma campanha por gestão, para sempre — mesmo encerrada.
+      if (db.intakeCampaigns.some((c) => c.gestaoId === input.gestaoId)) {
+        throw new DataError(
+          'conflict',
+          `A gestão "${gestao.name}" já teve uma campanha de entrada — cada gestão só pode ter uma.`,
+        );
+      }
+      // Mesma trava do banco (índice único parcial): no máximo uma campanha
+      // `ativa` por vez.
       if (db.intakeCampaigns.some((c) => c.status === 'ativa')) {
         throw new DataError(
           'conflict',
@@ -1164,6 +1190,7 @@ export const mockAdapter: DataAdapter = {
         id: mockId('campaign'),
         gestaoId: input.gestaoId,
         entryDate: input.entryDate,
+        responseDeadlineAt: input.responseDeadlineAt,
         status: 'ativa' as const,
         activatedAt: nowISO(),
         activatedById: db.currentUser?.id ?? null,
@@ -1188,6 +1215,11 @@ export const mockAdapter: DataAdapter = {
       campaign.closedById = db.currentUser?.id ?? null;
       commit();
       return campaign;
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      await delay();
+      return mockDb().intakeSubmissions.filter((s) => s.campaignId === campaignId).length;
     },
   },
 };

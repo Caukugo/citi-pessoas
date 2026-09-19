@@ -27,8 +27,8 @@ const HOJE = '2026-09-17';
 const SERVIDOR_HOJE = '2026-09-17';
 
 const GESTOES: Gestao[] = [
-  { id: 'g-2025-1', name: '2025.1', startDate: '2025-01-01', endDate: '2025-06-30', status: 'finalizada' },
-  { id: 'g-2026-2', name: '2026.2', startDate: '2026-07-01', endDate: '2026-12-31', status: 'ativa' },
+  { id: 'g-2025-1', name: '2025.1', startDate: '2025-01-01', endDate: '2025-06-30', status: 'finalizada', googleFormsEligible: false },
+  { id: 'g-2026-2', name: '2026.2', startDate: '2026-07-01', endDate: '2026-12-31', status: 'ativa', googleFormsEligible: false },
 ];
 
 const CABECALHO =

@@ -264,8 +264,11 @@ export interface GoogleFormsIntakeRepository {
   listCampaigns(): Promise<IntakeCampaign[]>;
 
   /**
-   * Cria e ativa uma campanha nova. Recusa se já existir uma `ativa` — é
-   * preciso encerrar antes. Operação atômica (função única no Postgres).
+   * Cria e ativa uma campanha nova. Recusa se: já existir uma `ativa`; a
+   * gestão não for elegível para o Forms; a gestão já tiver tido uma
+   * campanha (0027: uma por gestão, para sempre); `entryDate` estiver fora
+   * do período da gestão; ou `responseDeadlineAt` não estiver no futuro.
+   * Operação atômica (função única no Postgres).
    */
   startCampaign(input: StartIntakeCampaignInput): Promise<IntakeCampaign>;
 
@@ -275,6 +278,9 @@ export interface GoogleFormsIntakeRepository {
    * próxima campanha ser ativada.
    */
   closeCampaign(campaignId: ID): Promise<IntakeCampaign>;
+
+  /** Quantas respostas do Forms já chegaram para esta campanha (qualquer status). */
+  countCampaignSubmissions(campaignId: ID): Promise<number>;
 }
 
 export interface AuthRepository {

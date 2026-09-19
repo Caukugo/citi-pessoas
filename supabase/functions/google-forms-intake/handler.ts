@@ -69,8 +69,8 @@ interface ConfigRow {
 type ResolveOutcome = { outcome: string; [key: string]: unknown };
 
 type ImportOutcome = {
-  outcome: 'criado' | 'ja_importado' | 'ja_existia' | 'sem_campanha_ativa';
-  /** Ausente só quando `outcome === 'sem_campanha_ativa'` — nenhum membro foi criado. */
+  outcome: 'criado' | 'ja_importado' | 'ja_existia' | 'sem_campanha_ativa' | 'prazo_encerrado';
+  /** Ausente quando `outcome` é `sem_campanha_ativa`/`prazo_encerrado` — nenhum membro foi criado. */
   member_id: string;
   submission_id: string;
   cycle_id?: string;
@@ -152,6 +152,84 @@ async function fetchConfig(env: Env, fetchImpl: FetchLike): Promise<ConfigRow | 
   return rows[0] ?? null;
 }
 
+interface ActiveCampaignRow {
+  response_deadline_at: string;
+}
+
+async function fetchActiveCampaign(env: Env, fetchImpl: FetchLike): Promise<ActiveCampaignRow | null> {
+  const response = await fetchImpl(
+    `${env.supabaseUrl}/rest/v1/member_intake_campaigns?status=eq.ativa&select=response_deadline_at`,
+    { headers: { apikey: env.serviceKey, Authorization: `Bearer ${env.serviceKey}` } },
+  );
+  if (!response.ok) return null;
+
+  const rows = (await response.json()) as ActiveCampaignRow[];
+  return rows[0] ?? null;
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SINCRONIZAÇÃO (GET) — para o Apps Script abrir/fechar o formulário sozinho.
+ *
+ * Mesmo esquema de autenticação do POST (HMAC de `${timestamp}.${corpo}`,
+ * corpo vazio aqui) — nunca menos rigoroso só porque é leitura. Devolve o
+ * MÍNIMO necessário: se está habilitada, se há campanha ativa e o prazo dela.
+ * Nunca devolve gestão, nome de campanha, configuração administrativa ou
+ * qualquer coisa que não seja isto — requisito explícito (0027 §27).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+async function handleStatusRequest(deps: HandlerDeps, request: Request, id: string): Promise<Response> {
+  const { env, fetchImpl } = deps;
+
+  const timestampHeader = request.headers.get('x-citi-timestamp');
+  const signatureHeader = request.headers.get('x-citi-signature');
+  if (!timestampHeader || !signatureHeader) {
+    return errorResponse('assinatura_ausente', 401, id);
+  }
+
+  const timestamp = Number(timestampHeader);
+  if (!Number.isFinite(timestamp)) {
+    return errorResponse('assinatura_invalida', 401, id);
+  }
+  if (Math.abs(Date.now() - timestamp) > env.signatureToleranceMs) {
+    return errorResponse('assinatura_expirada', 401, id);
+  }
+
+  // Corpo vazio: a assinatura cobre só `${timestamp}.` — mesma fórmula do
+  // POST, com corpo `''`.
+  const expectedSignature = await hmacHex(`${timestampHeader}.`, env.webhookSecret);
+  if (!timingSafeEqual(signatureHeader.toLowerCase(), expectedSignature)) {
+    return errorResponse('assinatura_invalida', 401, id);
+  }
+
+  const config = await fetchConfig(env, fetchImpl);
+  const enabled = Boolean(config?.enabled);
+
+  // Só consulta campanha se a integração estiver habilitada — sem isso,
+  // "aceitando respostas" já é `false` de qualquer forma.
+  const campaign = enabled ? await fetchActiveCampaign(env, fetchImpl) : null;
+  const responseDeadlineAt = campaign?.response_deadline_at ?? null;
+  const campaignActive = Boolean(campaign);
+
+  // O BACKEND decide "aceitando" com a mesma regra exata que
+  // `citi_import_member_via_forms` aplica — nunca confia só no acionador do
+  // Google, que pode atrasar (0027 §26).
+  const accepting =
+    enabled && campaignActive && responseDeadlineAt !== null && new Date(responseDeadlineAt).getTime() > Date.now();
+
+  return jsonResponse(
+    {
+      enabled,
+      campaign_active: campaignActive,
+      response_deadline_at: responseDeadlineAt,
+      accepting,
+      request_id: id,
+    },
+    200,
+    null,
+  );
+}
+
 async function uploadPhoto(
   env: Env,
   fetchImpl: FetchLike,
@@ -194,6 +272,11 @@ async function uploadPhoto(
 export async function handleRequest(request: Request, deps: HandlerDeps): Promise<Response> {
   const { env, fetchImpl } = deps;
   const id = requestId(request);
+
+  // GET: sincronização de estado (Apps Script), nunca a entrada de membro.
+  if (request.method === 'GET') {
+    return handleStatusRequest(deps, request, id);
+  }
 
   if (request.method !== 'POST') {
     return errorResponse('metodo_nao_suportado', 405, id);
@@ -369,15 +452,21 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
 
     const result = importResult.data;
 
-    // Sem campanha de entrada ativa: nenhuma resposta nova cria membro. A
-    // tentativa fica registrada (sem snapshot de campanha, porque não houve
-    // nenhuma) para ser reprocessada assim que a GG ativar uma.
-    if (result.outcome === 'sem_campanha_ativa') {
+    // Sem campanha de entrada ativa, ou prazo de resposta já encerrado: em
+    // nenhum dos dois casos uma resposta nova cria membro. Ambas rejeições
+    // são PERMANENTES no banco (0027, `campaign_rejected`) — reprocessar esta
+    // mesma resposta depois sempre devolve o mesmo outcome, nunca captura uma
+    // campanha diferente que passe a existir.
+    if (result.outcome === 'sem_campanha_ativa' || result.outcome === 'prazo_encerrado') {
+      const message =
+        result.outcome === 'sem_campanha_ativa'
+          ? 'Nenhuma campanha de entrada ativa. Peça para a GG iniciar uma na Administração.'
+          : 'O prazo de resposta desta campanha já encerrou.';
       return jsonResponse(
         {
-          outcome: 'sem_campanha_ativa',
+          outcome: result.outcome,
           submission_id: result.submission_id,
-          message: 'Nenhuma campanha de entrada ativa. Peça para a GG iniciar uma na Administração.',
+          message,
           request_id: id,
         },
         503,

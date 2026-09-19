@@ -1,12 +1,17 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DE CAMPANHAS DE ENTRADA (migration 0026)
+-- TESTES DE CAMPANHAS DE ENTRADA (migrations 0026 + 0027)
 --
 -- Como rodar:
 --   npx supabase db query --linked -f supabase/tests/0011_campanhas_de_entrada.sql
 --
 -- ⚠️ TERMINA EM `rollback`. Nada do que ele cria sobrevive.
 -- ⚠️ Todos os dados são FICTÍCIOS (e-mails `.invalid`, gestões '2099.1'/'2099.2'
---    fora de qualquer intervalo real).
+--    fora de qualquer intervalo real, marcadas elegíveis só para este teste).
+-- ⚠️ Testes específicos de elegibilidade/período/prazo da 0027 (gestão não
+--    elegível, entry_date fora do período, prazo passado, prazo encerrado
+--    rejeitando antes de criar dado, unicidade por gestão) vivem em
+--    supabase/tests/0012_gestoes_elegiveis_e_prazo.sql — este arquivo cobre
+--    só o que já existia na 0026, atualizado para a assinatura nova.
 --
 --    1. sem campanha ativa: citi_import_member_via_forms recusa (sem_campanha_ativa),
 --       não cria membro nem ciclo
@@ -22,10 +27,13 @@
 --       ativa continua devolvendo o snapshot da PRIMEIRA campanha — nunca o
 --       da campanha atualmente ativa
 --    8. idempotência: reprocessar não duplica membro nem ciclo
---    9. campanha é IMUTÁVEL: UPDATE de gestao_id/entry_date é recusado pelo
---       trigger, mesmo direto na tabela
---   10. uma resposta que ficou sem snapshot (falhou por falta de campanha)
---       captura o snapshot da campanha ativa quando finalmente reprocessada
+--    9. campanha é IMUTÁVEL: UPDATE de gestao_id/entry_date/response_deadline_at
+--       é recusado pelo trigger, mesmo direto na tabela
+--   10. (0027) uma resposta rejeitada por falta de campanha é PERMANENTE: ao
+--       ser reprocessada depois que uma campanha existe, continua recusada
+--       com o MESMO motivo — nunca captura a campanha que passou a existir.
+--       Isto SUBSTITUI o comportamento da 0026 (que capturava a campanha
+--       ativa numa nova tentativa) — a regra de negócio exige o oposto.
 --   11. ACL: anon não executa citi_start_intake_campaign, citi_close_intake_campaign
 --       nem citi_import_member_via_forms
 --   12. ACL: authenticated executa start/close (GG usa pela Administração),
@@ -66,12 +74,12 @@ begin
     raise exception 'Fixture ausente: subárea % não encontrada — 0003 não está aplicada?', c_subarea_slug;
   end if;
 
-  insert into gestoes (id, name, start_date, end_date, status)
-  values (c_gestao_1, '2099.1', date '2099-01-01', date '2099-06-30', 'finalizada')
-  on conflict (id) do nothing;
-  insert into gestoes (id, name, start_date, end_date, status)
-  values (c_gestao_2, '2099.2', date '2099-07-01', date '2099-12-31', 'finalizada')
-  on conflict (id) do nothing;
+  insert into gestoes (id, name, start_date, end_date, status, google_forms_eligible)
+  values (c_gestao_1, '2099.1', date '2099-01-01', date '2099-06-30', 'finalizada', true)
+  on conflict (id) do update set google_forms_eligible = true;
+  insert into gestoes (id, name, start_date, end_date, status, google_forms_eligible)
+  values (c_gestao_2, '2099.2', date '2099-07-01', date '2099-12-31', 'finalizada', true)
+  on conflict (id) do update set google_forms_eligible = true;
 
   -- Garante que não sobrou campanha ativa de uma execução anterior que não
   -- terminou em rollback (não deveria acontecer, mas o teste não pode
@@ -104,7 +112,7 @@ begin
   v_passou := v_passou + 1;
 
   -- ═══ 2. citi_start_intake_campaign cria e ativa ═══════════════════════════
-  v_campanha_1 := citi_start_intake_campaign(c_gestao_1, date '2099-02-01');
+  v_campanha_1 := citi_start_intake_campaign(c_gestao_1, date '2099-02-01', now() + interval '30 days');
 
   if v_campanha_1.status <> 'ativa' then
     raise exception '% 2a: campanha deveria nascer ativa, veio %.', marcador, v_campanha_1.status;
@@ -116,7 +124,7 @@ begin
 
   -- ═══ 3. No máximo uma ativa — a função recusa ═════════════════════════════
   begin
-    perform citi_start_intake_campaign(c_gestao_2, date '2099-08-01');
+    perform citi_start_intake_campaign(c_gestao_2, date '2099-08-01', now() + interval '10 days');
     raise exception '% 3: deveria ter recusado iniciar uma segunda campanha ativa.', marcador;
   exception
     when others then
@@ -128,8 +136,8 @@ begin
 
   -- ═══ 4. Defesa em profundidade: índice único recusa mesmo por INSERT direto
   begin
-    insert into member_intake_campaigns (gestao_id, entry_date, status)
-    values (c_gestao_2, date '2099-08-01', 'ativa');
+    insert into member_intake_campaigns (gestao_id, entry_date, response_deadline_at, status)
+    values (c_gestao_2, date '2099-08-01', now() + interval '10 days', 'ativa');
     raise exception '% 4: índice único deveria ter recusado uma segunda linha ativa.', marcador;
   exception
     when unique_violation then
@@ -179,7 +187,7 @@ begin
 
   -- ═══ 7 e 8. Reprocessar depois de OUTRA campanha ativa usa o snapshot ═════
   -- ═══         ORIGINAL — nunca a campanha atual — e não duplica nada ═══════
-  v_campanha_2 := citi_start_intake_campaign(c_gestao_2, date '2099-08-15');
+  v_campanha_2 := citi_start_intake_campaign(c_gestao_2, date '2099-08-15', now() + interval '10 days');
 
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-2', -- MESMA resposta do passo 5
@@ -238,10 +246,23 @@ begin
         raise exception '% 9b-b: recusou pelo motivo errado: %', marcador, sqlerrm;
       end if;
   end;
+
+  begin
+    update member_intake_campaigns set response_deadline_at = now() + interval '1 year' where id = v_campanha_2.id;
+    raise exception '% 9c: deveria ter recusado alterar response_deadline_at de campanha existente.', marcador;
+  exception
+    when others then
+      if sqlerrm not ilike '%não pode ser alterad%' then
+        raise exception '% 9c-b: recusou pelo motivo errado: %', marcador, sqlerrm;
+      end if;
+  end;
   v_passou := v_passou + 1;
 
-  -- ═══ 10. Resposta sem snapshot captura a campanha ativa quando reprocessada
-  -- (a resposta do passo 1 nunca teve snapshot — agora HÁ campanha ativa: a 2)
+  -- ═══ 10. (0027) Rejeição por falta de campanha é PERMANENTE ═══════════════
+  -- A resposta do passo 1 foi recusada por falta de campanha ativa. Agora HÁ
+  -- uma campanha ativa (a 2) — mas a regra de negócio exige que essa resposta
+  -- NUNCA seja vinculada a uma campanha que passou a existir depois. Reprocessar
+  -- deve devolver a MESMA rejeição, sem criar membro nenhum.
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-1',
     p_payload     => '{}'::jsonb,
@@ -250,15 +271,22 @@ begin
     p_subarea_id  => v_subarea_id
   );
 
-  if v_res ->> 'outcome' <> 'criado' then
-    raise exception '% 10a: com campanha ativa, deveria criar agora — outcome %.', marcador, v_res ->> 'outcome';
+  if v_res ->> 'outcome' <> 'sem_campanha_ativa' then
+    raise exception '% 10a: rejeição deveria continuar sem_campanha_ativa (permanente), veio %.',
+      marcador, v_res ->> 'outcome';
+  end if;
+  if exists (select 1 from members where email = c_email_1) then
+    raise exception '% 10b: membro NÃO deveria ter sido criado — rejeição é permanente.', marcador;
   end if;
 
   select * into v_submission
     from member_intake_submissions
    where source = 'google_forms' and external_id = 'google_forms:form-teste:campanha-resposta-1';
-  if v_submission.campaign_id <> v_campanha_2.id then
-    raise exception '% 10b: snapshot capturado deveria ser o da campanha 2 (ativa agora).', marcador;
+  if v_submission.campaign_id is not null then
+    raise exception '% 10c: submissão rejeitada permanentemente não deveria ter campaign_id nenhum.', marcador;
+  end if;
+  if not v_submission.campaign_rejected or v_submission.rejection_reason <> 'sem_campanha_ativa' then
+    raise exception '% 10d: campaign_rejected/rejection_reason não confere.', marcador;
   end if;
   v_passou := v_passou + 1;
 
@@ -267,7 +295,7 @@ begin
 
   -- ═══ 11 e 12. ACL das funções de campanha e de importação ═════════════════
   declare
-    v_fn_start  constant regprocedure := 'citi_start_intake_campaign(uuid, date)'::regprocedure;
+    v_fn_start  constant regprocedure := 'citi_start_intake_campaign(uuid, date, timestamptz)'::regprocedure;
     v_fn_close  constant regprocedure := 'citi_close_intake_campaign(uuid)'::regprocedure;
     v_fn_import constant regprocedure :=
       'citi_import_member_via_forms(text, jsonb, text, text, uuid, text, text, text, text, integer, date)'::regprocedure;

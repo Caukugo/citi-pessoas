@@ -891,11 +891,13 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async startCampaign(input) {
-      // Uma chamada só: valida, confere que não há outra ativa e cria —
-      // tudo na mesma transação do Postgres (migration 0026).
+      // Uma chamada só: valida (gestão elegível, sem campanha anterior,
+      // entry_date dentro do período, prazo no futuro) e cria — tudo na
+      // mesma transação do Postgres (migrations 0026 + 0027).
       const { data, error } = await supabase().rpc('citi_start_intake_campaign', {
         p_gestao_id: input.gestaoId,
         p_entry_date: input.entryDate,
+        p_response_deadline_at: input.responseDeadlineAt,
       });
       if (error) fail(error, 'Erro ao iniciar a campanha de entrada');
       return fromIntakeCampaignRow(data as Record<string, unknown>);
@@ -907,6 +909,15 @@ export const supabaseAdapter: DataAdapter = {
       });
       if (error) fail(error, 'Erro ao encerrar a campanha de entrada');
       return fromIntakeCampaignRow(data as Record<string, unknown>);
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      const { count, error } = await supabase()
+        .from('member_intake_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+      if (error) fail(error, 'Erro ao contar respostas da campanha');
+      return count ?? 0;
     },
   },
 };

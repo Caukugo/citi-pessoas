@@ -501,6 +501,13 @@ export interface Gestao {
   startDate: ISODate;
   endDate: ISODate;
   status: 'ativa' | 'finalizada';
+  /**
+   * Se esta gestão pode receber uma campanha de entrada via Google Forms
+   * (migration 0027). Gestões correntes/passadas são sempre `false` — entram
+   * por importação manual, nunca pelo Forms. Só a GG decide (fora do código)
+   * quais gestões futuras entram nessa lista.
+   */
+  googleFormsEligible: boolean;
 }
 
 // ─── Entrada de membros via Google Forms ─────────────────────────────────────
@@ -535,16 +542,24 @@ export type IntakeCampaignStatus = 'ativa' | 'encerrada';
 
 /**
  * Uma campanha de entrada: a janela em que o formulário permanente aceita
- * respostas para UMA gestão e UMA data oficial de entrada.
+ * respostas para UMA gestão, com UMA data oficial de entrada e UM prazo.
  *
- * REGRA DE PRODUTO: `gestaoId`/`entryDate` são imutáveis depois de criada —
- * corrigir um engano é encerrar e abrir outra, nunca editar. No máximo uma
- * `ativa` por vez. Encerrada não é apagada: é histórico.
+ * REGRA DE PRODUTO (0026 + 0027):
+ *   • `gestaoId`/`entryDate`/`responseDeadlineAt` são imutáveis depois de
+ *     criada — corrigir um engano é encerrar e abrir outra, nunca editar;
+ *   • no máximo uma `ativa` por vez;
+ *   • cada gestão tem NO MÁXIMO UMA campanha, para sempre — mesmo depois de
+ *     encerrada, a mesma gestão nunca recebe uma segunda;
+ *   • depois de `responseDeadlineAt`, nenhuma resposta nova cria membro —
+ *     mesmo que ninguém tenha clicado em "Encerrar entrada";
+ *   • encerrada não é apagada: é histórico.
  */
 export interface IntakeCampaign {
   id: ID;
   gestaoId: ID;
   entryDate: ISODate;
+  /** Data e hora limite para respostas (com fuso). Imutável após a criação. */
+  responseDeadlineAt: ISODate;
   status: IntakeCampaignStatus;
   activatedAt: ISODate;
   activatedById?: ID | null;
@@ -555,6 +570,7 @@ export interface IntakeCampaign {
 export interface StartIntakeCampaignInput {
   gestaoId: ID;
   entryDate: ISODate;
+  responseDeadlineAt: ISODate;
 }
 
 // ─── Cultura ──────────────────────────────────────────────────────────────────

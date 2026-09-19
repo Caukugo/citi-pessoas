@@ -21,15 +21,24 @@ import {
 import {
   messageFor,
   useActiveIntakeCampaign,
+  useCampaignSubmissionCount,
   useCloseIntakeCampaign,
   useGestoes,
   useGoogleFormsIntakeConfig,
   useIntakeCampaigns,
   useStartIntakeCampaign,
   type ID,
+  type IntakeCampaign,
   type IntakeCampaignStatus,
 } from '@/data';
 import { formatDate, formatDateTime } from '@/lib/format';
+import {
+  campaignDeadlineState,
+  eligibleGestoesForCampaign,
+  formatTimeUntilDeadline,
+  isDeadlineInFuture,
+  isEntryDateWithinGestao,
+} from '../model/intakeCampaignEligibility';
 
 const DASH = '·';
 
@@ -38,6 +47,14 @@ const CAMPAIGN_STATUS_LABEL: Record<IntakeCampaignStatus, string> = {
   encerrada: 'Encerrada',
 };
 
+/** Conta respostas da campanha ativa — hook à parte para não violar as regras de hooks. */
+function ContagemDeRespostas({ campaignId }: { campaignId: ID }) {
+  const count = useCampaignSubmissionCount(campaignId);
+  if (count.isLoading) return <>…</>;
+  if (count.isError) return <>{DASH}</>;
+  return <>{count.data}</>;
+}
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * ENTRADA DE MEMBROS — Google Forms como formulário PERMANENTE.
@@ -45,8 +62,13 @@ const CAMPAIGN_STATUS_LABEL: Record<IntakeCampaignStatus, string> = {
  * O que é configurado UMA VEZ (Apps Script, gatilho, segredo, `formId`, link)
  * não tem controle aqui de propósito — é bootstrap raro e técnico, documentado
  * em `docs/google-forms-intake-setup.md`. O que ESTA tela resolve é o que a GG
- * faz a cada gestão: abrir e encerrar a campanha de entrada, sem tocar em nada
- * do formulário em si.
+ * faz a cada gestão: abrir e encerrar a campanha de entrada, com seu prazo,
+ * sem tocar em nada do formulário em si.
+ *
+ * O seletor de gestão só oferece gestões ELEGÍVEIS e SEM campanha anterior
+ * (`eligibleGestoesForCampaign`, migration 0027) — mas o banco (`
+ * citi_start_intake_campaign`) é quem garante isso de verdade; o filtro aqui é
+ * só para a tela nunca oferecer uma opção que o banco recusaria.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function EntradaMembrosPanel() {
@@ -61,12 +83,22 @@ export function EntradaMembrosPanel() {
 
   const [selectedGestaoId, setSelectedGestaoId] = useState('');
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [responseDeadline, setResponseDeadline] = useState(''); // valor de <input type="datetime-local">
   const [confirmStart, setConfirmStart] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const gestaoName = (id: ID | null | undefined) =>
     gestoes.data?.find((g) => g.id === id)?.name ?? DASH;
+
+  const opcoesDeGestao = eligibleGestoesForCampaign(gestoes.data ?? [], campaigns.data ?? []);
+  const gestaoSelecionada = opcoesDeGestao.find((g) => g.id === selectedGestaoId) ?? null;
+
+  /** `datetime-local` não tem fuso — o navegador interpreta como HORÁRIO LOCAL
+   * de quem preenche, e `toISOString()` converte para UTC. Isto é o que torna
+   * o prazo "inequívoco": o que fica gravado é sempre o mesmo instante,
+   * qualquer que seja o fuso de quem olhar depois. */
+  const responseDeadlineAtISO = responseDeadline ? new Date(responseDeadline).toISOString() : '';
 
   const copiarLink = async () => {
     if (!config.data?.responderUrl) return;
@@ -78,21 +110,48 @@ export function EntradaMembrosPanel() {
     }
   };
 
+  const validarAntesDeConfirmar = (): string | null => {
+    if (!selectedGestaoId || !gestaoSelecionada) return 'Escolha a gestão desta campanha.';
+    if (!entryDate) return 'Informe a data oficial de entrada.';
+    if (!isEntryDateWithinGestao(entryDate, gestaoSelecionada)) {
+      return `A data oficial precisa estar entre ${formatDate(gestaoSelecionada.startDate)} e ${formatDate(gestaoSelecionada.endDate)} (período da gestão ${gestaoSelecionada.name}).`;
+    }
+    if (!responseDeadline) return 'Informe a data e hora limite para respostas.';
+    if (!isDeadlineInFuture(responseDeadlineAtISO)) return 'O prazo de resposta precisa estar no futuro.';
+    return null;
+  };
+
+  const abrirConfirmacaoDeInicio = () => {
+    setErro(null);
+    const problema = validarAntesDeConfirmar();
+    if (problema) {
+      setErro(problema);
+      return;
+    }
+    setConfirmStart(true);
+  };
+
   const iniciarEntrada = async () => {
     setConfirmStart(false);
     setErro(null);
-    if (!selectedGestaoId) {
-      setErro('Escolha a gestão desta campanha.');
+    const problema = validarAntesDeConfirmar();
+    if (problema) {
+      setErro(problema);
       return;
     }
     try {
-      await startCampaign.mutateAsync({ gestaoId: selectedGestaoId, entryDate });
+      await startCampaign.mutateAsync({
+        gestaoId: selectedGestaoId,
+        entryDate,
+        responseDeadlineAt: responseDeadlineAtISO,
+      });
       showToast({
         message: 'Campanha de entrada iniciada',
-        description: 'Novas respostas do formulário já usam esta gestão e esta data.',
+        description: 'Novas respostas do formulário já usam esta gestão, data e prazo.',
         tone: 'success',
       });
       setSelectedGestaoId('');
+      setResponseDeadline('');
     } catch (cause) {
       setErro(messageFor(cause));
     }
@@ -136,6 +195,11 @@ export function EntradaMembrosPanel() {
   const cfg = config.data;
   const campanhaAtiva = activeCampaign.data ?? null;
   const historico = campaigns.data ?? [];
+  const prazoDaAtiva: IntakeCampaign['status'] | 'expirada' | null = campanhaAtiva
+    ? campaignDeadlineState(campanhaAtiva.responseDeadlineAt) === 'encerrada'
+      ? 'expirada'
+      : campanhaAtiva.status
+    : null;
 
   return (
     <Panel
@@ -191,8 +255,10 @@ export function EntradaMembrosPanel() {
           ) : campanhaAtiva ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-surface-muted p-3">
               <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <Badge tone="ok">Ativa</Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={prazoDaAtiva === 'expirada' ? 'warn' : 'ok'}>
+                    {prazoDaAtiva === 'expirada' ? 'Prazo encerrado' : 'Ativa'}
+                  </Badge>
                   <span className="text-sm font-medium text-foreground">
                     {gestaoName(campanhaAtiva.gestaoId)}
                   </span>
@@ -200,6 +266,13 @@ export function EntradaMembrosPanel() {
                 <span className="text-xs text-muted-foreground">
                   Data oficial de entrada: {formatDate(campanhaAtiva.entryDate)} · iniciada em{' '}
                   {formatDateTime(campanhaAtiva.activatedAt)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Prazo: {formatDateTime(campanhaAtiva.responseDeadlineAt)} ·{' '}
+                  {formatTimeUntilDeadline(campanhaAtiva.responseDeadlineAt)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Respostas recebidas: <ContagemDeRespostas campaignId={campanhaAtiva.id} />
                 </span>
               </div>
               <Button
@@ -215,18 +288,24 @@ export function EntradaMembrosPanel() {
             <div className="flex flex-col gap-3 rounded-md border border-dashed border-border p-3">
               <p className="text-sm text-muted-foreground">
                 Nenhuma campanha ativa agora. Enquanto isso, o formulário recusa criar
-                membro novo — respostas ficam pendentes até uma campanha ser iniciada.
+                membro novo — respostas ficam registradas (sem campanha) até uma ser iniciada.
               </p>
 
-              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">Gestão</span>
                   <Select
                     aria-label="Gestão desta campanha"
                     value={selectedGestaoId}
                     onChange={(e) => setSelectedGestaoId(e.target.value)}
-                    placeholder={gestoes.isLoading ? 'Carregando…' : 'Escolha a gestão'}
-                    options={(gestoes.data ?? []).map((g) => ({ value: g.id, label: g.name }))}
+                    placeholder={
+                      gestoes.isLoading
+                        ? 'Carregando…'
+                        : opcoesDeGestao.length === 0
+                          ? 'Nenhuma gestão elegível disponível'
+                          : 'Escolha a gestão'
+                    }
+                    options={opcoesDeGestao.map((g) => ({ value: g.id, label: g.name }))}
                   />
                 </label>
 
@@ -236,16 +315,30 @@ export function EntradaMembrosPanel() {
                     type="date"
                     value={entryDate}
                     onChange={(e) => setEntryDate(e.target.value)}
+                    min={gestaoSelecionada?.startDate}
+                    max={gestaoSelecionada?.endDate}
                     className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground"
                   />
                 </label>
 
+                <label className="flex flex-col gap-1 sm:col-span-2">
+                  <span className="text-xs text-muted-foreground">Prazo — data e hora limite para respostas</span>
+                  <input
+                    type="datetime-local"
+                    value={responseDeadline}
+                    onChange={(e) => setResponseDeadline(e.target.value)}
+                    className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground"
+                  />
+                </label>
+              </div>
+
+              <div>
                 <Button
                   variant="primary"
                   icon={<Play size={15} />}
                   loading={startCampaign.isPending}
-                  disabled={!cfg.enabled}
-                  onClick={() => setConfirmStart(true)}
+                  disabled={!cfg.enabled || opcoesDeGestao.length === 0}
+                  onClick={abrirConfirmacaoDeInicio}
                 >
                   Iniciar entrada
                 </Button>
@@ -254,6 +347,12 @@ export function EntradaMembrosPanel() {
               {!cfg.enabled && (
                 <p className="text-xs text-muted-foreground">
                   A integração está desabilitada — habilite-a (ver setup) antes de iniciar uma campanha.
+                </p>
+              )}
+              {cfg.enabled && opcoesDeGestao.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma gestão elegível sem campanha anterior — cadastre uma gestão futura elegível
+                  ou verifique se todas as elegíveis já foram usadas.
                 </p>
               )}
             </div>
@@ -288,25 +387,36 @@ export function EntradaMembrosPanel() {
                   <TR>
                     <TH>Gestão</TH>
                     <TH>Data de entrada</TH>
+                    <TH>Prazo</TH>
                     <TH>Situação</TH>
+                    <TH>Respostas</TH>
                     <TH>Iniciada em</TH>
                     <TH>Encerrada em</TH>
                   </TR>
                 </THead>
                 <TBody>
-                  {historico.map((campaign) => (
-                    <TR key={campaign.id}>
-                      <TD>{gestaoName(campaign.gestaoId)}</TD>
-                      <TD>{formatDate(campaign.entryDate)}</TD>
-                      <TD>
-                        <Badge tone={campaign.status === 'ativa' ? 'ok' : 'neutral'}>
-                          {CAMPAIGN_STATUS_LABEL[campaign.status]}
-                        </Badge>
-                      </TD>
-                      <TD>{formatDateTime(campaign.activatedAt)}</TD>
-                      <TD>{campaign.closedAt ? formatDateTime(campaign.closedAt) : DASH}</TD>
-                    </TR>
-                  ))}
+                  {historico.map((campaign) => {
+                    const expirada =
+                      campaign.status === 'ativa' &&
+                      campaignDeadlineState(campaign.responseDeadlineAt) === 'encerrada';
+                    return (
+                      <TR key={campaign.id}>
+                        <TD>{gestaoName(campaign.gestaoId)}</TD>
+                        <TD>{formatDate(campaign.entryDate)}</TD>
+                        <TD>{formatDateTime(campaign.responseDeadlineAt)}</TD>
+                        <TD>
+                          <Badge tone={expirada ? 'warn' : campaign.status === 'ativa' ? 'ok' : 'neutral'}>
+                            {expirada ? 'Prazo encerrado' : CAMPAIGN_STATUS_LABEL[campaign.status]}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <ContagemDeRespostas campaignId={campaign.id} />
+                        </TD>
+                        <TD>{formatDateTime(campaign.activatedAt)}</TD>
+                        <TD>{campaign.closedAt ? formatDateTime(campaign.closedAt) : DASH}</TD>
+                      </TR>
+                    );
+                  })}
                 </TBody>
               </Table>
             </TableWrapper>
@@ -321,7 +431,9 @@ export function EntradaMembrosPanel() {
         title="Iniciar esta campanha de entrada?"
         description={`A partir de agora, novas respostas do formulário criam membro na gestão ${gestaoName(
           selectedGestaoId,
-        )}, com data oficial de entrada ${formatDate(entryDate)}.`}
+        )}, com data oficial de entrada ${formatDate(entryDate)} e prazo até ${
+          responseDeadlineAtISO ? formatDateTime(responseDeadlineAtISO) : DASH
+        }.`}
         confirmLabel="Iniciar entrada"
         loading={startCampaign.isPending}
       />

@@ -52,6 +52,10 @@ export function closeIntakeCampaign(campaignId: ID): Promise<IntakeCampaign> {
   return db.googleFormsIntake.closeCampaign(campaignId);
 }
 
+export function getCampaignSubmissionCount(campaignId: ID): Promise<number> {
+  return db.googleFormsIntake.countCampaignSubmissions(campaignId);
+}
+
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useGoogleFormsIntakeConfig() {
@@ -106,5 +110,14 @@ export function useCloseIntakeCampaign() {
       queryClient.invalidateQueries({ queryKey: queryKeys.googleFormsIntake.activeCampaign });
       queryClient.invalidateQueries({ queryKey: queryKeys.googleFormsIntake.campaigns });
     },
+  });
+}
+
+/** Quantas respostas já chegaram para esta campanha — para a Administração exibir. */
+export function useCampaignSubmissionCount(campaignId: ID | undefined) {
+  return useQuery({
+    queryKey: queryKeys.googleFormsIntake.submissionCount(campaignId as ID),
+    queryFn: () => getCampaignSubmissionCount(campaignId as ID),
+    enabled: campaignId !== undefined,
   });
 }
