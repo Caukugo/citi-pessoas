@@ -1,28 +1,45 @@
-import type { Gestao, ID, IntakeCampaign } from '@/data';
+import { isDeadlineInFuture, recifeTodayISO, type Gestao, type ID, type IntakeCampaign } from '@/data';
+
+// Reexportadas para quem já importa daqui — a fonte de verdade destas regras
+// (formato de rótulo, período, horizonte, fuso de Recife) é `@/data`
+// (`src/data/gestaoLabel.ts`), porque o adapter mock também precisa delas e
+// `src/data/` não pode depender de `src/features/`.
+export {
+  computeGestaoPeriod,
+  isDeadlineBeforeEntryDate,
+  isDeadlineInFuture,
+  isValidGestaoLabel,
+  isWithinHorizon,
+  recifeMidnightISO,
+  recifeTodayISO,
+} from '@/data';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * Regras PURAS de elegibilidade e prazo da campanha de entrada (migration 0027).
- *
- * Espelham o que o banco também garante (`citi_start_intake_campaign`) — o
- * banco é a fonte de verdade, isto aqui é só para a tela recusar cedo, com uma
- * mensagem clara, em vez de esperar a viagem de rede para descobrir.
+ * Regras PURAS de elegibilidade e prazo da campanha de entrada — o que é
+ * específico da TELA de Administração (montar sugestões, formatar contagem).
+ * As regras de rótulo/período/fuso, compartilhadas com o adapter mock, vivem
+ * em `src/data/gestaoLabel.ts` e são só reexportadas acima.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 /**
- * Gestões que podem aparecer no seletor de nova campanha: elegíveis para o
- * Google Forms E que ainda não tiveram campanha nenhuma — 0027 exige uma
- * campanha por gestão, para sempre, mesmo que já tenha sido encerrada.
- * Ordenadas cronologicamente (a mais próxima primeiro).
+ * Gestões que podem aparecer como SUGESTÃO no combobox de nova campanha:
+ * `planejada`, ainda não começou (America/Recife) e sem campanha anterior
+ * (0029: uma campanha por gestão, para sempre). Ordenadas cronologicamente.
+ *
+ * ⚠️ Isto NÃO impede digitar um rótulo novo que não está nesta lista — o
+ * combobox aceita texto livre no formato certo; esta função só monta as
+ * sugestões. A checagem de "pode mesmo receber campanha" é sempre do banco.
  */
 export function eligibleGestoesForCampaign(
   gestoes: Gestao[],
   campaigns: IntakeCampaign[],
+  todayISO: string = recifeTodayISO(),
 ): Gestao[] {
   const gestoesComCampanha = new Set<ID>(campaigns.map((c) => c.gestaoId));
   return gestoes
-    .filter((g) => g.googleFormsEligible && !gestoesComCampanha.has(g.id))
+    .filter((g) => g.status === 'planejada' && g.startDate > todayISO && !gestoesComCampanha.has(g.id))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 
@@ -32,12 +49,6 @@ export function isEntryDateWithinGestao(
   gestao: Pick<Gestao, 'startDate' | 'endDate'>,
 ): boolean {
   return entryDate >= gestao.startDate && entryDate <= gestao.endDate;
-}
-
-/** O prazo só é válido se estiver no futuro no momento em que a campanha é criada. */
-export function isDeadlineInFuture(responseDeadlineAt: string, now: Date = new Date()): boolean {
-  const parsed = new Date(responseDeadlineAt).getTime();
-  return Number.isFinite(parsed) && parsed > now.getTime();
 }
 
 export type CampaignDeadlineState = 'aberta' | 'encerrada';

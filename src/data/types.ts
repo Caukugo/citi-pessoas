@@ -494,20 +494,28 @@ export interface MemberRecordCorrection {
  * registros e preservar contexto. O módulo completo (metas, indicadores,
  * passagem de gestão) é evolução futura — não implemente agora.
  */
+/**
+ * Situação da gestão.
+ *
+ *   ativa      a gestão corrente da empresa — só uma por vez.
+ *   finalizada já aconteceu.
+ *   planejada  tem nome e período definidos, mas ainda não começou — nunca
+ *              presuma que "diferente de ativa" significa "finalizada": uma
+ *              gestão planejada não é nem uma coisa nem a outra (migration 0028).
+ *
+ * Só gestão `planejada` pode receber uma campanha de entrada via Google Forms
+ * (migration 0029) — nasce assim ao ser criada pelo combobox da Administração,
+ * e abrir a campanha NUNCA promove `planejada` para `ativa`.
+ */
+export type GestaoStatus = 'ativa' | 'finalizada' | 'planejada';
+
 export interface Gestao {
   id: ID;
   /** Rótulo da gestão, no formato usado pelo CITi: '2026.1'. */
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  status: 'ativa' | 'finalizada';
-  /**
-   * Se esta gestão pode receber uma campanha de entrada via Google Forms
-   * (migration 0027). Gestões correntes/passadas são sempre `false` — entram
-   * por importação manual, nunca pelo Forms. Só a GG decide (fora do código)
-   * quais gestões futuras entram nessa lista.
-   */
-  googleFormsEligible: boolean;
+  status: GestaoStatus;
 }
 
 // ─── Entrada de membros via Google Forms ─────────────────────────────────────
@@ -567,8 +575,14 @@ export interface IntakeCampaign {
   closedById?: ID | null;
 }
 
+/**
+ * `gestaoLabel`, não `gestaoId` (0029): a campanha é criada a partir do
+ * RÓTULO da gestão (`'2029.2'`) — existente ou novo. O backend localiza a
+ * gestão pelo nome e, se não existir, cria como `planejada`, tudo na mesma
+ * transação. Nunca crie a gestão separadamente antes de chamar isto.
+ */
 export interface StartIntakeCampaignInput {
-  gestaoId: ID;
+  gestaoLabel: string;
   entryDate: ISODate;
   responseDeadlineAt: ISODate;
 }

@@ -891,11 +891,14 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async startCampaign(input) {
-      // Uma chamada só: valida (gestão elegível, sem campanha anterior,
-      // entry_date dentro do período, prazo no futuro) e cria — tudo na
-      // mesma transação do Postgres (migrations 0026 + 0027).
+      // Uma chamada só: localiza a gestão pelo RÓTULO ou cria como
+      // `planejada` (0029), valida (status, período, prazo, sem campanha
+      // anterior) e cria a campanha — tudo na mesma transação do Postgres,
+      // serializada por advisory lock. Erros de negócio chegam aqui como
+      // mensagem prefixada por um código estável (`gestao_ja_possui_campanha:`
+      // etc.) — nunca um erro de SQL bruto.
       const { data, error } = await supabase().rpc('citi_start_intake_campaign', {
-        p_gestao_id: input.gestaoId,
+        p_gestao_label: input.gestaoLabel,
         p_entry_date: input.entryDate,
         p_response_deadline_at: input.responseDeadlineAt,
       });

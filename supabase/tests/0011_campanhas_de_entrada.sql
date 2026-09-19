@@ -1,17 +1,19 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DE CAMPANHAS DE ENTRADA (migrations 0026 + 0027)
+-- TESTES DE CAMPANHAS DE ENTRADA (migrations 0026 + 0027 + 0029)
 --
 -- Como rodar:
 --   npx supabase db query --linked -f supabase/tests/0011_campanhas_de_entrada.sql
 --
 -- ⚠️ TERMINA EM `rollback`. Nada do que ele cria sobrevive.
 -- ⚠️ Todos os dados são FICTÍCIOS (e-mails `.invalid`, gestões '2099.1'/'2099.2'
---    fora de qualquer intervalo real, marcadas elegíveis só para este teste).
--- ⚠️ Testes específicos de elegibilidade/período/prazo da 0027 (gestão não
---    elegível, entry_date fora do período, prazo passado, prazo encerrado
---    rejeitando antes de criar dado, unicidade por gestão) vivem em
---    supabase/tests/0012_gestoes_elegiveis_e_prazo.sql — este arquivo cobre
---    só o que já existia na 0026, atualizado para a assinatura nova.
+--    fora de qualquer intervalo real). As gestões são inseridas DIRETO na
+--    tabela (não pela RPC) — por isso o horizonte móvel de 5 anos (0029, que
+--    só vale para uma gestão CRIADA pela RPC) não se aplica aqui; a RPC só
+--    precisa ENCONTRAR estas duas pelo nome.
+-- ⚠️ Testes específicos de rótulo/horizonte/fuso/estado da gestão (0028/0029)
+--    vivem em supabase/tests/0012_gestoes_elegiveis_e_prazo.sql — este
+--    arquivo cobre o que já existia na 0026/0027 (snapshot, reprocessamento,
+--    imutabilidade), atualizado para a assinatura por RÓTULO.
 --
 --    1. sem campanha ativa: citi_import_member_via_forms recusa (sem_campanha_ativa),
 --       não cria membro nem ciclo
@@ -74,12 +76,12 @@ begin
     raise exception 'Fixture ausente: subárea % não encontrada — 0003 não está aplicada?', c_subarea_slug;
   end if;
 
-  insert into gestoes (id, name, start_date, end_date, status, google_forms_eligible)
-  values (c_gestao_1, '2099.1', date '2099-01-01', date '2099-06-30', 'finalizada', true)
-  on conflict (id) do update set google_forms_eligible = true;
-  insert into gestoes (id, name, start_date, end_date, status, google_forms_eligible)
-  values (c_gestao_2, '2099.2', date '2099-07-01', date '2099-12-31', 'finalizada', true)
-  on conflict (id) do update set google_forms_eligible = true;
+  insert into gestoes (id, name, start_date, end_date, status)
+  values (c_gestao_1, '2099.1', date '2099-01-01', date '2099-06-30', 'planejada')
+  on conflict (id) do update set status = 'planejada';
+  insert into gestoes (id, name, start_date, end_date, status)
+  values (c_gestao_2, '2099.2', date '2099-07-01', date '2099-12-31', 'planejada')
+  on conflict (id) do update set status = 'planejada';
 
   -- Garante que não sobrou campanha ativa de uma execução anterior que não
   -- terminou em rollback (não deveria acontecer, mas o teste não pode
@@ -112,7 +114,7 @@ begin
   v_passou := v_passou + 1;
 
   -- ═══ 2. citi_start_intake_campaign cria e ativa ═══════════════════════════
-  v_campanha_1 := citi_start_intake_campaign(c_gestao_1, date '2099-02-01', now() + interval '30 days');
+  v_campanha_1 := citi_start_intake_campaign('2099.1', date '2099-02-01', now() + interval '30 days');
 
   if v_campanha_1.status <> 'ativa' then
     raise exception '% 2a: campanha deveria nascer ativa, veio %.', marcador, v_campanha_1.status;
@@ -124,7 +126,7 @@ begin
 
   -- ═══ 3. No máximo uma ativa — a função recusa ═════════════════════════════
   begin
-    perform citi_start_intake_campaign(c_gestao_2, date '2099-08-01', now() + interval '10 days');
+    perform citi_start_intake_campaign('2099.2', date '2099-08-01', now() + interval '10 days');
     raise exception '% 3: deveria ter recusado iniciar uma segunda campanha ativa.', marcador;
   exception
     when others then
@@ -187,7 +189,7 @@ begin
 
   -- ═══ 7 e 8. Reprocessar depois de OUTRA campanha ativa usa o snapshot ═════
   -- ═══         ORIGINAL — nunca a campanha atual — e não duplica nada ═══════
-  v_campanha_2 := citi_start_intake_campaign(c_gestao_2, date '2099-08-15', now() + interval '10 days');
+  v_campanha_2 := citi_start_intake_campaign('2099.2', date '2099-08-15', now() + interval '10 days');
 
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-2', -- MESMA resposta do passo 5
@@ -295,7 +297,7 @@ begin
 
   -- ═══ 11 e 12. ACL das funções de campanha e de importação ═════════════════
   declare
-    v_fn_start  constant regprocedure := 'citi_start_intake_campaign(uuid, date, timestamptz)'::regprocedure;
+    v_fn_start  constant regprocedure := 'citi_start_intake_campaign(text, date, timestamptz)'::regprocedure;
     v_fn_close  constant regprocedure := 'citi_close_intake_campaign(uuid)'::regprocedure;
     v_fn_import constant regprocedure :=
       'citi_import_member_via_forms(text, jsonb, text, text, uuid, text, text, text, text, integer, date)'::regprocedure;

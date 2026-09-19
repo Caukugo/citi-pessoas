@@ -8,7 +8,6 @@ import {
   ErrorState,
   LoadingState,
   Panel,
-  Select,
   Table,
   TableWrapper,
   TBody,
@@ -31,21 +30,41 @@ import {
   type IntakeCampaign,
   type IntakeCampaignStatus,
 } from '@/data';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import {
   campaignDeadlineState,
+  computeGestaoPeriod,
   eligibleGestoesForCampaign,
   formatTimeUntilDeadline,
+  isDeadlineBeforeEntryDate,
   isDeadlineInFuture,
-  isEntryDateWithinGestao,
+  isValidGestaoLabel,
+  isWithinHorizon,
+  recifeTodayISO,
 } from '../model/intakeCampaignEligibility';
 
 const DASH = '·';
+const RECIFE_TZ_LABEL = 'América/Recife';
 
 const CAMPAIGN_STATUS_LABEL: Record<IntakeCampaignStatus, string> = {
   ativa: 'Ativa',
   encerrada: 'Encerrada',
 };
+
+/** Sempre em America/Recife, explícito — nunca o fuso do navegador de quem olha. */
+const RECIFE_DATETIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Recife',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatRecifeDateTime(iso: string | null | undefined): string {
+  if (!iso) return DASH;
+  return `${RECIFE_DATETIME_FORMATTER.format(new Date(iso))} (${RECIFE_TZ_LABEL})`;
+}
 
 /** Conta respostas da campanha ativa — hook à parte para não violar as regras de hooks. */
 function ContagemDeRespostas({ campaignId }: { campaignId: ID }) {
@@ -65,10 +84,13 @@ function ContagemDeRespostas({ campaignId }: { campaignId: ID }) {
  * faz a cada gestão: abrir e encerrar a campanha de entrada, com seu prazo,
  * sem tocar em nada do formulário em si.
  *
- * O seletor de gestão só oferece gestões ELEGÍVEIS e SEM campanha anterior
- * (`eligibleGestoesForCampaign`, migration 0027) — mas o banco (`
- * citi_start_intake_campaign`) é quem garante isso de verdade; o filtro aqui é
- * só para a tela nunca oferecer uma opção que o banco recusaria.
+ * GESTÃO É UM COMBOBOX (0029), não um `<select>` fechado: aceita escolher uma
+ * gestão futura já cadastrada e sem campanha (sugestões do `<datalist>`), ou
+ * digitar uma nova (`'2029.2'`) — o banco cria como `planejada` na mesma
+ * transação da campanha, sem que ninguém precise pré-cadastrar gestão nenhuma
+ * antes. O filtro/validação aqui é só para a tela nunca oferecer, ou deixar
+ * confirmar, uma opção que o banco recusaria — a fonte de verdade continua
+ * sendo `citi_start_intake_campaign`.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export function EntradaMembrosPanel() {
@@ -81,8 +103,8 @@ export function EntradaMembrosPanel() {
   const startCampaign = useStartIntakeCampaign();
   const closeCampaign = useCloseIntakeCampaign();
 
-  const [selectedGestaoId, setSelectedGestaoId] = useState('');
-  const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [gestaoLabel, setGestaoLabel] = useState('');
+  const [entryDate, setEntryDate] = useState('');
   const [responseDeadline, setResponseDeadline] = useState(''); // valor de <input type="datetime-local">
   const [confirmStart, setConfirmStart] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -92,13 +114,20 @@ export function EntradaMembrosPanel() {
     gestoes.data?.find((g) => g.id === id)?.name ?? DASH;
 
   const opcoesDeGestao = eligibleGestoesForCampaign(gestoes.data ?? [], campaigns.data ?? []);
-  const gestaoSelecionada = opcoesDeGestao.find((g) => g.id === selectedGestaoId) ?? null;
+
+  const labelDigitado = gestaoLabel.trim();
+  const gestaoExistente = gestoes.data?.find((g) => g.name === labelDigitado) ?? null;
 
   /** `datetime-local` não tem fuso — o navegador interpreta como HORÁRIO LOCAL
    * de quem preenche, e `toISOString()` converte para UTC. Isto é o que torna
    * o prazo "inequívoco": o que fica gravado é sempre o mesmo instante,
    * qualquer que seja o fuso de quem olhar depois. */
   const responseDeadlineAtISO = responseDeadline ? new Date(responseDeadline).toISOString() : '';
+
+  /** Período que a campanha vai usar — da gestão existente, ou calculado do rótulo digitado (0029: AAAA.1 → jan–jun, AAAA.2 → jul–dez). */
+  const periodoPrevisto = gestaoExistente
+    ? { startDate: gestaoExistente.startDate, endDate: gestaoExistente.endDate }
+    : computeGestaoPeriod(labelDigitado);
 
   const copiarLink = async () => {
     if (!config.data?.responderUrl) return;
@@ -111,13 +140,36 @@ export function EntradaMembrosPanel() {
   };
 
   const validarAntesDeConfirmar = (): string | null => {
-    if (!selectedGestaoId || !gestaoSelecionada) return 'Escolha a gestão desta campanha.';
+    if (!labelDigitado) return 'Informe a gestão desta campanha (formato AAAA.1 ou AAAA.2).';
+    if (!isValidGestaoLabel(labelDigitado)) {
+      return `Gestão "${labelDigitado}" fora do formato esperado (AAAA.1 ou AAAA.2).`;
+    }
+    if (!periodoPrevisto) {
+      return `Gestão "${labelDigitado}" fora do formato esperado (AAAA.1 ou AAAA.2).`;
+    }
+
+    const hoje = recifeTodayISO();
+
+    if (gestaoExistente) {
+      if (gestaoExistente.status !== 'planejada') {
+        return `Gestão "${labelDigitado}" está com status ${gestaoExistente.status} — só gestão planejada pode receber campanha.`;
+      }
+    } else if (!isWithinHorizon(periodoPrevisto.startDate, hoje)) {
+      return `Gestão "${labelDigitado}" está além do horizonte permitido (5 anos). Confira o ano digitado.`;
+    }
+
+    if (periodoPrevisto.startDate <= hoje) {
+      return `Gestão "${labelDigitado}" já começou — não pode receber uma nova campanha.`;
+    }
     if (!entryDate) return 'Informe a data oficial de entrada.';
-    if (!isEntryDateWithinGestao(entryDate, gestaoSelecionada)) {
-      return `A data oficial precisa estar entre ${formatDate(gestaoSelecionada.startDate)} e ${formatDate(gestaoSelecionada.endDate)} (período da gestão ${gestaoSelecionada.name}).`;
+    if (entryDate < periodoPrevisto.startDate || entryDate > periodoPrevisto.endDate) {
+      return `A data oficial precisa estar entre ${formatDate(periodoPrevisto.startDate)} e ${formatDate(periodoPrevisto.endDate)} (período da gestão ${labelDigitado}).`;
     }
     if (!responseDeadline) return 'Informe a data e hora limite para respostas.';
     if (!isDeadlineInFuture(responseDeadlineAtISO)) return 'O prazo de resposta precisa estar no futuro.';
+    if (!isDeadlineBeforeEntryDate(responseDeadlineAtISO, entryDate)) {
+      return `O prazo de resposta precisa ser anterior à data oficial de entrada (meia-noite de ${formatDate(entryDate)}, ${RECIFE_TZ_LABEL}).`;
+    }
     return null;
   };
 
@@ -141,7 +193,7 @@ export function EntradaMembrosPanel() {
     }
     try {
       await startCampaign.mutateAsync({
-        gestaoId: selectedGestaoId,
+        gestaoLabel: labelDigitado,
         entryDate,
         responseDeadlineAt: responseDeadlineAtISO,
       });
@@ -150,7 +202,8 @@ export function EntradaMembrosPanel() {
         description: 'Novas respostas do formulário já usam esta gestão, data e prazo.',
         tone: 'success',
       });
-      setSelectedGestaoId('');
+      setGestaoLabel('');
+      setEntryDate('');
       setResponseDeadline('');
     } catch (cause) {
       setErro(messageFor(cause));
@@ -200,6 +253,12 @@ export function EntradaMembrosPanel() {
       ? 'expirada'
       : campanhaAtiva.status
     : null;
+
+  // Prévia só faz sentido quando o rótulo é NOVO (não existe ainda) e válido.
+  const previaDeCriacao =
+    !gestaoExistente && periodoPrevisto && isValidGestaoLabel(labelDigitado)
+      ? `Isto criará a gestão ${labelDigitado}, de ${formatDate(periodoPrevisto.startDate)} a ${formatDate(periodoPrevisto.endDate)}, se ela ainda não existir.`
+      : null;
 
   return (
     <Panel
@@ -265,10 +324,10 @@ export function EntradaMembrosPanel() {
                 </div>
                 <span className="text-xs text-muted-foreground">
                   Data oficial de entrada: {formatDate(campanhaAtiva.entryDate)} · iniciada em{' '}
-                  {formatDateTime(campanhaAtiva.activatedAt)}
+                  {formatRecifeDateTime(campanhaAtiva.activatedAt)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Prazo: {formatDateTime(campanhaAtiva.responseDeadlineAt)} ·{' '}
+                  Prazo: {formatRecifeDateTime(campanhaAtiva.responseDeadlineAt)} ·{' '}
                   {formatTimeUntilDeadline(campanhaAtiva.responseDeadlineAt)}
                 </span>
                 <span className="text-xs text-muted-foreground">
@@ -293,20 +352,23 @@ export function EntradaMembrosPanel() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Gestão</span>
-                  <Select
+                  <span className="text-xs text-muted-foreground">
+                    Gestão — escolha uma sugerida ou digite uma nova (AAAA.1 ou AAAA.2)
+                  </span>
+                  <input
+                    list="gestoes-sugeridas-entrada"
                     aria-label="Gestão desta campanha"
-                    value={selectedGestaoId}
-                    onChange={(e) => setSelectedGestaoId(e.target.value)}
-                    placeholder={
-                      gestoes.isLoading
-                        ? 'Carregando…'
-                        : opcoesDeGestao.length === 0
-                          ? 'Nenhuma gestão elegível disponível'
-                          : 'Escolha a gestão'
-                    }
-                    options={opcoesDeGestao.map((g) => ({ value: g.id, label: g.name }))}
+                    value={gestaoLabel}
+                    onChange={(e) => setGestaoLabel(e.target.value)}
+                    placeholder={gestoes.isLoading ? 'Carregando…' : 'Ex.: 2029.2'}
+                    autoComplete="off"
+                    className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground"
                   />
+                  <datalist id="gestoes-sugeridas-entrada">
+                    {opcoesDeGestao.map((g) => (
+                      <option key={g.id} value={g.name} />
+                    ))}
+                  </datalist>
                 </label>
 
                 <label className="flex flex-col gap-1">
@@ -315,14 +377,16 @@ export function EntradaMembrosPanel() {
                     type="date"
                     value={entryDate}
                     onChange={(e) => setEntryDate(e.target.value)}
-                    min={gestaoSelecionada?.startDate}
-                    max={gestaoSelecionada?.endDate}
+                    min={periodoPrevisto?.startDate}
+                    max={periodoPrevisto?.endDate}
                     className="h-10 rounded-md border border-border bg-surface px-3 text-sm text-foreground"
                   />
                 </label>
 
                 <label className="flex flex-col gap-1 sm:col-span-2">
-                  <span className="text-xs text-muted-foreground">Prazo — data e hora limite para respostas</span>
+                  <span className="text-xs text-muted-foreground">
+                    Prazo — data e hora limite para respostas ({RECIFE_TZ_LABEL})
+                  </span>
                   <input
                     type="datetime-local"
                     value={responseDeadline}
@@ -332,12 +396,14 @@ export function EntradaMembrosPanel() {
                 </label>
               </div>
 
+              {previaDeCriacao && <p className="text-xs text-muted-foreground italic">{previaDeCriacao}</p>}
+
               <div>
                 <Button
                   variant="primary"
                   icon={<Play size={15} />}
                   loading={startCampaign.isPending}
-                  disabled={!cfg.enabled || opcoesDeGestao.length === 0}
+                  disabled={!cfg.enabled}
                   onClick={abrirConfirmacaoDeInicio}
                 >
                   Iniciar entrada
@@ -347,12 +413,6 @@ export function EntradaMembrosPanel() {
               {!cfg.enabled && (
                 <p className="text-xs text-muted-foreground">
                   A integração está desabilitada — habilite-a (ver setup) antes de iniciar uma campanha.
-                </p>
-              )}
-              {cfg.enabled && opcoesDeGestao.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Nenhuma gestão elegível sem campanha anterior — cadastre uma gestão futura elegível
-                  ou verifique se todas as elegíveis já foram usadas.
                 </p>
               )}
             </div>
@@ -387,7 +447,7 @@ export function EntradaMembrosPanel() {
                   <TR>
                     <TH>Gestão</TH>
                     <TH>Data de entrada</TH>
-                    <TH>Prazo</TH>
+                    <TH>Prazo ({RECIFE_TZ_LABEL})</TH>
                     <TH>Situação</TH>
                     <TH>Respostas</TH>
                     <TH>Iniciada em</TH>
@@ -403,7 +463,7 @@ export function EntradaMembrosPanel() {
                       <TR key={campaign.id}>
                         <TD>{gestaoName(campaign.gestaoId)}</TD>
                         <TD>{formatDate(campaign.entryDate)}</TD>
-                        <TD>{formatDateTime(campaign.responseDeadlineAt)}</TD>
+                        <TD>{formatRecifeDateTime(campaign.responseDeadlineAt)}</TD>
                         <TD>
                           <Badge tone={expirada ? 'warn' : campaign.status === 'ativa' ? 'ok' : 'neutral'}>
                             {expirada ? 'Prazo encerrado' : CAMPAIGN_STATUS_LABEL[campaign.status]}
@@ -412,8 +472,8 @@ export function EntradaMembrosPanel() {
                         <TD>
                           <ContagemDeRespostas campaignId={campaign.id} />
                         </TD>
-                        <TD>{formatDateTime(campaign.activatedAt)}</TD>
-                        <TD>{campaign.closedAt ? formatDateTime(campaign.closedAt) : DASH}</TD>
+                        <TD>{formatRecifeDateTime(campaign.activatedAt)}</TD>
+                        <TD>{campaign.closedAt ? formatRecifeDateTime(campaign.closedAt) : DASH}</TD>
                       </TR>
                     );
                   })}
@@ -429,10 +489,8 @@ export function EntradaMembrosPanel() {
         onClose={() => setConfirmStart(false)}
         onConfirm={() => void iniciarEntrada()}
         title="Iniciar esta campanha de entrada?"
-        description={`A partir de agora, novas respostas do formulário criam membro na gestão ${gestaoName(
-          selectedGestaoId,
-        )}, com data oficial de entrada ${formatDate(entryDate)} e prazo até ${
-          responseDeadlineAtISO ? formatDateTime(responseDeadlineAtISO) : DASH
+        description={`${previaDeCriacao ? previaDeCriacao + ' ' : ''}Novas respostas do formulário criam membro na gestão ${labelDigitado}, com data oficial de entrada ${formatDate(entryDate)} e prazo até ${
+          responseDeadlineAtISO ? formatRecifeDateTime(responseDeadlineAtISO) : DASH
         }.`}
         confirmLabel="Iniciar entrada"
         loading={startCampaign.isPending}

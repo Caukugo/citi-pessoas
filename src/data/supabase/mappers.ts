@@ -211,7 +211,6 @@ export function fromGestaoRow(row: Row): Gestao {
     startDate: row.start_date,
     endDate: row.end_date,
     status: row.status,
-    googleFormsEligible: row.google_forms_eligible,
   };
 }
 

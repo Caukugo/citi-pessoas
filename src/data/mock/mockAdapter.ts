@@ -20,6 +20,14 @@ import { cycleBoundsFor } from '../cycleBounds';
 import { currentCycleAfterRoster, planRosterContinuation } from '../import/currentRoster';
 import { checkCpf, cpfLast4 } from '../cpf';
 import {
+  computeGestaoPeriod,
+  isDeadlineBeforeEntryDate,
+  isDeadlineInFuture,
+  isValidGestaoLabel,
+  isWithinHorizon,
+  recifeTodayISO,
+} from '../gestaoLabel';
+import {
   CPF_REVIEW_REASONS,
   mockCpf,
   mockCpfAudit,
@@ -1151,15 +1159,57 @@ export const mockAdapter: DataAdapter = {
       await delay();
       const db = mockDb();
 
-      const gestao = db.gestoes.find((g) => g.id === input.gestaoId);
-      if (!gestao) {
-        throw new DataError('not_found', 'Gestão não encontrada.');
+      const label = input.gestaoLabel.trim();
+      if (!isValidGestaoLabel(label)) {
+        throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
       }
-      if (!gestao.googleFormsEligible) {
+
+      const hoje = recifeTodayISO();
+      const existente = db.gestoes.find((g) => g.name === label);
+
+      // A gestão nova só é EMPURRADA para `db.gestoes` depois de TODAS as
+      // validações abaixo passarem (perto do fim da função) — nunca aqui.
+      // Isso é o que garante a mesma atomicidade da RPC real: uma falha em
+      // QUALQUER validação posterior não deixa uma gestão "planejada" órfã,
+      // nem em memória, nem persistida.
+      let gestao = existente;
+      let gestaoNovaPendente: (typeof db.gestoes)[number] | null = null;
+
+      if (!gestao) {
+        const periodo = computeGestaoPeriod(label);
+        if (!periodo) {
+          throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
+        }
+        if (!isWithinHorizon(periodo.startDate, hoje)) {
+          throw new DataError(
+            'invalid',
+            `Gestão "${label}" está além do horizonte permitido (5 anos). Confira o ano digitado.`,
+          );
+        }
+        if (periodo.startDate <= hoje) {
+          throw new DataError('invalid', `Gestão "${label}" não está no futuro — não pode ser criada como campanha nova.`);
+        }
+
+        gestaoNovaPendente = {
+          id: mockId('gst'),
+          name: label,
+          startDate: periodo.startDate,
+          endDate: periodo.endDate,
+          status: 'planejada',
+        };
+        gestao = gestaoNovaPendente;
+      }
+
+      // Nunca presuma "diferente de ativa" = "finalizada": os três estados
+      // são conferidos pelo nome.
+      if (gestao.status !== 'planejada') {
         throw new DataError(
           'invalid',
-          `A gestão "${gestao.name}" não está habilitada para entrada via Google Forms.`,
+          `Gestão "${gestao.name}" está com status ${gestao.status} — só gestão planejada pode receber campanha.`,
         );
+      }
+      if (gestao.startDate <= hoje) {
+        throw new DataError('invalid', `Gestão "${gestao.name}" já começou (em ${gestao.startDate}) — não pode receber uma nova campanha.`);
       }
       if (input.entryDate < gestao.startDate || input.entryDate > gestao.endDate) {
         throw new DataError(
@@ -1167,28 +1217,37 @@ export const mockAdapter: DataAdapter = {
           `Data oficial de entrada precisa estar dentro do período da gestão "${gestao.name}" (${gestao.startDate} a ${gestao.endDate}).`,
         );
       }
-      if (!input.responseDeadlineAt || new Date(input.responseDeadlineAt).getTime() <= Date.now()) {
-        throw new DataError('invalid', 'O prazo de resposta precisa estar no futuro.');
+      if (!input.responseDeadlineAt || !isDeadlineInFuture(input.responseDeadlineAt)) {
+        throw new DataError('invalid', 'prazo_no_passado: o prazo de resposta precisa estar no futuro.');
       }
-      // 0027: uma campanha por gestão, para sempre — mesmo encerrada.
-      if (db.intakeCampaigns.some((c) => c.gestaoId === input.gestaoId)) {
+      if (!isDeadlineBeforeEntryDate(input.responseDeadlineAt, input.entryDate)) {
+        throw new DataError(
+          'invalid',
+          `prazo_apos_entrada: o prazo de resposta precisa ser anterior à data oficial de entrada (meia-noite de ${input.entryDate}, América/Recife).`,
+        );
+      }
+      // 0029: uma campanha por gestão, para sempre — mesmo encerrada.
+      if (db.intakeCampaigns.some((c) => c.gestaoId === gestao.id)) {
         throw new DataError(
           'conflict',
-          `A gestão "${gestao.name}" já teve uma campanha de entrada — cada gestão só pode ter uma.`,
+          `gestao_ja_possui_campanha: a gestão "${gestao.name}" já teve uma campanha de entrada.`,
         );
       }
       // Mesma trava do banco (índice único parcial): no máximo uma campanha
       // `ativa` por vez.
       if (db.intakeCampaigns.some((c) => c.status === 'ativa')) {
-        throw new DataError(
-          'conflict',
-          'Já existe uma campanha de entrada ativa. Encerre-a antes de iniciar outra.',
-        );
+        throw new DataError('conflict', 'campanha_ativa_ja_existe: já existe uma campanha de entrada ativa.');
+      }
+
+      // Só agora — depois de TODAS as validações — a gestão nova (se houver)
+      // entra de fato no banco de mentira, junto com a campanha.
+      if (gestaoNovaPendente) {
+        db.gestoes.push(gestaoNovaPendente);
       }
 
       const campaign = {
         id: mockId('campaign'),
-        gestaoId: input.gestaoId,
+        gestaoId: gestao.id,
         entryDate: input.entryDate,
         responseDeadlineAt: input.responseDeadlineAt,
         status: 'ativa' as const,

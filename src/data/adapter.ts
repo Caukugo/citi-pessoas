@@ -264,11 +264,14 @@ export interface GoogleFormsIntakeRepository {
   listCampaigns(): Promise<IntakeCampaign[]>;
 
   /**
-   * Cria e ativa uma campanha nova. Recusa se: já existir uma `ativa`; a
-   * gestão não for elegível para o Forms; a gestão já tiver tido uma
-   * campanha (0027: uma por gestão, para sempre); `entryDate` estiver fora
-   * do período da gestão; ou `responseDeadlineAt` não estiver no futuro.
-   * Operação atômica (função única no Postgres).
+   * Localiza a gestão pelo RÓTULO (`gestaoLabel`, ex.: `'2029.2'`) ou cria
+   * como `planejada` se ainda não existir — dentro de um horizonte móvel de
+   * 5 anos (0029). Recusa se: já existir campanha `ativa`; a gestão não
+   * estiver `planejada` ou já tiver começado; a gestão já tiver tido uma
+   * campanha (uma por gestão, para sempre); `entryDate` estiver fora do
+   * período da gestão; ou `responseDeadlineAt` não estiver no futuro e
+   * antes de `entryDate`. Atômica e serializada (advisory lock) — nenhuma
+   * gestão fica "planejada" órfã se alguma validação posterior falhar.
    */
   startCampaign(input: StartIntakeCampaignInput): Promise<IntakeCampaign>;
 
