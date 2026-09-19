@@ -808,6 +808,80 @@ GG, porque o enum só tem `gg` e `gg_diretoria`; mas a garantia não existia.
 
 ---
 
+## ADR-018 — A cor de ação é o laranja do logotipo, e o verde vira só "em dia"
+
+- **Data:** 2026-09-19 (registro; a migração no código é de 2026)
+- **Status:** Aceita
+
+**Contexto.** A identidade escrita dizia "verde CITi (`#2ddb60`) como ação". O
+logotipo oficial (`public/logo-citi-pessoas.svg`) é **laranja `#ff6a00`** — a
+documentação descrevia uma marca que o próprio asset já contradizia.
+
+O redesenho de Membros migrou `src/styles/theme.css` para o laranja, mas a troca
+foi feita de forma aditiva e ficou pela metade: `--primary` e `--accent`
+conviveram apontando para cores diferentes, a barra lateral chegou a acender em
+cores diferentes por rota, e `DESIGN.md`, `docs/DESIGN_SYSTEM.md`,
+`PRODUCT.md`, `docs/PROJECT_CONTEXT.md` e `CLAUDE.md` continuaram descrevendo a
+identidade anterior. O próprio `theme.css` avisava isso num comentário.
+
+Documentação defasada sobre identidade não é detalhe: `DESIGN.md` é o arquivo
+que as Agent Skills leem para saber o que **não** podem mudar. Enquanto ele
+dissesse "verde", toda tela nova nasceria com a cor errada e toda auditoria de
+skill apontaria o laranja como desvio.
+
+**Decisão.**
+
+1. A cor de ação e de seleção da plataforma é o **laranja `#ff6a00`**.
+   `--primary` e `--accent` apontam para o mesmo valor; `--accent-*` existe
+   só para carregar as variações de superfície (`--accent-strong`,
+   `--accent-soft`, `--accent-gradient`).
+2. O **verde é `--ok` e só isso** — significa "em dia", não "clicável".
+3. Texto sobre laranja é **branco**, com a dispensa de contraste registrada e
+   medida (ver Consequências).
+4. `src/styles/theme.css` é a **fonte de verdade**; a documentação descreve o
+   que está nele, nunca o contrário.
+
+**Alternativas consideradas.**
+
+- **Voltar o produto para o verde**, alinhando o código à documentação.
+  Rejeitado: o laranja é a cor do logotipo oficial. Seria alinhar a marca ao
+  documento errado.
+- **Manter os dois vivos**, laranja nas telas redesenhadas e verde no resto.
+  Era o estado anterior. Rejeitado: produziu navegação acendendo em cores
+  diferentes conforme a rota, e ninguém sabia dizer qual era "a" cor.
+- **Só trocar os hex nos documentos**, sem registrar ADR. Rejeitado: daqui a
+  seis meses alguém encontra verde em `format.ts` ou num mock antigo e reabre
+  a discussão do zero.
+
+**Motivação.** A identidade tem que ser uma só, e tem que ser a do logotipo.
+Documento de identidade defasado é pior que ausente: ele é lido como requisito.
+
+**Consequências.**
+
+- ✅ Uma cor de ação em toda a plataforma, e a mesma do logotipo.
+- ✅ O verde ganhou significado próprio (`--ok` = em dia), em vez de disputar
+  papel com a cor de ação.
+- ✅ `DESIGN.md`, `docs/DESIGN_SYSTEM.md`, `PRODUCT.md`,
+  `docs/PROJECT_CONTEXT.md`, `CLAUDE.md` e os READMEs de `skills/` descrevem os
+  valores que estão em `theme.css`.
+- ⚠️ **Contraste: dispensa consciente.** Branco sobre `--accent` dá **3.0:1** e
+  sobre `--accent-strong` **3.46:1** — abaixo dos 4.5:1 que a WCAG AA pede para
+  texto normal (13px/600 não conta como "texto grande": o critério é 18.66px
+  bold). Rótulo pequeno usa `--accent-strong` com peso 600, o melhor disponível
+  sem trair o desenho. **Não "corrija" trocando o texto para preto.** Se a regra
+  tiver que passar de verdade um dia, `#c24e00` dá 4.79:1 com branco.
+- ⚠️ O laranja é acento, não protagonista: **no máximo quatro elementos laranja
+  em cena**, e `--accent-gradient` só em nav ativo e ação principal.
+- ⚠️ `public/favicon.svg` ainda desenha o wordmark "citi" em texto Sora, o que
+  `src/components/ui/logo.tsx` proíbe explicitamente para a marca. A cor foi
+  corrigida para `#ff6a00`, mas **derivar o favicon do SVG oficial continua
+  pendente**.
+- ⚠️ `AVATAR_COLORS` em `src/lib/format.ts` ainda usa `#2ddb60` como uma das
+  sete cores de avatar. É paleta decorativa, não cor de ação — foi mantida de
+  propósito.
+
+---
+
 ## Como registrar uma decisão nova
 
 Copie o formato acima. Uma decisão merece um ADR quando afeta mais de uma

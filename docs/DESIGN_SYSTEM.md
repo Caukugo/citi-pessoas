@@ -7,16 +7,22 @@
 
 ## 1. Princípio
 
-> Fundo preto real, verde CITi como destaque e ação, tipografia clara e
+> Fundo preto real, laranja CITi como destaque e ação, tipografia clara e
 > superfícies em vidro escuro.
 
 A identidade oficial do CITi prevalece. A interface **não** deve virar um
 template genérico de RH.
 
+> ⚠️ **A cor de ação mudou (2026).** Era o verde `#2ddb60`; hoje é o **laranja
+> `#ff6a00`**, a cor do logotipo oficial. O verde continua existindo, mas só
+> como `--ok` ("em dia"). Se você viu verde de ação em algum lugar deste
+> documento antes, era uma versão defasada — a fonte de verdade é
+> `src/styles/theme.css`.
+
 Três regras que resumem tudo:
 
-1. **Verde é ação.** O verde de marca marca o que se pode fazer e o que está
-   selecionado — nunca é decoração.
+1. **Laranja é ação.** O laranja de marca marca o que se pode fazer e o que está
+   selecionado — nunca é decoração. No máximo quatro em cena ao mesmo tempo.
 2. **Informação antes de estética.** Nunca esconda dado importante para "deixar
    limpo".
 3. **Consistência.** Se duas telas resolvem o mesmo problema de jeitos
@@ -38,14 +44,45 @@ token.
 | `bg-surface-2` | `#0a0b0c` | Superfície elevada, cabeçalho fixo |
 | `bg-surface-3` | `#0f1011` | Popover, menu |
 
+### Superfícies grafite — camadas do redesenho
+
+| Token | Valor | Uso |
+| --- | --- | --- |
+| `bg-surface-shell` | `#0e0e0e` | Casca da aplicação |
+| `bg-surface-stage` | `#131313` | Palco onde as peças assentam |
+| `bg-surface-panel` | `#252525` | Painel opaco |
+| `bg-surface-card` | `rgba(37,37,37,0.59)` | Cartão translúcido |
+| `bg-surface-card-hover` | `rgba(58,58,58,0.66)` | Hover do cartão |
+| `bg-surface-satellite` | `rgba(255,255,255,0.09)` | Peça pequena sobre o palco |
+| `bg-control-well` | `color-mix(surface-stage 78%)` | Fundo de controle que funciona nas duas camadas |
+| `border-divider` | `rgba(255,255,255,0.05)` | Divisor de linha de tabela |
+
 ### Marca
 
 | Token | Valor | Uso |
 | --- | --- | --- |
-| `text-primary` / `bg-primary` | `#2ddb60` | Ação principal, item ativo |
-| `bg-primary-hover` | `#36e66a` | Hover |
-| `bg-primary-active` | `#24c856` | Pressionado |
-| `text-primary-foreground` | `#04180b` | Texto sobre o verde |
+| `text-primary` / `bg-primary` | `#ff6a00` | Ação principal, item ativo |
+| `bg-primary-hover` | `#ff7f24` | Hover |
+| `bg-primary-active` | `#e85f00` | Pressionado |
+| `text-primary-glow` | `#ffa767` | Brilho |
+| `text-primary-foreground` | `#ffffff` | Texto sobre o laranja |
+
+`--accent` aponta para o **mesmo** laranja de `--primary`. Ele existe para
+trazer as variações de superfície da camada de ação:
+
+| Token | Valor | Uso |
+| --- | --- | --- |
+| `bg-accent` | `#ff6a00` | Ação e seleção |
+| `bg-accent-strong` | `#e85f00` | **Superfície que carrega texto** — aba ativa, chip |
+| `bg-accent-hover` | `#ff7f24` | Hover |
+| `bg-accent-soft` | `rgba(255,106,0,0.09)` | Fundo tênue de destaque |
+| `--accent-gradient` | `linear-gradient(100deg, #e85f00, #ff8a3d)` | **Só** em nav ativo e ação principal |
+| `text-accent-foreground` | `#ffffff` | Texto sobre laranja |
+
+⚠️ **Texto sobre laranja é branco, por decisão registrada.** Dá 3.0:1 em
+`--accent` e 3.46:1 em `--accent-strong` — abaixo dos 4.5:1 da WCAG. Por isso
+rótulo pequeno usa `--accent-strong` com peso 600. **Não "conserte" trocando
+para texto preto.** Detalhes e o número medido: `DESIGN.md` → Named Rules.
 
 ### Texto
 
@@ -59,13 +96,16 @@ token.
 
 | Token | Valor | Significa |
 | --- | --- | --- |
-| `text-ok` / `bg-ok` | `#2ddb60` | Concluído, em dia, positivo |
-| `text-warn` / `bg-warn` | `#f4c152` | Requer atenção, pendente |
-| `text-bad` / `bg-bad` | `#ff8a8a` | Atrasado, erro, negativo |
+| `text-ok` / `bg-ok` | `#50e678` | Concluído, em dia, positivo |
+| `text-warn` / `bg-warn` | `#daaf4c` | Requer atenção, pendente |
+| `text-bad` / `bg-bad` | `#ff5859` | Atrasado, erro, negativo |
 | `text-info` / `bg-info` | `#7ab8f2` | Agendado, informativo |
 
 **Não escolha o tom pela cor que ficou bonita.** `bad` para X1 atrasado, `warn`
 para primeiro X1 pendente, `ok` para em dia.
+
+**O verde é `ok` e só isso.** Ele deixou de ser cor de ação na migração de 2026.
+Verde num botão ou em item de navegação é tela não migrada, não estilo.
 
 ### Bordas
 
@@ -104,7 +144,7 @@ Três classes utilitárias:
 | --- | --- |
 | `glass` | Card e painel padrão |
 | `glass-2` | Superfície elevada — cabeçalho fixo, menu |
-| `glass-interactive` | Adiciona realce verde no hover (para cards clicáveis) |
+| `glass-interactive` | Adiciona realce laranja no hover (para cards clicáveis) |
 
 Na prática você quase nunca precisa delas: `<Surface>`, `<Panel>` e `<Card>` já
 aplicam.
@@ -134,7 +174,7 @@ import { Button, Panel, FormField, Input } from '@/components/ui';
 | --- | --- |
 | `Button` | `primary` \| `secondary` \| `ghost` \| `danger`; aceita `loading` e `icon` |
 | `IconButton` | Botão só de ícone — `label` é obrigatório |
-| `Chip` | Chip de filtro; ativo fica verde |
+| `Chip` | Chip de filtro; ativo fica laranja (`--accent-strong`, porque carrega texto) |
 
 **Só um `primary` por bloco.** Ele indica a ação principal.
 
@@ -291,7 +331,7 @@ O básico, que já vem pronto se você usar os componentes:
 
 - `IconButton` exige `label`;
 - `FormField` liga rótulo, ajuda e erro por id;
-- foco visível em tudo (anel verde);
+- foco visível em tudo (anel laranja, `--ring`);
 - overlays devolvem o foco ao fechar;
 - linha de tabela clicável funciona com Enter.
 

@@ -41,7 +41,7 @@ O que esta skill gera é **protótipo de exploração**, nunca código de produt
   usando `@/components/ui` e os tokens de `src/styles/theme.css`. Nessa tradução o
   protótipo é *referência visual*, não fonte de copiar e colar.
 - Nunca copie um valor de cor do protótipo para o produto. A identidade do CITi
-  (preto `#000000`, verde `#2ddb60`, Inter e Sora) está em `DESIGN.md` e nos tokens —
+  (preto `#000000`, laranja `#ff6a00`, Inter e Sora) está em `DESIGN.md` e nos tokens —
   essa é a fonte da verdade, não o que saiu do mock.
 
 Se o usuário pedir para levar a saída desta skill direto para `src/`, **pare e avise**

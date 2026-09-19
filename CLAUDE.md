@@ -409,8 +409,10 @@ fonte oficial do CITi. A dispensa já está registrada em `.impeccable/config.js
 ### Ao trabalhar com skill
 
 - **Não invente requisito.** Não está em `docs/`? Pergunte.
-- **Não altere a identidade.** Preto `#000000`, verde `#2ddb60`, Inter e Sora
-  são decisão do CITi, não preferência estética.
+- **Não altere a identidade.** Preto `#000000`, **laranja `#ff6a00`** (cor de
+  ação, do logotipo oficial), Inter e Sora são decisão do CITi, não preferência
+  estética. O verde `#2ddb60` deixou de ser cor de ação em 2026 — hoje é só
+  `--ok`, "em dia".
 - **Audite antes de redesenhar.** `/impeccable critique` ou `audit` antes de
   reescrever tela.
 - **Reutilize componentes** de `@/components/ui` e preserve os padrões que já

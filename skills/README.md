@@ -109,7 +109,8 @@ carrega a skill sozinho. A tabela abaixo é para você saber o que esperar.
 Três frases que evitam 90% dos problemas:
 
 1. **Não invente requisito.** Se a regra de negócio não está em `docs/`, pergunte.
-2. **Não altere a identidade.** Preto, verde CITi, Inter e Sora são decisão do CITi.
+2. **Não altere a identidade.** Preto, **laranja CITi (`#ff6a00`)**, Inter e
+   Sora são decisão do CITi. O verde deixou de ser cor de ação em 2026.
 3. **Audite antes de redesenhar.** `critique`/`audit` antes de reescrever tela.
 
 E depois: reutilize componentes de `@/components/ui`, preserve os padrões que já

@@ -336,8 +336,12 @@ ratificar ou reverter. Ver ADR-011.
 
 ## 14. Identidade visual
 
-> **Fundo preto real, verde CITi como destaque e ação, tipografia clara e
+> **Fundo preto real, laranja CITi como destaque e ação, tipografia clara e
 > superfícies em vidro escuro.**
+
+⚠️ A cor de ação era o verde `#2ddb60` até a migração de 2026. Hoje é o
+**laranja `#ff6a00`**, a cor do logotipo oficial; o verde ficou só como `--ok`
+("em dia").
 
 A identidade oficial (`brand-citi`) prevalece sobre escolhas visuais do
 protótipo. Tokens e componentes: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).

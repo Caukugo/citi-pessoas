@@ -54,7 +54,7 @@ identidade do CITi.
 
 **3. Risco à identidade visual.** Skills de direção estética existem para
 *impor* um visual. Nossa identidade já está decidida e validada: preto real,
-verde CITi, Inter e Sora, vidro escuro. Trazer uma camada que sugere trocar
+laranja CITi, Inter e Sora, vidro escuro. Trazer uma camada que sugere trocar
 isso adiciona risco sem adicionar capacidade.
 
 **4. Custo de contexto.** Cinco pessoas com níveis muito diferentes de
