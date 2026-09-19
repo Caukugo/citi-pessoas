@@ -39,6 +39,11 @@ coverage/
 .vitest/
 *.tsbuildinfo
 
+# Protótipos da skill img-to-html. São exploração, não produto: HTML/CSS avulso,
+# imagens pesadas e recortes de mock. Nada daqui entra em src/ — ver
+# skills/img-to-html/README.md.
+/mocks/
+
 # Dados reais de membros — nunca versionar planilha do CITi Pessoas.
 /data-real/
 *.xlsx
