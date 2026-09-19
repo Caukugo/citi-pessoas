@@ -12,7 +12,7 @@ import { FeedbackTypeBadge } from './FeedbackTypeBadge';
  * está o contexto que a GG veio buscar.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 export function FeedbackHistoryItem({
   feedback,

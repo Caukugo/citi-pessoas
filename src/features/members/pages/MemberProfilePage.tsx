@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, UserX } from 'lucide-react';
+import { Pencil, Plus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -12,7 +12,7 @@ import {
   tabPanelProps,
   type TabItem,
 } from '@/components/ui';
-import { getMemberArea, LIDERANCA_CARGOS, useMember, type Member } from '@/data';
+import { useMember, type Member } from '@/data';
 import { ROUTES } from '@/app/routes';
 import { CreateX1Drawer } from '@/features/x1/components/CreateX1Drawer';
 import { X1Tab } from '@/features/x1/components/X1Tab';
@@ -21,6 +21,9 @@ import { CreateFeedbackDrawer } from '@/features/feedbacks/components/CreateFeed
 import { MemberFeedbackTab } from '@/features/feedbacks/components/MemberFeedbackTab';
 import { useMemberFeedbacks } from '@/features/feedbacks/hooks/useMemberFeedbacks';
 import { useMemberDirectory } from '../hooks/useMembersList';
+import { EditMemberDrawer } from '../components/EditMemberDrawer';
+import { GgResponsibleField } from '../components/GgResponsibleField';
+import { MemberCpfField } from '../components/MemberCpfField';
 import { MemberActivityTimeline } from '../components/MemberActivityTimeline';
 import { MemberInfoGrid } from '../components/MemberInfoGrid';
 import { MemberProfileHeader } from '../components/MemberProfileHeader';
@@ -48,6 +51,7 @@ export function MemberProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [registerOpen, setRegisterOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const memberQuery = useMember(memberId);
   const directory = useMemberDirectory();
@@ -65,24 +69,14 @@ export function MemberProfilePage() {
     setSearchParams(params, { replace: true });
   };
 
-  /**
-   * Quem pode ter conduzido um X1: lideranças (o cargo de topo de alguma
-   * subárea/área — `LIDERANCA_CARGOS`, ver ADR-017) e pessoas de Gente e
-   * Gestão. Não é mais um regex sobre o texto do cargo: com o vocabulário
-   * fechado, "quem lidera" já está definido em `src/data/types.ts`, e um
-   * regex quebraria a cada gestão que renomear os cargos de liderança.
-   *
-   * "Pessoas de Gente e Gestão" usa `getMemberArea()`, não `person.subarea`
-   * direto, para incluir também a Diretoria de Gente e Gestão (COO) — que
-   * não tem subárea (ADR-018), mas ainda é GG para todo efeito prático.
-   */
+  /** Quem pode ter conduzido um X1: gerentes e pessoas de Gente e Gestão. */
   const conductors = useMemo<Member[]>(() => {
     const all = [...directory.byId.values()];
     return all
       .filter(
         (person) =>
           person.status === 'ativo' &&
-          (getMemberArea(person) === 'Gente e Gestão' || LIDERANCA_CARGOS.includes(person.role)),
+          (person.area === 'Gente e Gestão' || /gerente|gestor/i.test(person.role)),
       )
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'));
   }, [directory.byId]);
@@ -98,7 +92,11 @@ export function MemberProfilePage() {
   if (memberQuery.isError) {
     return (
       <>
-        <PageHeader title="Perfil do Membro" backTo={ROUTES.members} backLabel="Voltar para Membros" />
+        <PageHeader
+          title="Perfil do Membro"
+          backTo={ROUTES.members}
+          backLabel="Voltar para Membros"
+        />
         <Surface>
           <ErrorState
             title="Não foi possível carregar este perfil"
@@ -115,12 +113,16 @@ export function MemberProfilePage() {
   if (!memberQuery.data) {
     return (
       <>
-        <PageHeader title="Membro não encontrado" backTo={ROUTES.members} backLabel="Voltar para Membros" />
+        <PageHeader
+          title="Membro não encontrado"
+          backTo={ROUTES.members}
+          backLabel="Voltar para Membros"
+        />
         <Surface>
           <EmptyState
             icon={<UserX size={20} aria-hidden />}
             title="Este membro não existe"
-            description="O endereço pode estar errado, ou a pessoa pode ter sido arquivada. Lembre que membros nunca são apagados — procure também entre os arquivados."
+            description="O endereço pode estar errado, ou a pessoa pode ter sido arquivada. Lembre que membros nunca são apagados, procure também entre os arquivados."
             action={
               <Button variant="primary" onClick={() => navigate(ROUTES.members)}>
                 Voltar para Membros
@@ -149,17 +151,35 @@ export function MemberProfilePage() {
         x1Status={overview.status}
         lastX1={overview.lastX1}
         action={
-          <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
-            {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Corrigir cadastro é ação secundária: o que a GG faz no dia a dia
+                é registrar conversa, não consertar planilha. */}
+            <Button icon={<Pencil size={15} />} onClick={() => setEditOpen(true)}>
+              Editar cadastro
+            </Button>
+            <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
+              {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
+            </Button>
+          </div>
         }
       />
 
-      <Tabs tabs={tabs} active={activeTab} onChange={setTab} idPrefix={TAB_PREFIX} label="Seções do perfil" />
+      <Tabs
+        tabs={tabs}
+        active={activeTab}
+        onChange={setTab}
+        idPrefix={TAB_PREFIX}
+        label="Seções do perfil"
+      />
 
       {activeTab === 'visao-geral' && (
         <div {...tabPanelProps(TAB_PREFIX, 'visao-geral')} className="flex flex-col gap-6">
           <MemberInfoGrid member={member} directory={directory.byId} />
+          {/* CPF em cartão próprio, e NÃO na grade de dados cadastrais: é o
+              único campo cuja leitura é auditada, e misturá-lo com curso e
+              telefone faria parecer um dado como os outros. */}
+          <MemberCpfField member={member} />
+          <GgResponsibleField member={member} />
           <MemberActivityTimeline memberId={member.id} />
         </div>
       )}
@@ -192,6 +212,8 @@ export function MemberProfilePage() {
           />
         </div>
       )}
+
+      <EditMemberDrawer open={editOpen} onClose={() => setEditOpen(false)} member={member} />
 
       <CreateX1Drawer
         open={registerOpen}

@@ -69,7 +69,7 @@ export function Tabs<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={cn(
-              '-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors',
+              '-mb-px flex items-center gap-2 border-b-2 px-[14px] pb-[10px] text-[13px] font-semibold whitespace-nowrap transition-colors',
               selected
                 ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -79,8 +79,10 @@ export function Tabs<T extends string>({
             {tab.count !== undefined && tab.count > 0 && (
               <span
                 className={cn(
-                  'rounded-md px-1.5 py-0.5 text-[10px] font-bold',
-                  selected ? 'bg-primary/15 text-primary' : 'bg-foreground/10 text-muted-foreground',
+                  'rounded-full px-[6px] py-[1px] text-[10px] font-bold',
+                  selected
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-foreground/10 text-muted-foreground',
                 )}
               >
                 {tab.count}

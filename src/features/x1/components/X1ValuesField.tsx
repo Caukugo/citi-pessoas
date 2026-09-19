@@ -41,7 +41,7 @@ export function X1ValuesField({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
-        Registro do que você percebeu na conversa — não é nota de desempenho e não vira pontuação.
+        Registro do que você percebeu na conversa. Não é nota de desempenho e não vira pontuação.
         Deixe em branco o que não apareceu.
       </p>
 
@@ -58,7 +58,7 @@ export function X1ValuesField({
 
               <div
                 role="radiogroup"
-                aria-label={`${citiValue} — o quanto apareceu na conversa`}
+                aria-label={`${citiValue}: o quanto apareceu na conversa`}
                 className="flex items-center gap-1"
               >
                 {LEVELS.map((level) => {

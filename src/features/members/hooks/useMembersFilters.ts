@@ -10,19 +10,21 @@ import { DEFAULT_MEMBERS_FILTERS, type MembersListFilters } from '../model/membe
  * link. Além disso o botão voltar do navegador passa a funcionar, e recarregar
  * a página não perde o recorte — a GG usa isso entre uma aula e outra.
  *
- *   /membros?busca=iris&subarea=Desenvolvimento&x1=atrasado
+ *   /membros?busca=iris&subarea=solucoes-desenvolvimento&x1=atrasado
  */
 
 const PARAM = {
   search: 'busca',
-  subarea: 'subarea',
+  // Slug do catálogo, não o texto legado: `?area=negocios&subarea=negocios-comercial`.
+  areaSlug: 'area',
+  subareaSlug: 'subarea',
   role: 'cargo',
   ggResponsibleId: 'gg',
   x1Status: 'x1',
   status: 'situacao',
 } as const;
 
-const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'desligado', 'arquivado'];
+const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'inativo', 'desligado', 'arquivado'];
 
 export interface MembersFiltersControl {
   filters: MembersListFilters;
@@ -40,7 +42,8 @@ export function useMembersFilters(): MembersFiltersControl {
 
     return {
       search: params.get(PARAM.search) ?? '',
-      subarea: params.get(PARAM.subarea) ?? '',
+      areaSlug: params.get(PARAM.areaSlug) ?? '',
+      subareaSlug: params.get(PARAM.subareaSlug) ?? '',
       role: params.get(PARAM.role) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
       x1Status: params.get(PARAM.x1Status) ?? '',

@@ -5,9 +5,12 @@ import type {
   Gestao,
   Member,
   MemberEvent,
+  MemberIntakeReviewReason,
+  MemberIntakeSource,
   Settings,
   X1,
 } from '../types';
+import { resetMockPrivateData } from './privateStore';
 import {
   ANONYMOUS_FEEDBACKS,
   FEEDBACKS,
@@ -27,11 +30,7 @@ import {
  * da barra lateral, quando o modo mock está ativo).
  */
 
-// v2: o Membro ganhou `subarea`/`area` derivada (ADR-015), `cpf` e `linkedinUrl`
-// (ADR-016). Uma versão nova força reseed em vez de devolver registros salvos
-// no formato antigo (ex.: `area` em vez de `subarea`), que apareceriam com
-// campos em branco na tela em vez de dar erro.
-const STORAGE_KEY = 'citi-pessoas:mock-db:v2';
+const STORAGE_KEY = 'citi-pessoas:mock-db:v1';
 
 export interface MockDatabase {
   members: Member[];
@@ -41,8 +40,30 @@ export interface MockDatabase {
   memberEvents: MemberEvent[];
   gestoes: Gestao[];
   settings: Settings;
+  /**
+   * Controle das importações por planilha, para o modo mock também ser
+   * idempotente: reenviar o mesmo CSV não cria ninguém de novo.
+   */
+  intakeSubmissions: MockIntakeSubmission[];
   /** Sessão do modo mock. No Supabase quem cuida disso é a própria lib. */
   currentUser: AuthUser | null;
+}
+
+/** Espelho enxuto de `member_intake_submissions`. */
+export interface MockIntakeSubmission {
+  id: string;
+  source: MemberIntakeSource;
+  externalId: string;
+  status: 'pending' | 'processed' | 'needs_review' | 'failed';
+  memberId: string | null;
+  payload: Record<string, string>;
+  errorMessage: string | null;
+  /**
+   * Códigos do que ainda precisa de correção humana. Vazio = nada pendente.
+   * Espelha a restrição do banco (migration 0013): ter motivo é estar em
+   * `needs_review`, e não ter motivo é não estar.
+   */
+  reviewReasons: MemberIntakeReviewReason[];
 }
 
 function seed(): MockDatabase {
@@ -55,6 +76,7 @@ function seed(): MockDatabase {
     memberEvents: structuredClone(MEMBER_EVENTS),
     gestoes: structuredClone(GESTOES),
     settings: structuredClone(SETTINGS),
+    intakeSubmissions: [],
     currentUser: null,
   };
 }
@@ -67,7 +89,10 @@ function load(): MockDatabase {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      db = JSON.parse(raw) as MockDatabase;
+      // Espalhado sobre o seed de propósito: quando o modelo ganha uma coleção
+      // nova, quem já tinha dados salvos recebe a coleção vazia em vez de um
+      // `undefined` que quebra a primeira tela que iterar sobre ela.
+      db = { ...seed(), ...(JSON.parse(raw) as Partial<MockDatabase>) } as MockDatabase;
       return db;
     }
   } catch {
@@ -101,6 +126,9 @@ export function commit() {
 /** Apaga tudo e volta aos dados de exemplo originais. */
 export function resetMockData() {
   db = seed();
+  // O que é de sessão (CPF, bytes de foto, trilha) zera junto: sem isto, os
+  // membros recém-semeados voltariam carregando o CPF de antes do reset.
+  resetMockPrivateData();
   persist();
 }
 

@@ -8,6 +8,7 @@ import type {
   Settings,
   X1,
 } from '../types';
+import { MOCK_ORG_CATALOG } from './orgFixtures';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -39,9 +40,27 @@ const NOW = new Date().toISOString();
 // ─── Gestões ──────────────────────────────────────────────────────────────────
 
 export const GESTOES: Gestao[] = [
-  { id: 'gst-2026-2', name: '2026.2', startDate: '2026-07-01', endDate: '2026-12-31', status: 'ativa' },
-  { id: 'gst-2026-1', name: '2026.1', startDate: '2026-01-01', endDate: '2026-06-30', status: 'finalizada' },
-  { id: 'gst-2025-2', name: '2025.2', startDate: '2025-07-01', endDate: '2025-12-31', status: 'finalizada' },
+  {
+    id: 'gst-2026-2',
+    name: '2026.2',
+    startDate: '2026-07-01',
+    endDate: '2026-12-31',
+    status: 'ativa',
+  },
+  {
+    id: 'gst-2026-1',
+    name: '2026.1',
+    startDate: '2026-01-01',
+    endDate: '2026-06-30',
+    status: 'finalizada',
+  },
+  {
+    id: 'gst-2025-2',
+    name: '2025.2',
+    startDate: '2025-07-01',
+    endDate: '2025-12-31',
+    status: 'finalizada',
+  },
 ];
 
 export const CURRENT_GESTAO_ID = 'gst-2026-2';
@@ -55,13 +74,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-001',
     fullName: 'Marina Quintela',
-    cpf: '207.654.321-02',
     email: 'marina.quintela@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/marina-quintela-01',
+    personalEmail: 'marina.quintela@exemplo.com',
     phone: '(81) 90000-0001',
     photoUrl: null,
-    role: 'Gerente de Gente e Gestão',
-    subarea: 'Gente e Gestão',
+    role: 'Gestora de Pessoas',
+    area: 'Gente e Gestão',
     squad: 'GG',
     managerId: null,
     ggResponsibleId: null,
@@ -78,13 +96,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-002',
     fullName: 'Otávio Bandeira',
-    cpf: '215.308.642-67',
     email: 'otavio.bandeira@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/otavio-bandeira-02',
+    personalEmail: null,
     phone: '(81) 90000-0002',
     photoUrl: null,
     role: 'Analista de Gente e Gestão',
-    subarea: 'Gente e Gestão',
+    area: 'Gente e Gestão',
     squad: 'GG',
     managerId: 'mbr-001',
     ggResponsibleId: 'mbr-001',
@@ -103,13 +120,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-003',
     fullName: 'Helena Vasconcelos',
-    cpf: '222.962.963-86',
     email: 'helena.vasconcelos@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/helena-vasconcelos-03',
+    personalEmail: null,
     phone: '(81) 90000-0003',
     photoUrl: null,
-    role: 'Pessoa Desenvolvedora',
-    subarea: 'Desenvolvimento',
+    role: 'Desenvolvedora Frontend',
+    area: 'Desenvolvimento',
     squad: 'Squad Aurora',
     managerId: 'mbr-004',
     ggResponsibleId: 'mbr-001',
@@ -126,13 +142,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-004',
     fullName: 'Ricardo Tenório',
-    cpf: '230.617.284-65',
     email: 'ricardo.tenorio@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/ricardo-tenorio-04',
+    personalEmail: null,
     phone: '(81) 90000-0004',
     photoUrl: null,
-    role: 'Líder de Desenvolvimento',
-    subarea: 'Desenvolvimento',
+    role: 'Gerente de Desenvolvimento',
+    area: 'Desenvolvimento',
     squad: 'Squad Aurora',
     managerId: null,
     ggResponsibleId: 'mbr-002',
@@ -149,13 +164,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-005',
     fullName: 'Tarcísio Amorim',
-    cpf: '238.271.605-37',
     email: 'tarcisio.amorim@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/tarcisio-amorim-05',
+    personalEmail: null,
     phone: '(81) 90000-0005',
     photoUrl: null,
-    role: 'Pessoa Desenvolvedora',
-    subarea: 'Desenvolvimento',
+    role: 'Desenvolvedor Backend',
+    area: 'Desenvolvimento',
     squad: 'Squad Aurora',
     managerId: 'mbr-004',
     ggResponsibleId: 'mbr-001',
@@ -173,13 +187,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-006',
     fullName: 'Íris Cavalcanti',
-    cpf: '245.925.926-38',
     email: 'iris.cavalcanti@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/iris-cavalcanti-06',
+    personalEmail: null,
     phone: '(81) 90000-0006',
     photoUrl: null,
-    role: 'Analista de Software',
-    subarea: 'Desenvolvimento',
+    role: 'Desenvolvedora Fullstack',
+    area: 'Desenvolvimento',
     squad: 'Squad Boreal',
     managerId: 'mbr-004',
     ggResponsibleId: 'mbr-002',
@@ -198,13 +211,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-007',
     fullName: 'Wagner Beltrão',
-    cpf: '253.580.247-35',
     email: 'wagner.beltrao@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/wagner-beltrao-07',
+    personalEmail: null,
     phone: '(81) 90000-0007',
     photoUrl: null,
-    role: 'Líder de Dados',
-    subarea: 'Inteligência de Dados',
+    role: 'Gerente de Dados',
+    area: 'Dados',
     squad: 'Squad Cronos',
     managerId: null,
     ggResponsibleId: 'mbr-001',
@@ -221,13 +233,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-008',
     fullName: 'Solange Peixoto',
-    cpf: '261.234.568-06',
     email: 'solange.peixoto@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/solange-peixoto-08',
+    personalEmail: null,
     phone: '(81) 90000-0008',
     photoUrl: null,
     role: 'Analista de Dados',
-    subarea: 'Inteligência de Dados',
+    area: 'Dados',
     squad: 'Squad Cronos',
     managerId: 'mbr-007',
     ggResponsibleId: 'mbr-002',
@@ -244,13 +255,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-009',
     fullName: 'Edmundo Vilanova',
-    cpf: '268.888.889-75',
     email: 'edmundo.vilanova@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/edmundo-vilanova-09',
+    personalEmail: null,
     phone: '(81) 90000-0009',
     photoUrl: null,
-    role: 'Especialista de Dados',
-    subarea: 'Inteligência de Dados',
+    role: 'Engenheiro de Dados',
+    area: 'Dados',
     squad: 'Squad Cronos',
     managerId: 'mbr-007',
     ggResponsibleId: 'mbr-001',
@@ -269,13 +279,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-010',
     fullName: 'Bernadete Siqueira',
-    cpf: '276.543.210-40',
     email: 'bernadete.siqueira@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/bernadete-siqueira-10',
+    personalEmail: null,
     phone: '(81) 90000-0010',
     photoUrl: null,
-    role: 'Líder de Produto',
-    subarea: 'Produto',
+    role: 'Product Manager',
+    area: 'Produto',
     squad: 'Squad Delta',
     managerId: null,
     ggResponsibleId: 'mbr-001',
@@ -292,13 +301,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-011',
     fullName: 'Anselmo Cordeiro',
-    cpf: '284.197.531-22',
     email: 'anselmo.cordeiro@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/anselmo-cordeiro-11',
+    personalEmail: null,
     phone: '(81) 90000-0011',
     photoUrl: null,
-    role: 'Analista de Produto',
-    subarea: 'Produto',
+    role: 'Product Designer',
+    area: 'Produto',
     squad: 'Squad Delta',
     managerId: 'mbr-010',
     ggResponsibleId: 'mbr-002',
@@ -317,13 +325,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-012',
     fullName: 'Perpétua Rangel',
-    cpf: '291.851.852-21',
     email: 'perpetua.rangel@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/perpetua-rangel-12',
+    personalEmail: null,
     phone: '(81) 90000-0012',
     photoUrl: null,
     role: 'Gerente de Marketing',
-    subarea: 'Marketing',
+    area: 'Marketing',
     squad: 'Squad Eco',
     managerId: null,
     ggResponsibleId: 'mbr-001',
@@ -340,13 +347,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-013',
     fullName: 'Gilmar Sarmento',
-    cpf: '299.506.173-67',
     email: 'gilmar.sarmento@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/gilmar-sarmento-13',
+    personalEmail: null,
     phone: '(81) 90000-0013',
     photoUrl: null,
     role: 'Analista de Marketing',
-    subarea: 'Marketing',
+    area: 'Marketing',
     squad: 'Squad Eco',
     managerId: 'mbr-012',
     ggResponsibleId: 'mbr-002',
@@ -361,17 +367,16 @@ const SEED_MEMBERS: SeedMember[] = [
     notes: null,
   },
 
-  // Comercial / Institucional
+  // Comercial / Gestão / Institucional
   {
     id: 'mbr-014',
     fullName: 'Leocádia Fontes',
-    cpf: '307.160.494-73',
     email: 'leocadia.fontes@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/leocadia-fontes-14',
+    personalEmail: null,
     phone: '(81) 90000-0014',
     photoUrl: null,
-    role: 'Gerente de Contas',
-    subarea: 'Comercial',
+    role: 'Analista Comercial',
+    area: 'Comercial',
     squad: 'Squad Farol',
     managerId: null,
     ggResponsibleId: 'mbr-001',
@@ -388,16 +393,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-015',
     fullName: 'Nivaldo Brayner',
-    cpf: '314.814.815-09',
     email: 'nivaldo.brayner@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/nivaldo-brayner-15',
+    personalEmail: null,
     phone: '(81) 90000-0015',
     photoUrl: null,
-    role: 'Especialista em Produto',
-    // Antes 'Gestão' — valor removido por não existir no organograma oficial
-    // (ver ADR-014). Reatribuído a 'Produto' como aproximação razoável para
-    // dado 100% fictício; não representa uma pessoa real.
-    subarea: 'Produto',
+    role: 'Gestor de Projetos',
+    area: 'Gestão',
     squad: 'Squad Gaia',
     managerId: null,
     ggResponsibleId: 'mbr-002',
@@ -414,13 +415,12 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-016',
     fullName: 'Zuleica Andrade',
-    cpf: '322.469.136-08',
     email: 'zuleica.andrade@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/zuleica-andrade-16',
+    personalEmail: null,
     phone: '(81) 90000-0016',
     photoUrl: null,
-    role: 'Relationship Manager',
-    subarea: 'Institucional',
+    role: 'Analista Institucional',
+    area: 'Institucional',
     squad: 'Squad Horizonte',
     managerId: null,
     ggResponsibleId: 'mbr-001',
@@ -445,17 +445,16 @@ const SEED_MEMBERS: SeedMember[] = [
   {
     id: 'mbr-018',
     fullName: 'Maria Aparecida de Albuquerque Wanderley Filha',
-    cpf: '337.777.778-46',
     email: 'maria.albuquerque@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/maria-filha-18',
+    personalEmail: null,
     phone: null,
     photoUrl: null,
-    role: 'Analista de Marketing',
-    subarea: 'Marketing',
+    role: 'Analista de Marketing de Conteúdo e Redes Sociais',
+    area: 'Marketing',
     squad: null,
     managerId: null,
     ggResponsibleId: null,
-    course: 'Comunicação Social — Publicidade e Propaganda',
+    course: 'Comunicação Social: Publicidade e Propaganda',
     semester: null,
     university: null,
     department: null,
@@ -466,19 +465,16 @@ const SEED_MEMBERS: SeedMember[] = [
     notes: null,
   },
 
-  // Arquivado — para testar filtros e o princípio de "nunca apagar". Saiu por
-  // ter concluído a graduação, não por desligamento (ver ADR-014: 'arquivado'
-  // é o valor usado para quem concluiu sua passagem no CITi).
+  // Desligado — para testar filtros e o princípio de "nunca apagar".
   {
     id: 'mbr-017',
     fullName: 'Ubiratã Malta',
-    cpf: '330.123.457-79',
     email: 'ubirata.malta@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/ubirata-malta-17',
+    personalEmail: null,
     phone: '(81) 90000-0017',
     photoUrl: null,
-    role: 'Pessoa Desenvolvedora',
-    subarea: 'Desenvolvimento',
+    role: 'Desenvolvedor Mobile',
+    area: 'Desenvolvimento',
     squad: 'Squad Boreal',
     managerId: 'mbr-004',
     ggResponsibleId: 'mbr-002',
@@ -486,92 +482,42 @@ const SEED_MEMBERS: SeedMember[] = [
     semester: 10,
     university: 'UFPE',
     department: 'CIn',
-    status: 'arquivado',
+    status: 'desligado',
     joinedAt: '2023-03-01',
     exitedAt: daysAgo(95),
     birthDate: '2001-09-12',
     notes: 'Concluiu a graduação.',
   },
-
-  // Desligado — saída que NÃO foi por conclusão (ex.: indisponibilidade).
-  // Existe para que 'desligado' e 'arquivado' tenham exemplo próprio na base.
-  {
-    id: 'mbr-019',
-    fullName: 'Fernanda Lacerda',
-    cpf: '345.432.099-23',
-    email: 'fernanda.lacerda@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/fernanda-lacerda-19',
-    phone: '(81) 90000-0019',
-    photoUrl: null,
-    role: 'Analista de Marketing',
-    subarea: 'Marketing',
-    squad: 'Squad Eco',
-    managerId: 'mbr-012',
-    ggResponsibleId: 'mbr-002',
-    course: 'Comunicação Social',
-    semester: 4,
-    university: 'UFPE',
-    department: 'CCSA',
-    status: 'desligado',
-    joinedAt: '2024-06-01',
-    exitedAt: daysAgo(40),
-    birthDate: '2004-04-02',
-    notes: 'Saiu por mudança de curso, ainda cursando.',
-  },
-
-  // Inovação — subárea nova (ADR-014), sem exemplo anterior na base.
-  {
-    id: 'mbr-020',
-    fullName: 'Cauê Medeiros',
-    cpf: '353.086.420-01',
-    email: 'caue.medeiros@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/caue-medeiros-20',
-    phone: '(81) 90000-0020',
-    photoUrl: null,
-    role: 'Agente de Inovação',
-    subarea: 'Inovação',
-    squad: 'Squad Nexus',
-    managerId: null,
-    ggResponsibleId: 'mbr-001',
-    course: 'Engenharia da Computação',
-    semester: 5,
-    university: 'UFPE',
-    department: 'CIn',
-    status: 'ativo',
-    joinedAt: '2025-02-01',
-    exitedAt: null,
-    birthDate: '2004-10-05',
-    notes: null,
-  },
-
-  // Diretoria — lidera uma ÁREA inteira, não uma subárea (ADR-018).
-  {
-    id: 'mbr-021',
-    fullName: 'Heloísa Bittencourt',
-    cpf: '482.917.360-05',
-    email: 'heloisa.bittencourt@citi.org.br',
-    linkedinUrl: 'https://www.linkedin.com/in/heloisa-bittencourt-21',
-    phone: '(81) 90000-0021',
-    photoUrl: null,
-    role: 'Diretor(a) de Operações (COO)',
-    subarea: null,
-    diretoriaArea: 'Gente e Gestão',
-    squad: null,
-    managerId: null,
-    ggResponsibleId: null,
-    course: 'Administração',
-    semester: 10,
-    university: 'UFPE',
-    department: 'CCSA',
-    status: 'ativo',
-    joinedAt: '2023-01-15',
-    exitedAt: null,
-    birthDate: '2002-11-30',
-    notes: null,
-  },
 ];
 
-export const MEMBERS: Member[] = SEED_MEMBERS.map((m) => ({
+/**
+ * Preenche as chaves normalizadas a partir do texto legado do seed.
+ *
+ * O seed foi escrito quando `members.area` era a única verdade. Sem `areaId` e
+ * `subareaId`, os filtros novos (que são por id, como no banco) não achariam
+ * ninguém no modo mock — e a tela pareceria quebrada sem estar.
+ *
+ * `Gestão` não existe no catálogo: esse membro fica sem as chaves de propósito,
+ * e é ele quem exercita o caminho de quem foi cadastrado antes da estrutura
+ * normalizada existir.
+ */
+function withOrgKeys(member: SeedMember): SeedMember {
+  const subarea = MOCK_ORG_CATALOG.subareas.find((item) => item.name === member.area);
+  if (!subarea) return member;
+
+  const position = MOCK_ORG_CATALOG.positions.find(
+    (item) => item.name === member.role && item.areaId === subarea.areaId,
+  );
+
+  return {
+    ...member,
+    areaId: subarea.areaId,
+    subareaId: subarea.id,
+    positionId: position?.id ?? null,
+  };
+}
+
+export const MEMBERS: Member[] = SEED_MEMBERS.map(withOrgKeys).map((m) => ({
   ...m,
   createdAt: NOW,
   updatedAt: NOW,
@@ -600,7 +546,11 @@ const SEED_X1S: SeedX1[] = [
     desiredSkills: ['Liderança técnica', 'Arquitetura de frontend'],
     citiValues: [
       { value: 'Eu sou o CITi', rating: 5, note: 'Muito presente na cultura da squad.' },
-      { value: 'Obcecados por aprender', rating: 5, note: 'Estudou TypeScript avançado por conta própria.' },
+      {
+        value: 'Obcecados por aprender',
+        rating: 5,
+        note: 'Estudou TypeScript avançado por conta própria.',
+      },
       { value: 'Obcecados por vencer', rating: 4, note: null },
       { value: 'Obcecados por entregar', rating: 4, note: 'Cumpriu todos os prazos do ciclo.' },
     ],
@@ -913,7 +863,7 @@ const SEED_FEEDBACKS: SeedFeedback[] = [
     givenAt: daysAgo(6),
     registeredById: 'mbr-002',
     notes:
-      'Contexto acadêmico. Revisitar depois da semana de provas — a redução de carga é temporária e combinada.',
+      'Contexto acadêmico. Revisitar depois da semana de provas. A redução de carga é temporária e combinada.',
   },
 
   // Sem quem registrou: registro antigo ou importado. A tela não pode quebrar.
@@ -994,10 +944,10 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
   {
     id: 'anon-002',
     content:
-      'Sinto que a squad de Inteligência de Dados não recebe retorno sobre o que acontece com as análises entregues. A gente manda, e depois não sabe se virou decisão ou se ficou parado.',
+      'Sinto que a squad de Dados não recebe retorno sobre o que acontece com as análises entregues. A gente manda, e depois não sabe se virou decisão ou se ficou parado.',
     targetType: 'subarea',
     targetMemberId: null,
-    targetLabel: 'Inteligência de Dados',
+    targetLabel: 'Dados',
     submittedAt: daysAgo(2),
     status: 'pendente',
     resolution: null,
@@ -1054,7 +1004,7 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
   {
     id: 'anon-006',
     content:
-      'Queria trazer uma coisa que venho sentindo há algumas semanas e que acho que não sou só eu. A carga combinada no começo do ciclo não bate com o que aparece depois. A gente combina uma coisa no planejamento, e no meio do ciclo aparecem pedidos fora do que foi acordado, sempre com urgência. Individualmente cada pedido é pequeno e faz sentido, então fica difícil dizer não sem parecer que você não está colaborando. Só que somados eles ocupam boa parte da semana, e aí a entrega que estava combinada atrasa — e é essa que aparece na retro. Não estou falando de ninguém específico, é mais um padrão de como as coisas chegam. Acho que ajudaria muito se pedido novo no meio do ciclo passasse pela mesma conversa que o planejamento passou, mesmo que fosse uma conversa de cinco minutos. Também acho que ajudaria se ficasse registrado em algum lugar que aquilo entrou fora do combinado, porque hoje some.',
+      'Queria trazer uma coisa que venho sentindo há algumas semanas e que acho que não sou só eu. A carga combinada no começo do ciclo não bate com o que aparece depois. A gente combina uma coisa no planejamento, e no meio do ciclo aparecem pedidos fora do que foi acordado, sempre com urgência. Individualmente cada pedido é pequeno e faz sentido, então fica difícil dizer não sem parecer que você não está colaborando. Só que somados eles ocupam boa parte da semana, e aí a entrega que estava combinada atrasa, e é essa que aparece na retro. Não estou falando de ninguém específico, é mais um padrão de como as coisas chegam. Acho que ajudaria muito se pedido novo no meio do ciclo passasse pela mesma conversa que o planejamento passou, mesmo que fosse uma conversa de cinco minutos. Também acho que ajudaria se ficasse registrado em algum lugar que aquilo entrou fora do combinado, porque hoje some.',
     targetType: 'citi',
     targetMemberId: null,
     targetLabel: null,
@@ -1174,7 +1124,7 @@ export const ANONYMOUS_FEEDBACKS: AnonymousFeedback[] = [
     directedMemberId: null,
     moderatedById: 'mbr-001',
     moderatedAt: daysAgo(32),
-    moderationNote: 'Sem indicação de quem — não dá para direcionar. GG está ciente.',
+    moderationNote: 'Sem indicação de quem, não dá para direcionar. GG está ciente.',
   },
   {
     id: 'anon-014',
@@ -1271,36 +1221,6 @@ export const MEMBER_EVENTS: MemberEvent[] = [
     occurredAt: daysAgo(95),
     title: 'Desligamento',
     description: 'Saída após conclusão da graduação.',
-    sourceId: null,
-    createdAt: NOW,
-  },
-  {
-    id: 'evt-006',
-    memberId: 'mbr-019',
-    type: 'entrada',
-    occurredAt: '2024-06-01',
-    title: 'Entrada no CITi',
-    description: 'Ingressou na subárea de Marketing.',
-    sourceId: null,
-    createdAt: NOW,
-  },
-  {
-    id: 'evt-007',
-    memberId: 'mbr-019',
-    type: 'desligamento',
-    occurredAt: daysAgo(40),
-    title: 'Desligamento',
-    description: 'Saída por mudança de curso.',
-    sourceId: null,
-    createdAt: NOW,
-  },
-  {
-    id: 'evt-008',
-    memberId: 'mbr-020',
-    type: 'entrada',
-    occurredAt: '2025-02-01',
-    title: 'Entrada no CITi',
-    description: 'Ingressou na subárea de Inovação.',
     sourceId: null,
     createdAt: NOW,
   },

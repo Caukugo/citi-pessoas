@@ -53,7 +53,7 @@ export function AnonymousFeedbackBoard() {
       <Surface>
         <ErrorState
           title="Não foi possível carregar os feedbacks"
-          description="A fila de moderação não chegou. Nenhum relato foi perdido — tente de novo."
+          description="A fila de moderação não chegou. Nenhum relato foi perdido, tente de novo."
           onRetry={refetch}
         />
       </Surface>
@@ -61,7 +61,7 @@ export function AnonymousFeedbackBoard() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-[20px]">
       <AnonymousFeedbackFilters filters={filters} onChange={setFilter} onClear={clear} />
 
       {total === 0 && !filtering ? (

@@ -1,23 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCheck, CornerDownRight, X } from 'lucide-react';
-import {
-  Badge,
-  Button,
-  Drawer,
-  FormField,
-  SearchInput,
-  Textarea,
-  useToast,
-} from '@/components/ui';
+import { Badge, Button, Drawer, FormField, SearchInput, Textarea, useToast } from '@/components/ui';
 import {
   ANONYMOUS_RESOLUTION_LABEL,
   ANONYMOUS_TARGET_LABEL,
-  memberSubareaLabel,
   messageFor,
   useModerateAnonymousFeedback,
   type AnonymousFeedback,
   type AnonymousFeedbackResolution,
+  useMemberOrgLabels,
   type ID,
   type Member,
 } from '@/data';
@@ -74,6 +66,7 @@ export function ModerationDrawer({
   const { user } = useAuth();
   const { showToast } = useToast();
   const moderate = useModerateAnonymousFeedback();
+  const orgLabel = useMemberOrgLabels();
 
   // O último relato aberto continua desenhado enquanto a gaveta desliza para
   // fora. Sem isso o conteúdo sumiria antes do painel, e o fechamento pareceria
@@ -295,7 +288,7 @@ export function ModerationDrawer({
                                 {member.fullName}
                               </span>
                               <span className="block truncate text-xs text-muted-foreground">
-                                {member.role} · {memberSubareaLabel(member)}
+                                {member.role} · {orgLabel(member).subarea}
                               </span>
                             </span>
                             {selected && (
@@ -312,7 +305,7 @@ export function ModerationDrawer({
 
             <FormField
               label="Observação interna de GG"
-              hint="Opcional. Fica só para a GG — nunca é devolvida a quem enviou."
+              hint="Opcional. Fica só para a GG, nunca é devolvida a quem enviou."
             >
               {(field) => (
                 <Textarea
@@ -330,9 +323,7 @@ export function ModerationDrawer({
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={shown.resolution === 'direcionado' ? 'brand' : 'neutral'}>
-                  {shown.resolution
-                    ? ANONYMOUS_RESOLUTION_LABEL[shown.resolution]
-                    : 'Moderado'}
+                  {shown.resolution ? ANONYMOUS_RESOLUTION_LABEL[shown.resolution] : 'Moderado'}
                 </Badge>
                 {directedTo && shown.directedMemberId && (
                   <Link
@@ -345,7 +336,11 @@ export function ModerationDrawer({
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Por {moderatedBy ?? '—'} em {formatDate(shown.moderatedAt)}
+                {/* Sem autor conhecido a frase muda de forma, em vez de
+                    carregar um marcador de vazio no meio da prosa. */}
+                {moderatedBy
+                  ? `Por ${moderatedBy} em ${formatDate(shown.moderatedAt)}`
+                  : `Em ${formatDate(shown.moderatedAt)}`}
               </p>
 
               {shown.moderationNote ? (
@@ -353,9 +348,7 @@ export function ModerationDrawer({
                   {shown.moderationNote}
                 </p>
               ) : (
-                <p className="mt-1 text-xs text-muted-foreground italic">
-                  Sem observação interna.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground italic">Sem observação interna.</p>
               )}
             </div>
           </Field>

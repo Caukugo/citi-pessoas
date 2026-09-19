@@ -27,10 +27,10 @@ export function X1Page() {
         goal="Registrar um novo X1"
         steps={[
           'Montar o formulário de X1 em um <Modal>, seguindo o modelo de formulário do LoginPage (react-hook-form + zod + FormField).',
-          'Salvar com useCreateX1() — a invalidação do cache já está pronta (X1-002).',
+          'Salvar com useCreateX1(). A invalidação do cache já está pronta (X1-002).',
           'Listar o histórico de X1 do membro com useX1sByMember() (X1-003).',
           'Mostrar o detalhe de um X1 (X1-004) e permitir editar o registro (X1-005).',
-          'Exibir a situação do membro com getMemberX1Status() — nunca grave "atrasado" no banco (X1-006).',
+          'Exibir a situação do membro com getMemberX1Status(). Nunca grave "atrasado" no banco (X1-006).',
         ]}
         files={[
           'src/features/x1/pages/X1Page.tsx  ← esta tela',
@@ -39,13 +39,13 @@ export function X1Page() {
         dataHooks={[
           'useX1sByMember(memberId)',
           'useCreateX1() / useUpdateX1()',
-          'useSettings()  — periodicidade configurada',
-          'getMemberX1Status(member, x1s, settings)  — em dia / atrasado / primeiro pendente',
+          'useSettings()  · periodicidade configurada',
+          'getMemberX1Status(member, x1s, settings)  · em dia / atrasado / primeiro pendente',
         ]}
         doNotTouch={[
-          'src/data/  — se faltar um campo no X1, fale com Sofia',
+          'src/data/  · se faltar um campo no X1, fale com Sofia',
           'src/app/',
-          'src/features/members/  — a integração com o Perfil é combinada com Gabi (X1-008)',
+          'src/features/members/  · a integração com o Perfil é combinada com Gabi (X1-008)',
         ]}
         docs={['docs/PROJECT_CONTEXT.md', 'docs/DATA_MODEL.md', 'docs/AI_DEVELOPMENT_GUIDE.md']}
       />

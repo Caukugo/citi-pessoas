@@ -25,8 +25,8 @@ function member(id: string, overrides: Partial<Member> = {}): Member {
     id,
     fullName: `Pessoa ${id}`,
     email: `${id}@citi.org.br`,
-    role: 'Pessoa Desenvolvedora',
-    subarea: 'Desenvolvimento',
+    role: 'Dev',
+    area: 'Desenvolvimento',
     status: 'ativo',
     joinedAt: '2026-01-01',
     createdAt: '2026-01-01',
@@ -35,12 +35,7 @@ function member(id: string, overrides: Partial<Member> = {}): Member {
   };
 }
 
-function feedback(
-  id: string,
-  memberId: string,
-  type: FeedbackType,
-  givenAt: string,
-): Feedback {
+function feedback(id: string, memberId: string, type: FeedbackType, givenAt: string): Feedback {
   return {
     id,
     memberId,
@@ -71,9 +66,10 @@ describe('aggregateFeedbacksByMember', () => {
   });
 
   it('inclui quem não tem feedback nenhum, com contagem zero', () => {
-    const rows = aggregateFeedbacksByMember([member('a'), member('b')], [
-      feedback('f1', 'a', 'informal', '2026-01-10'),
-    ]);
+    const rows = aggregateFeedbacksByMember(
+      [member('a'), member('b')],
+      [feedback('f1', 'a', 'informal', '2026-01-10')],
+    );
 
     const b = rows.find((row) => row.member.id === 'b');
     expect(b?.total).toBe(0);
@@ -123,8 +119,20 @@ describe('aggregateFeedbacksByMember', () => {
 
 describe('applyFeedbackFilters', () => {
   const members = [
-    member('a', { fullName: 'Ana Souza', subarea: 'Inteligência de Dados', ggResponsibleId: 'gg1' }),
-    member('b', { fullName: 'Bruno Lima', subarea: 'Marketing', role: 'Analista de Marketing' }),
+    member('a', {
+      fullName: 'Ana Souza',
+      area: 'Dados',
+      areaId: 'area-solucoes',
+      subareaId: 'sub-dados',
+      ggResponsibleId: 'gg1',
+    }),
+    member('b', {
+      fullName: 'Bruno Lima',
+      area: 'Marketing',
+      areaId: 'area-negocios',
+      subareaId: 'sub-marketing',
+      role: 'Analista',
+    }),
   ];
   const feedbacks = [
     feedback('f1', 'a', 'informal', '2026-01-10'),
@@ -154,8 +162,9 @@ describe('applyFeedbackFilters', () => {
   });
 
   it('filtra por subárea e por GG responsável', () => {
+    // O recorte de subárea compara CHAVE, não o texto legado de `members.area`.
     expect(
-      applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, subarea: 'Inteligência de Dados' }),
+      applyFeedbackFilters(rows, DEFAULT_FEEDBACKS_FILTERS, { subareaId: 'sub-dados' }),
     ).toHaveLength(1);
     expect(
       applyFeedbackFilters(rows, { ...DEFAULT_FEEDBACKS_FILTERS, ggResponsibleId: 'gg1' }),
@@ -177,9 +186,7 @@ describe('applyFeedbackFilters', () => {
 
   it('reconhece quando há filtro ativo', () => {
     expect(hasActiveFeedbackFilters(DEFAULT_FEEDBACKS_FILTERS)).toBe(false);
-    expect(
-      hasActiveFeedbackFilters({ ...DEFAULT_FEEDBACKS_FILTERS, type: 'formal' }),
-    ).toBe(true);
+    expect(hasActiveFeedbackFilters({ ...DEFAULT_FEEDBACKS_FILTERS, type: 'formal' })).toBe(true);
   });
 });
 

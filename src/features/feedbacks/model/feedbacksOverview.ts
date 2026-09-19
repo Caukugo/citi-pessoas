@@ -115,7 +115,9 @@ function mostRecent(feedbacks: Feedback[]): Feedback | null {
  */
 export interface FeedbacksListFilters {
   search: string;
-  subarea: string;
+  /** Slug da área e da subárea, como na listagem de Membros. */
+  areaSlug: string;
+  subareaSlug: string;
   ggResponsibleId: string;
   /** Um `FeedbackType`, ou '' para todos. */
   type: string;
@@ -123,15 +125,29 @@ export interface FeedbacksListFilters {
 
 export const DEFAULT_FEEDBACKS_FILTERS: FeedbacksListFilters = {
   search: '',
-  subarea: '',
+  areaSlug: '',
+  subareaSlug: '',
   ggResponsibleId: '',
   type: '',
 };
 
+/**
+ * Os mesmos filtros de área e subárea, já traduzidos de slug para id.
+ *
+ * A função de filtro é pura e não conhece catálogo: quem traduz é o hook, uma
+ * vez. Comparar id — e não o texto de `members.area` — é o que faz o recorte
+ * "Negócios" incluir quem tem cargo de área inteira.
+ */
+export interface OrgFilterIds {
+  areaId?: ID;
+  subareaId?: ID;
+}
+
 export function hasActiveFeedbackFilters(filters: FeedbacksListFilters): boolean {
   return (
     filters.search !== '' ||
-    filters.subarea !== '' ||
+    filters.areaSlug !== '' ||
+    filters.subareaSlug !== '' ||
     filters.ggResponsibleId !== '' ||
     filters.type !== ''
   );
@@ -155,20 +171,22 @@ export function hasActiveFeedbackFilters(filters: FeedbacksListFilters): boolean
 export function applyFeedbackFilters(
   rows: MemberFeedbackRow[],
   filters: FeedbacksListFilters,
+  org: OrgFilterIds = {},
 ): MemberFeedbackRow[] {
   const needle = normalizeText(filters.search);
 
   return rows.filter(({ member, counts }) => {
-    if (filters.subarea && member.subarea !== filters.subarea) return false;
+    // Área traz a área inteira; subárea traz só quem é dela — a diretoria de
+    // área não pertence a uma subárea só e não entra naquele recorte.
+    if (org.areaId && member.areaId !== org.areaId) return false;
+    if (org.subareaId && member.subareaId !== org.subareaId) return false;
     if (filters.ggResponsibleId && member.ggResponsibleId !== filters.ggResponsibleId) {
       return false;
     }
     if (filters.type && counts[filters.type as FeedbackType] === 0) return false;
 
     if (needle) {
-      // `subarea` é `null` para Diretoria (ADR-018) — cai fora da busca, não
-      // quebra a busca.
-      const haystack = [member.fullName, member.role, member.subarea ?? ''].map(normalizeText);
+      const haystack = [member.fullName, member.role, member.area].map(normalizeText);
       if (!haystack.some((value) => value.includes(needle))) return false;
     }
 
@@ -233,10 +251,7 @@ export function summarizeFeedbacks(rows: MemberFeedbackRow[]): FeedbacksSummary 
  * Recorta o histórico de uma pessoa por tipo, do mais recente para o mais
  * antigo. `type` indefinido devolve todos.
  */
-export function selectMemberFeedbacks(
-  feedbacks: Feedback[],
-  type?: FeedbackType,
-): Feedback[] {
+export function selectMemberFeedbacks(feedbacks: Feedback[], type?: FeedbackType): Feedback[] {
   return feedbacks
     .filter((feedback) => !type || feedback.type === type)
     .sort((a, b) => b.givenAt.localeCompare(a.givenAt));

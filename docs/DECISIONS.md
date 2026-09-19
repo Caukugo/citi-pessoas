@@ -524,500 +524,287 @@ decisão humana que nunca aconteceu.
 
 ---
 
-## ADR-014 — Correção de área/subárea e situação do membro
+## ADR-014 — A planilha da importação é a BASE ATUAL, não um arquivo de entradas
 
-- **Data:** 2026-09-14
+- **Data:** 2026-09-17
 - **Status:** Aceita
-- **Substitui:** os valores de `Area` definidos na migration `0001` e em
-  `src/data/types.ts` desde a fundação da Fase 1, e o significado de
-  `arquivado` em `MemberStatus`.
+- **Afeta:** a importação por CSV (migrations `0011`–`0014`), que até aqui
+  inativava quem entrasse com gestão antiga.
 
-**Contexto.** Uma auditoria comparando a implementação atual com "Contexto das
-funcionalidades e estrutura da plataforma" (fonte oficial do projeto,
-priorizada explicitamente acima de toda documentação e código deste
-repositório) encontrou duas divergências de modelo:
+**Contexto.** A importação calcula o ciclo pela gestão de entrada
+(`AAAA.1` → 01/01–31/12; `AAAA.2` → 01/07–30/06) e, se esse ciclo já tinha
+terminado, encerrava-o por `conclusao_natural` e criava a pessoa **inativa**.
 
-1. `Area` incluía `'Dados'` e `'Gestão'`, mas não incluía `'Inovação'`. O
-   organograma oficial define oito subáreas: Gente e Gestão; Desenvolvimento,
-   Produto e **Inteligência de Dados** (Soluções); Marketing e Comercial
-   (Negócios); Institucional e **Inovação** (Institucional). `'Gestão'` não
-   corresponde a nenhuma delas — é um valor sem origem documentada.
-2. O cadastro de membro oficial define a situação como
-   `Ativo | Desligado | Concluído`. O código já tinha três valores
-   (`ativo | desligado | arquivado`), mas nenhum deles distinguia com clareza
-   quem concluiu sua passagem no CITi (ex.: formou) de quem foi desligado por
-   outro motivo — o próprio dado fictício de exemplo (`mbr-017`) já registrava
-   essa ambiguidade: status `desligado` com a observação "Concluiu a
-   graduação.".
+Isso é correto para uma entrada avulsa e falso para a carga da base do CITi. A
+planilha descreve **quem está na empresa hoje**. Quem entrou em 2024.1 e
+continua atuando não concluiu o ciclo e saiu — continuou, semestre após
+semestre, e ninguém registrou porque a plataforma não existia. Importar assim
+criaria dezenas de desligamentos que nunca aconteceram, obrigaria a reativar
+todo mundo à mão e deixaria uma saída falsa na timeline de cada pessoa, para
+sempre.
 
-**Decisão.**
+**Decisão.** Tratar o CSV como `current_roster`. Todo membro válido termina a
+importação **ativo**. Quando o ciclo inicial já venceu, o banco:
 
-- `AREAS` passa a ser `Gente e Gestão, Desenvolvimento, Produto, Inteligência
-  de Dados, Marketing, Comercial, Institucional, Inovação` — as oito subáreas
-  do organograma oficial, nesta grafia. `'Dados'` deixa de ser um valor válido
-  (a importação de CSV continua aceitando a grafia antiga como apelido, ver
-  `parseArea()`); `'Gestão'` é removido sem substituto automático.
-- `MemberStatus` **continua exatamente** `'ativo' | 'desligado' | 'arquivado'`
-  — nenhum valor novo foi adicionado ao enum, e a migration `0003` não altera
-  nenhum tipo no banco. O que muda é o SIGNIFICADO de `arquivado`, que passa a
-  representar especificamente "concluiu sua passagem no CITi" (ex.: formou),
-  em oposição a `desligado` (saiu sem concluir — trancou, foi desligado pela
-  GG, etc.). Um rótulo único (`MEMBER_STATUS_LABEL`) passa a existir em
-  `src/data/types.ts` para eliminar as três listas de rótulo duplicadas que já
-  existiam (`MembersToolbar`, `useMembersFilters`, `MemberProfileHeader`).
+1. encerra-o como **`continuado`** — um valor novo de `member_cycle_end_type`,
+   porque "terminou e seguiu" não é "terminou e parou";
+2. emenda ciclos contíguos (início = fim anterior + 1 dia) com
+   `positions.continuation_months` do cargo atual, até alcançar a data de
+   referência;
+3. marca os ciclos inferidos com `member_cycles.source = 'current_roster_import'`;
+4. registra **um único** `member_event` de importação com o resumo (fim
+   original, fim final, ciclos acrescentados, meses de cada bloco, data de
+   referência);
+5. define a **data de referência no servidor** (`citi_import_reference_date`) —
+   a prévia calcula localmente só para mostrar as datas.
+
+Migration própria: `0015_current_roster.sql`.
 
 **Alternativas consideradas.**
 
-- **Adicionar um quarto valor (`concluido`) ao enum, mantendo `arquivado` com
-  seu significado técnico anterior.** Rejeitado: cria um quarto estado sem
-  necessidade — o cadastro oficial só define três situações, e `arquivado` já
-  ocupava, na prática, o papel de "saída sem estar mais na operação". Reusar o
-  valor existente evita uma migration de schema e mantém o modelo do tamanho
-  que o documento de contexto pede.
-- **Modelar a hierarquia grande-área → subárea agora**, em vez de uma lista
-  plana de subáreas. Rejeitado por ora: o código já documentava a lista plana
-  como "configurável na Administração no futuro", e o pedido desta correção
-  foi consertar os VALORES, não redesenhar a estrutura. Fica registrado como
-  trabalho futuro possível, não como decisão tomada.
-- **Reatribuir automaticamente linhas com `area = 'Gestão'` para uma subárea
-  qualquer.** Rejeitado: não há como saber a subárea real de uma pessoa sem
-  perguntar. A migration `0003` apenas avisa (via `raise notice`) se encontrar
-  alguma linha assim — a correção é manual.
-
-**Dados fictícios (mock).** Ajustados para o novo modelo: os três membros de
-exemplo em "Dados" viraram "Inteligência de Dados"; o único membro em
-"Gestão" (`mbr-015`, fictício) foi movido para "Produto" como aproximação
-razoável, sem representar pessoa real; `mbr-017` (que já tinha a observação
-"Concluiu a graduação.") passou a `arquivado`, alinhando status e observação;
-dois membros novos foram adicionados para dar exemplo próprio a `desligado`
-(saída sem conclusão) e a `Inovação` (subárea nova).
+- **Esticar o ciclo inicial até hoje.** Rejeitado: reescreve o passado. O ciclo
+  de 2024.1 terminou mesmo em 31/12/2024, e um ciclo de "quatro anos" não
+  corresponde a compromisso nenhum que alguém assumiu.
+- **Importar inativo e reativar depois, pela tela.** Rejeitado: é exatamente o
+  desligamento que nunca aconteceu, multiplicado por setenta — e `reativacao` é
+  registro de uma **decisão humana**, que aqui ninguém tomou.
+- **Um `member_event` por ciclo emendado.** Rejeitado: quem entrou há três anos
+  abriria o perfil com sete eventos que ninguém decidiu. Os `member_cycles` já
+  guardam cada período; a timeline guarda o que aconteceu.
+- **Novo valor em `member_cycle_origin`** em vez da coluna `source`. Rejeitado:
+  um ciclo inferido **é** uma continuação (emenda o anterior, `cycle_number`
+  maior que 1), e trocar a origem quebraria `member_cycles_origem_coerente` e
+  toda leitura que já distingue entrada de continuação.
+- **Confiar na data de referência do cliente.** Rejeitado: o relógio do
+  navegador decidiria quantos meses cada pessoa ganha.
 
 **Consequências.**
 
-- ✅ `Area` agora reflete o organograma oficial do projeto, e `arquivado`
-  passa a ter um significado único e documentado (conclusão), alinhado ao
-  cadastro de membro do documento de contexto.
-- ✅ Rótulo de situação do membro passa a ter fonte única
-  (`MEMBER_STATUS_LABEL`), reduzindo divergência futura entre telas.
-- ✅ Nenhuma migration de schema é necessária para `member_status` — a
-  migration `0003` só ajusta dados de `area`, e é aditiva e idempotente.
-- ⚠️ Nenhuma planilha real foi migrada por esta mudança: a importação real do
-  CITi Pessoas (IMPORT-001/002) ainda não aconteceu.
+- ✅ Ninguém entra desligado; nenhum retorno ou reativação falsa é registrado.
+- ✅ `continuado` × `conclusao_natural` preserva a diferença entre continuar e
+  parar — e a reativação continua exigindo `conclusao_natural`, então nada do
+  fluxo existente muda.
+- ✅ O período inferido fica separado, para sempre, do período que alguém
+  concedeu (`source`).
+- ⚠️ **Não existe renovação automática.** Terminado o último ciclo emendado, a
+  rotina diária inativa a pessoa normalmente. A continuação seguinte é decisão
+  humana, pela reativação.
+- ⚠️ A entrada futura pelo **Google Forms não usa esta regra**: quem chega agora
+  cria só o ciclo inicial, por `citi_open_entry_cycle`.
+- ⚠️ A regra vive em dois lugares (banco e TypeScript, para a prévia). O banco é
+  a autoridade e os dois têm teste — `supabase/tests/0005_current_roster.sql` e
+  `src/data/import/currentRoster.test.ts`.
 
 ---
 
-## ADR-015 — Hierarquia área → subárea, e nomenclatura por gestão fica em eventos
+## ADR-015 — Corrigir cadastro é um acontecimento próprio, diferente de movimentação
 
-- **Data:** 2026-09-16
+- **Data:** 2026-09-17
 - **Status:** Aceita
+- **Nasce de:** PERFIL-006 e da importação piloto, que deixou quatro pessoas com
+  pendências que não tinham como ser corrigidas pela plataforma.
 
-**Contexto.** O ADR-014 corrigiu os valores de `Area` (o campo que hoje vive em
-`members`) para refletir o organograma, mas tratou a divisão em dois níveis —
-área (Gente & Gestão, Soluções, Negócios, Institucional) e subárea
-(Desenvolvimento, Produto, Inteligência de Dados, etc.) — como trabalho futuro.
-Revisão do documento de contexto (16/09/2026) apontou que essa hierarquia já é
-necessária na primeira versão: o que `members.area` guarda hoje é, na verdade,
-sempre a **subárea** (o nível onde a pessoa realmente atua); "área" é a divisão
-maior, formada por um grupo de subáreas. Além disso, os nomes das subáreas (e,
-potencialmente, das próprias áreas) podem mudar de uma gestão para outra — mas
-a Fase 1 só precisa importar os dados da gestão atual.
+**Contexto.** A importação entra com o que a planilha trouxe. Quando a planilha
+traz errado — data de nascimento ilegível, telefone com dígito a menos, cargo na
+subárea errada — a correção precisa acontecer em algum lugar. Até aqui esse
+lugar era o SQL Editor.
+
+Ao abrir essa porta aparece uma pergunta que não é de interface: quando alguém
+troca o cargo de uma pessoa na tela, isso é **conserto de um dado errado** ou a
+pessoa foi **promovida**? A timeline responde coisas diferentes nos dois casos, e
+quem for ler daqui a um ano não tem como adivinhar.
 
 **Decisão.**
 
-1. Renomear o campo do membro de `area` para `subarea` (é o que ele sempre
-   representou).
-2. Introduzir um tipo `Area` de nível superior (`'Gente e Gestão' | 'Soluções' |
-   'Negócios' | 'Institucional'`) e uma estrutura única
-   `AREA_STRUCTURE: Record<Area, Subarea[]>` que mapeia cada área às suas
-   subáreas — fonte única de verdade, da qual `AREAS`, `SUBAREAS` e
-   `getAreaForSubarea()` são derivados.
-3. `MemberFilters` ganha `subarea` (renomeado) e `area` (novo — filtra por
-   todas as subáreas de uma área, via `getAreaForSubarea`).
-4. O evento `mudanca_area` passa a `mudanca_subarea` (nunca representou outra
-   coisa).
-5. **Não** criar um catálogo versionado de área/subárea por gestão.
-   `AREA_STRUCTURE` representa apenas a nomenclatura da gestão atual. Quando
-   gestões passadas forem importadas, a nomenclatura da época delas fica
-   registrada como texto livre no `member_events` já existente (o mesmo
-   mecanismo append-only que já guarda `mudanca_subarea`), não forçada dentro
-   do union type `Subarea` atual.
+1. `correcao_cadastral` é um tipo de evento próprio, escrito pelo **trigger**
+   (não pela tela), com o **diff**: só os campos que mudaram, antes e depois. Um
+   evento por correção, mesmo que três campos mudem juntos.
+2. Os eventos de cargo, área e subárea passam a carregar `change_kind` em
+   `after_data`. A tela de correção declara `correcao_cadastral` via
+   `set local citi.change_kind`; quem não declara nada fica `nao_informado`.
+3. A **movimentação formal** (promoção, troca de time, com data de vigência)
+   fica para depois e usará o mesmo `change_kind` com outro valor. Nada nesta
+   decisão a implementa.
+4. A correção acontece por uma função do Postgres
+   (`citi_correct_member_record`), que valida, grava e resolve a pendência de
+   revisão eliminada — numa transação só.
 
 **Alternativas consideradas.**
 
-- **Tabela de catálogo de área/subárea versionada por gestão** (uma tabela com
-  `gestao_id`, nome e período de vigência). Mais correta para reconstruir "que
-  subáreas existiam na gestão X", mas é exatamente o modelo temporal completo
-  que o ADR-007 já recusou, pela mesma razão: toda tela simples (listagem de
-  membros, formulário de cadastro) passaria a depender de uma junção com a
-  gestão vigente, e nenhuma funcionalidade da Fase 1 precisa disso — só
-  entraria em uso quando gestões passadas forem importadas, o que ainda não é
-  escopo. Rejeitada pelo mesmo motivo do ADR-007 e do ADR-012.
-- **Guardar a nomenclatura antiga só como observação manual, fora do modelo de
-  eventos.** Rejeitado: `member_events` já é o mecanismo estabelecido para
-  "isto era diferente no passado" (ADR-007); duplicar esse conceito criaria
-  duas fontes para a mesma pergunta.
-
-**Motivação.** A divisão em área/subárea é real e visível hoje (Soluções
-contém três subáreas com necessidades bem diferentes), então vale a pena
-representá-la desde já — sem, porém, adiantar a complexidade de um catálogo
-versionado que só se paga quando o histórico de gestões passadas entrar em
-cena.
+- **Reaproveitar `update` direto na tabela.** Rejeitado: a unicidade do e-mail
+  viraria erro de constraint sem frase legível, e a resolução do `needs_review`
+  seria uma segunda escrita que pode falhar sozinha, deixando a pendência viva
+  depois de corrigida.
+- **Mandar o cadastro inteiro a cada salvamento.** Rejeitado: o evento diria que
+  tudo mudou, e um campo preenchido por outra pessoa enquanto a gaveta estava
+  aberta seria sobrescrito por um valor velho. Só as chaves alteradas viajam —
+  chave ausente é "não mexe", chave nula é "limpa".
+- **Um evento por campo corrigido.** Rejeitado: consertar três erros de digitação
+  viraria três acontecimentos na vida da pessoa.
+- **Marcar tudo como correção por padrão.** Rejeitado: afirmaria o que ninguém
+  declarou. `nao_informado` é honesto.
 
 **Consequências.**
 
-- ✅ `member.subarea` reflete o nome real do campo; `Area`/`AREA_STRUCTURE`
-  deixam a hierarquia explícita e testável.
-- ✅ Filtro por área (ex.: "todo mundo de Soluções") funciona sem duplicar a
-  lista de subáreas em cada tela.
-- ✅ Import CSV, mock e Supabase seguem a mesma fonte (`AREA_STRUCTURE`) — não
-  há como divergirem.
-- ⚠️ Se uma subárea mudar de nome entre gestões, a Fase 1 não reconstrói
-  automaticamente "qual era o nome na gestão X" — isso fica registrado em
-  texto livre em `member_events`, exigindo leitura manual até que uma fase
-  futura, se necessário, crie um catálogo versionado de verdade.
-- ⚠️ A migration `0004` renomeia a coluna e o valor do enum; não altera as
-  migrations `0001`/`0003`, seguindo a convenção de nunca editar uma migration
-  já aplicada.
+- ✅ A timeline distingue "o dado estava errado" de "a pessoa mudou".
+- ✅ Corrigir a data de nascimento resolve `invalid_birth_date` **e só ela**: as
+  outras pendências continuam visíveis até alguém resolvê-las.
+- ✅ Quem corrige direto no banco deixa o mesmo rastro — a auditoria é do
+  trigger, não da tela.
+- ⚠️ `status`, `joined_at`, `exited_at` e `gg_responsible_id` ficam **fora** da
+  correção: sair, voltar e alocar têm fluxo e evento próprios.
+- ⚠️ **CPF não entra por aqui.** Documento pede modelagem de segurança própria e
+  não pega carona numa correção cadastral.
 
 ---
 
-## ADR-016 — CPF do membro, LinkedIn no lugar do e-mail pessoal, e Área guia a Subárea no cadastro
+## ADR-016 — Cargo tem UM nome canônico; o resto é apelido
 
-- **Data:** 2026-09-16
+- **Data:** 2026-09-17
 - **Status:** Aceita
+- **Migrations:** `0017` (CEO) e `0018` (COO, CRO, CTO e Customer Success).
+- **Substitui:** as linhas duplicadas que a `0003` criou para as mesmas cadeiras.
 
-**Contexto.** Revisão do cadastro de membro (16/09) apontou três lacunas: (1)
-os dados fictícios do mock mostravam "Subárea" em branco no Perfil de alguns
-membros; (2) o cadastro pedia CPF, ausente do modelo; (3) o campo "e-mail
-pessoal" nunca foi de fato usado — o formulário de cadastro nunca o
-perguntava, ele nascia sempre `null` — e o pedido era substituí-lo pelo link
-do LinkedIn; (4) a escolha de subárea no cadastro deveria ser guiada por uma
-escolha de área primeiro, dando uso prático à hierarquia da ADR-015.
+**Contexto.** O catálogo nasceu com `Presidência` (nível 1) e `Diretoria
+Institucional` (nível 2) — ambas na subárea Institucional, ambas de diretoria,
+ambas com 12 meses. São a mesma pessoa vista por dois nomes, e as pessoas usam
+ainda um terceiro: CEO.
 
-Sobre o item (1): a causa raiz não era dado fictício incompleto — as 20
-fixtures já tinham `subarea` preenchida desde a ADR-015. O `mock-db` grava o
-estado em `localStorage` do navegador (`STORAGE_KEY` versionada, ver
-`src/data/mock/store.ts`), e um registro salvo ali ANTES da ADR-015 continua
-com o campo antigo (`area`) para sempre — a aplicação lê `subarea`, não
-encontra, e mostra em branco. Nenhuma migration de aplicação alcança
-`localStorage`.
+Cargo duplicado no catálogo não é problema de cadastro, é problema de
+**resposta**: a mesma pessoa entra num ou noutro conforme o que a planilha
+escreveu naquele semestre, o seletor de cargo mostra duas opções equivalentes, e
+quem filtra por cargo recebe metade da lista sem saber que falta metade.
 
-**Decisão.**
+**Decisão.** Existe **uma** posição canônica: nome `Diretor(a) Institucional`,
+sigla `CEO`, área Institucional, `subarea_id` **nulo** (escopo de área inteira),
+diretoria, 12 meses de continuação. Os seis nomes conhecidos viram **apelidos**
+em `position_aliases`, e todos resolvem o mesmo `position_id`.
 
-1. **CPF:** campo novo, opcional, `Member.cpf?: string | null`. Validado no
-   formulário e na importação de CSV pelo algoritmo oficial de dígitos
-   verificadores (`isValidCPF`/`formatCPF` em `src/lib/format.ts`), não só a
-   máscara. Não é `unique` no banco nem tem checagem de duplicidade: a Fase 1
-   não tem CPF real nenhum ainda, e adicionar essa regra sem dado real para
-   testá-la seria decidir no escuro.
-2. **LinkedIn no lugar do e-mail pessoal:** `Member.personalEmail` virou
-   `Member.linkedinUrl`. Como o campo antigo nunca era capturado no cadastro,
-   não existe dado real para migrar — a migration `0005` só renomeia a coluna
-   (`personal_email` → `linkedin_url`). Validado como URL (`http(s)://…`), não
-   como e-mail. Ao contrário do campo antigo, LinkedIn passou a ser
-   perguntado no cadastro (`MemberForm`), porque um campo que nunca aparece em
-   formulário nenhum não tem como ser preenchido de verdade.
-3. **Área guia a Subárea no cadastro:** o formulário ganhou um select de
-   Área, mas **Área continua sem ser um campo do membro** — é puramente uma
-   ajuda de navegação. Escolher uma Área filtra as opções do select de
-   Subárea (via `AREA_STRUCTURE`); trocar de Área realoca a Subárea para a
-   primeira opção válida daquela área. A Área exibida deriva sempre de
-   `getAreaForSubarea(subarea)` — nunca um segundo estado guardado à parte,
-   que poderia divergir da subárea escolhida. Isto é a ADR-015 aplicada, não
-   uma exceção a ela: nenhuma linha nova de armazenamento foi criada.
-4. **Localstorage do mock:** `STORAGE_KEY` subiu de `v1` para `v2`
-   (`src/data/mock/store.ts`). Um valor novo força `resetMockData()` na
-   próxima vez que a aplicação abrir, em vez de devolver um registro salvo no
-   formato antigo com campos em branco silenciosamente.
+A consolidação (migration `0017`) tem ordem obrigatória: mover as referências
+reais → preservar o histórico → **só então** remover o duplicado.
 
 **Alternativas consideradas.**
 
-- **Guardar a Área escolhida no cadastro como campo do membro**, ao lado da
-  Subárea. Rejeitado: duplicaria um dado 100% derivável (a subárea já diz a
-  área) e reabriria exatamente o risco que a ADR-015 fechou — os dois campos
-  divergirem quando alguém atualizar um e esquecer o outro.
-- **CPF único e obrigatório.** Rejeitado por ora: a Fase 1 ainda não importou
-  a base real do CITi (IMPORT-001/002), então "obrigatório" quebraria o
-  cadastro manual de alguém sem CPF à mão, e "único" não tem dado real para
-  provar que não haveria falso positivo de formatação. Fica como possível
-  ajuste quando a importação real acontecer.
-- **Migrar os dados salvos no `localStorage` em vez de invalidar.** Rejeitado:
-  é dado 100% fictício de desenvolvimento (o próprio arquivo de fixtures avisa
-  isso), sem nenhum valor em preservar — versionar e reiniciar é mais simples
-  e mais seguro do que escrever um migrador de schema para dado de mentira.
+- **Manter os dois e "combinar" qual usar.** Rejeitado: é a convenção que se
+  perde na primeira importação feita por outra pessoa.
+- **Apelidos num `text[]` na linha do cargo.** Rejeitado: sem índice único, nada
+  impede dois cargos reivindicarem "Presidência" de novo. A tabela com índice é
+  o que transforma a regra em garantia.
+- **Reescrever `member_events` para o cargo novo.** Rejeitado: o passado diria
+  que a pessoa mudou de cargo. Quem mudou foi o catálogo — e é isso que o evento
+  de observação registra, com `change_kind: consolidacao_de_catalogo`.
+- **Desativar o duplicado em vez de remover.** Rejeitado como estado final: um
+  cargo inativo continua sendo uma segunda linha para a mesma cadeira. Ele só
+  sai depois que nada mais o referencia — é a ordem, não a preferência.
+- **Resolver por "parece com".** Rejeitado: `Diretoria de Negócios` e
+  `Diretoria de Soluções` são cadeiras diferentes. Equivalência é decisão
+  humana, escrita na tabela de apelidos — nunca heurística de texto.
 
-**Motivação.** Nos três casos, a escolha foi a mesma: não guardar um dado que
-já existe em outro lugar (Área), e não fingir suportar um campo que a
-interface nunca de fato preenche (e-mail pessoal).
+**Estendida pela `0018`** para as outras três cadeiras — COO (Gente e Gestão),
+CRO (Negócios) e CTO (Soluções) —, cada uma reaproveitando o `position_id` que
+já existia, e para o cargo novo de **Customer Success**. O procedimento virou a
+função `citi_consolidate_position()`, que encerra a ordem obrigatória (mover →
+preservar → remover) em um lugar só: copiá-la e colá-la três vezes era o jeito
+mais fácil de inverter a ordem na terceira.
+
+Duas coisas que a `0018` deixa explícitas:
+
+- **Área inteira ≠ diretoria.** Customer Success cobre a área de Soluções
+  inteira e **não** é diretoria: 6 meses, como qualquer cargo não diretivo.
+  Tratar "cobre a área toda" como sinônimo de "é diretoria" daria 12 meses a
+  quem a gestão deu 6.
+- **Cargo de área inteira nunca é cargo de ENTRADA.** A chave composta
+  `subareas_entry_position_da_propria_subarea` recusa no banco — é o que impede
+  a futura integração do Google Forms de atribuir uma diretoria ou o Customer
+  Success sozinha. Ninguém entra na empresa como CTO.
 
 **Consequências.**
 
-- ✅ CPF e LinkedIn aparecem no cadastro e no Perfil, e são de fato
-  preenchíveis — não só campos de exibição sem entrada.
-- ✅ O cadastro guia quem preenche (Área → Subárea) sem criar um segundo lugar
-  para a área ser guardada.
-- ✅ Mock, Supabase e importação de CSV seguem a mesma fonte de validação de
-  CPF (`src/lib/format.ts`), evitando duas implementações do algoritmo.
-- ⚠️ Quem já tinha a aplicação aberta com dados no `localStorage` perde os
-  membros criados manualmente ali ao atualizar (volta ao seed) — aceitável,
-  pois é dado fictício de desenvolvimento, e o botão "Recomeçar dados" já
-  existia para isso.
-- ⚠️ CPF sem unicidade no banco: duas pessoas cadastradas com o mesmo CPF por
-  engano não são bloqueadas na Fase 1. Revisitar quando a base real entrar.
+- ✅ Qualquer um dos nomes conhecidos na planilha cai no mesmo cargo.
+- ✅ Quem ocupa a cadeira fica **sem subárea**, como todo cargo de área inteira
+  desde a 0014 — a migration ajusta quem já estava preso a uma.
+- ✅ A migration é idempotente: rodar de novo não duplica apelido, não cria
+  cargo e não registra evento outra vez.
+- ⚠️ O catálogo do mock (`orgFixtures.ts`) perdeu a Presidência (−1) e ganhou o
+  Customer Success (+1): segue com **30** cargos. Ele espelha o banco; divergir
+  faria uma planilha passar no mock e falhar no Supabase.
+- ⚠️ Customer Success **não** tem proibição de liderados. Hoje ele não lidera
+  ninguém, mas isso é um fato do momento, não uma regra do cargo — transformar
+  em restrição obrigaria uma migration no dia em que a operação mudasse.
+- ⚠️ `is_directorship` é o campo que a decisão chama de `is_director`. Não
+  renomeamos: a coluna é lida em migrations, adapters e testes desde a 0003, e
+  renomear por sinônimo troca risco real por ganho nenhum.
 
 ---
 
-## ADR-017 — Cargo restrito a um vocabulário por subárea/área, e Diretoria como cargo de área
+## ADR-017 — CPF cifrado fora de `members`, com chave que o banco não tem
 
-- **Data:** 2026-09-16
+- **Data:** 2026-09-17
 - **Status:** Aceita
+- **Migration:** `0019`. Fecha também o **GERAL-012** (autorização).
 
-**Contexto.** Até aqui `Member.role` era texto livre — qualquer string
-digitada no cadastro virava o cargo da pessoa. Sofia forneceu a lista completa
-de cargos que de fato existem na gestão atual, um conjunto fechado por
-subárea (ex.: Desenvolvimento só tem quatro cargos possíveis, sendo o último
-deles a liderança maior da subárea), mais um conjunto à parte de Diretoria —
-quatro cargos, um por Área (não por subárea), cada um responsável por uma
-área inteira do organograma. O pedido foi explícito: **restringir todo campo
-de cargo da plataforma a esse vocabulário**, deixando claro que gestões
-diferentes podem usar nomenclaturas diferentes.
+**Contexto.** Entrar com 70 pessoas reais significa entrar com 70 CPFs. Um CPF
+numa coluna de `members` seria lido por toda tela que faz `select *`, apareceria
+no `payload` da submissão de importação (que fica guardado para sempre), viajaria
+para o navegador em cada listagem, e sairia inteiro em qualquer dump ou backup.
 
-Isso é, na estrutura, o mesmo problema que ADR-015 já resolveu para
-área/subárea: um vocabulário fechado, mas que muda de nome a cada gestão.
+No caminho apareceu um segundo problema, pior: `is_gg()` — a função que TODA
+policy do projeto usa — respondia `exists (select 1 from profiles where id =
+auth.uid())`. O papel nunca era conferido. Na prática ninguém entrou sem ser de
+GG, porque o enum só tem `gg` e `gg_diretoria`; mas a garantia não existia.
 
 **Decisão.**
 
-1. **Cargo vira um union type fechado (`Cargo`)**, não mais `string` livre.
-   `Member.role` passa de `string` para `Cargo`.
-2. **`CARGOS_POR_SUBAREA: Record<Subarea, Cargo[]>`** — os cargos de cada
-   subárea, na ordem do organograma informado por Sofia. Por convenção
-   documentada no código, **o último cargo de cada lista é a liderança maior
-   daquela subárea** (ex.: `'Líder de Desenvolvimento'` é o último de
-   Desenvolvimento) — não existe um campo booleano separado de "é liderança":
-   a posição na lista já carrega esse significado, e criar um segundo campo
-   duplicaria uma informação que o vocabulário já expressa.
-3. **`CARGOS_DIRETORIA: Record<Area, Cargo>`** — os quatro cargos de
-   Diretoria, um por Área. Diretoria **não virou uma nona subárea**: ela é a
-   liderança da área inteira (todas as subáreas dela), não de uma subárea
-   específica, e cada anotação de Sofia ("Diretor de Soluções (CTO) →
-   Responsável pela área de Soluções") amarra o cargo à Área, não à subárea.
-   Modelá-la como subárea forçaria toda pessoa da Diretoria a "pertencer" a
-   uma subárea fictícia própria da Diretoria, quando na prática uma Diretora
-   de Operações continua sendo, por exemplo, uma pessoa de Gente e Gestão que
-   assumiu a liderança daquela área.
-4. **`cargoOptionsForSubarea(subarea): Cargo[]`** — função única que devolve
-   as opções válidas para quem está naquela subárea: os cargos da própria
-   subárea mais o cargo de Diretoria da área correspondente (via
-   `getAreaForSubarea`, já existente desde ADR-015). É a partir dela que o
-   cadastro, a importação de CSV e a validação do formulário leem as opções —
-   nenhuma lista é escrita à mão em mais de um lugar.
-5. **Cadastro de membro (`MemberForm`):** o campo Cargo deixa de ser um
-   `Input` de texto livre e vira um `Select`, com as opções de
-   `cargoOptionsForSubarea(subarea)`. Trocar Área ou Subárea realoca o Cargo
-   para a primeira opção válida sempre que o cargo atual deixa de existir na
-   nova subárea — o mesmo padrão de realocação que ADR-016 já usa entre Área
-   e Subárea.
-6. **Validação (`memberSchema.ts`):** `z.enum(ALL_CARGOS)` barra qualquer
-   cargo fora do vocabulário da gestão atual; um `.superRefine()` em
-   `makeMemberFormSchema` barra a combinação cargo × subárea inválida (ex.:
-   escolher "Líder de Dados" para uma pessoa de Marketing) — validação que só
-   pode acontecer ali, onde as duas respostas (cargo e subárea) já existem
-   juntas no mesmo formulário.
-7. **Importação de CSV (`membersImport.ts`):** ganhou `parseCargo(valor,
-   subarea)`, espelhando `parseSubarea()` — normaliza o texto da planilha e
-   valida contra `cargoOptionsForSubarea()` da subárea **já resolvida** da
-   linha (por isso roda depois de `parseSubarea()`, nunca antes). Linha com
-   cargo que não existe naquela subárea vira um item do relatório de erros,
-   não uma importação silenciosamente incorreta.
-8. **Banco de dados:** `members.role` continua `text` livre — **nenhum
-   `enum` nem `check constraint`**. A migration `0006` é só documentação
-   (`comment on column`), pelo mesmo motivo do ADR-007/012/015: o conjunto de
-   cargos válidos muda por gestão, e travar isso no schema do banco exigiria
-   uma migration a cada troca de gestão para o mesmo tipo de mudança que hoje
-   é só editar uma constante em `src/data/types.ts`.
-9. **Dados fictícios (mock):** os 20 membros de exemplo em `fixtures.ts`
-   foram remapeados para o novo vocabulário, usando o cargo de liderança da
-   subárea para quem, no seed, já tinha outros membros reportando a ele via
-   `managerId` (ex.: Ricardo Tenório → `'Líder de Desenvolvimento'`), e um
-   cargo de nível individual para os demais. Nenhum membro fictício recebeu
-   um cargo de Diretoria — não havia necessidade funcional de um exemplo
-   assim para validar a Fase 1, e inventar quem ocuparia cada cadeira de
-   Diretoria seria decidir algo que não foi pedido.
+1. **Autorização confere o papel.** `citi_is_gg()` testa
+   `role in ('gg','gg_diretoria')`. `gg` e `gg_diretoria` têm acesso **idêntico**
+   — papel é cargo organizacional, não nível de permissão. Autenticado sem
+   profile é bloqueado.
+2. **CPF em tabela separada** (`member_private_data`), cifrado com
+   **AES-256-GCM**, com **HMAC-SHA-256** de chave separada para duplicidade e
+   índice único sobre o HMAC.
+3. **O banco não decifra.** As chaves existem só nos segredos da Edge Function.
+   A tabela tem RLS ligada e **zero policies**: nenhum cliente lê CPF por
+   consulta.
+4. **Leitura é auditada.** `member_private_data_audit` registra `read` como
+   registra escrita, e nunca guarda CPF, cifrado, hash, chave ou JWT.
+5. **Grants mínimos:** `anon` sem nada além do `INSERT` do formulário público.
 
 **Alternativas consideradas.**
 
-- **Enum no Postgres para `role`, igual a `member_status`.** Rejeitado: ao
-  contrário de `member_status` (que é uma regra de produto estável, não uma
-  nomenclatura de gestão), cargo muda de nome por gestão — é exatamente o
-  caso que ADR-015 já tratou para subárea, e a mesma resposta se aplica aqui.
-- **Diretoria como uma nona "subárea".** Rejeitado no item 3 acima — ver
-  raciocínio completo ali.
-- **Campo `isLideranca: boolean` separado, além do cargo.** Rejeitado: a
-  posição do cargo na lista de `CARGOS_POR_SUBAREA` já diz isso; um segundo
-  campo poderia divergir do cargo escrito (alguém marcado como liderança com
-  o cargo errado, ou vice-versa) sem nenhum ganho de expressividade.
-- **Catálogo de cargos versionado por gestão no banco** (tabela com
-  `gestao_id`, cargo, subárea). Rejeitado pelo mesmo motivo do ADR-007, do
-  ADR-012 e do ADR-015: nenhuma tela da Fase 1 precisa reconstruir "quais
-  cargos existiam na gestão X" — quando isso for necessário, a nomenclatura
-  de gestões passadas já tem para onde ir (texto livre em `member_events`,
-  seguindo o mesmo mecanismo estabelecido).
-
-**Motivação.** O mesmo princípio já validado em ADR-015 para área/subárea:
-um vocabulário fechado dá valor real ao organograma (o formulário deixa de
-aceitar qualquer string e passa a oferecer só o que faz sentido para aquela
-subárea), sem fingir que esse vocabulário é permanente — ele é da gestão
-atual, e o mecanismo de preservar nomenclaturas antigas em `member_events`
-(ADR-007) já existe e não precisa ser duplicado.
+- **Coluna `cpf` em `members`, protegida só por RLS.** Rejeitado: RLS não
+  protege de dump, de backup, de quem tem acesso administrativo ao banco, nem do
+  `payload` da importação. E não dá para auditar leitura de uma coluna.
+- **`pgcrypto` cifrando dentro do Postgres.** Rejeitado: a chave passaria por
+  parâmetro de função ou viveria em tabela/GUC — ou seja, no mesmo lugar que o
+  dado. Um dump levaria os dois. Cifrar fora é o que faz o dump ser inútil.
+- **SHA-256 do CPF para detectar duplicidade.** Rejeitado: são ~1,7 bilhão de
+  CPFs válidos; a tabela inteira de hashes se constrói num notebook. HMAC com
+  chave separada resolve.
+- **AES-CBC.** Rejeitado: não é autenticado. Um byte alterado no banco viraria
+  lixo decifrado sem ninguém perceber.
+- **Mascarar CPF por papel** (diretoria vê, GG não). Rejeitado: contraria a
+  decisão de acesso do produto. A máscara é por **ação** — a tela mostra os
+  quatro últimos e revela o resto quando alguém clica, porque cada revelação é
+  uma linha de auditoria.
+- **Validar CPF só no cliente.** Rejeitado: o servidor valida de novo, com o
+  **mesmo módulo** (`src/data/cpf.ts`, importado pela função). Duas
+  implementações divergem, e a divergência aparece como "a prévia aceitou e o
+  servidor recusou".
 
 **Consequências.**
 
-- ✅ O cadastro de membro deixa de aceitar cargo inventado ou fora do
-  organograma da gestão atual.
-- ✅ Cargo e subárea não podem ficar inconsistentes: a validação cruzada
-  impede um cargo de uma subárea aparecer em outra.
-- ✅ Diretoria é representada sem forçar uma subárea artificial, e sem
-  duplicar a Área que ela já representa.
-- ✅ Import de CSV, mock e formulário leem da mesma fonte
-  (`cargoOptionsForSubarea`) — não há como divergirem.
-- ⚠️ Trocar a nomenclatura de cargos entre gestões continua sendo uma edição
-  manual de `src/data/types.ts` (mesma limitação que ADR-015 já aceitou para
-  área/subárea) — aceitável enquanto a Fase 1 não importa gestões passadas.
-- ⚠️ Nenhum membro fictício do mock ocupa um cargo de Diretoria; o caminho de
-  `cargoOptionsForSubarea` incluir a opção de Diretoria fica coberto pelo
-  código e pelos testes de `types.ts`/`memberSchema.ts`, não por um exemplo
-  visível na listagem de membros.
-
----
-
-## ADR-018 — Diretoria não integra subárea: `subarea` fica nula, `diretoriaArea` guarda a área
-
-- **Data:** 2026-09-16
-- **Status:** Aceita — revisa parte da ADR-017
-
-**Contexto.** A ADR-017 (acima) modelou a Diretoria como um cargo *extra*
-dentro de `cargoOptionsForSubarea(subarea)`: quem assumisse a Diretoria de
-uma área continuava, no modelo, precisando de uma subárea para "pendurar" o
-cargo. Sofia corrigiu isso assim que viu a implementação: *"a diretoria não
-participa de nenhuma subárea em específico. Ela gerencia a área, então ela
-não pode estar atrelada a nenhuma subárea, apenas a area."*
-
-Isso é uma correção de modelo, não só de vocabulário: a Diretoria não é uma
-pessoa de uma subárea que *também* tem um cargo de Diretoria — é uma pessoa
-que dirige a área inteira e **não integra nenhuma subárea**. Continuar
-exigindo `subarea` para ela obrigaria a inventar uma subárea sem sentido
-("de qual subárea é a Diretora de Operações?") só para satisfazer o
-formulário.
-
-**Decisão.**
-
-1. **`Member.subarea` passa a `Subarea | null`.** `null` é o que marca
-   alguém como Diretoria — não integra nenhuma subárea. Continua sendo um
-   campo obrigatório de se preencher (não é `subarea?:`), só que agora aceita
-   o valor `null` como resposta válida, em vez de "não perguntado".
-2. **`Member.diretoriaArea?: Area | null`** — campo novo, preenchido *só*
-   quando `subarea` é `null`. Os dois campos são mutuamente exclusivos por
-   construção: toda pessoa está numa subárea OU é Diretoria de uma área,
-   nunca as duas coisas nem nenhuma delas — reforçado por uma `check
-   constraint` no banco (migration `0007`).
-3. **`getMemberArea(member): Area | null`** — a função que qualquer tela deve
-   usar para "qual a área desta pessoa", cobrindo os dois casos: deriva de
-   `subarea` via `getAreaForSubarea()` quando ela existe, ou lê
-   `diretoriaArea` direto quando não existe. Substitui o antigo padrão de ler
-   `getAreaForSubarea(member.subarea)` direto, que quebraria (ou pior,
-   compilaria com `subarea` `null`) para quem é da Diretoria.
-4. **`memberSubareaLabel(member): string`** — rótulo de exibição único para
-   "onde esta pessoa está": devolve a subárea normalmente, `"Diretoria
-   (<Área>)"` para quem não tem subárea, e um traço no caso (não deveria
-   acontecer) de faltarem os dois. Toda tela que hoje lia `member.subarea`
-   direto para exibir passa a usar esta função.
-5. **`cargoOptionsForSubarea(subarea)` volta a devolver só os cargos daquela
-   subárea** — a Diretoria deixa de aparecer como opção extra ali (revoga o
-   item 4 da ADR-017). Ela vira um caminho de cadastro separado, não uma
-   opção dentro do caminho de subárea.
-6. **Cadastro (`MemberForm`) ganha um campo "Tipo de posição"** (`subarea` |
-   `diretoria`, novo campo `positionType` no formulário, não no modelo — é só
-   uma bifurcação de UI). Escolher "Diretoria" esconde o campo Subárea, troca
-   o select de Área para escrever direto em `diretoriaArea`, e trava o Cargo
-   no valor de `CARGOS_DIRETORIA[área]` (deixa de ser uma escolha livre,
-   igual qualquer outro cargo). Escolher "Subárea" volta ao fluxo descrito na
-   ADR-016/017, sem alteração.
-7. **Validação (`memberSchema.ts`):** o `.superRefine()` que cruzava cargo ×
-   subárea passa a ramificar por `positionType` — no caminho de Diretoria,
-   exige `diretoriaArea` preenchida e o cargo travado no valor esperado; no
-   caminho de subárea, a regra é a mesma de antes. `toMemberCreateInput()` é
-   quem materializa a exclusão mútua de verdade: monta `subarea: null,
-   diretoriaArea: <área>` ou `subarea: <subárea>, diretoriaArea: null`,
-   nunca os dois preenchidos.
-8. **Importação de CSV:** `parseDiretoriaCargo(cargo)` roda *antes* de exigir
-   subárea — se o texto do cargo já bate com um dos quatro cargos de
-   Diretoria, a linha dispensa a coluna de subárea (que pode vir em branco).
-   Só quando o cargo não é de Diretoria é que a ausência de subárea vira erro
-   de importação.
-9. **Adapters:** o filtro por Área (`MemberFilters.area`) precisa enxergar os
-   dois casos. No mock, `getAreaForSubarea(m.subarea)` virou `getMemberArea(m)`.
-   No Supabase, o `.in('subarea', ...)` sozinho não bastava — virou um `.or()`
-   combinando `subarea in (...)` com `diretoria_area = <área>`, porque a
-   Diretoria daquela área nunca aparece na coluna `subarea`.
-10. **Banco de dados (migration `0007`):** `subarea` perde o `not null`;
-    `diretoria_area` (texto livre, mesma filosofia de ADR-007/012/015/017)
-    é adicionada; uma `check constraint` garante a exclusão mútua no próprio
-    banco, não só na aplicação — é dado estrutural demais para confiar só na
-    validação do formulário.
-11. **"Quem é de Gente e Gestão" também passa a usar `getMemberArea`.** Dois
-    lugares tratavam isso como `member.subarea === 'Gente e Gestão'`:
-    `deriveDirectoryOptions()` (quem pode ser GG responsável) e a lista de
-    "condutores de X1" no Perfil. Os dois passam a usar `getMemberArea(m) ===
-    'Gente e Gestão'`, para que a Diretora de Operações (COO) — que lidera
-    exatamente essa área, sem integrar a subárea — conte como GG para efeito
-    prático, em vez de ficar invisível nessas duas listas por não ter
-    `subarea` preenchida.
-12. **Mock:** ganhou um membro fictício de Diretoria (`mbr-021`, Diretora de
-    Operações/COO de Gente e Gestão), para que o caminho de Diretoria tenha
-    um exemplo real na base de desenvolvimento — o oposto da decisão tomada
-    na ADR-017 item 9, agora que existe motivo funcional (testar filtro por
-    área, GG responsável, rótulo de exibição) para isso.
-
-**Alternativas consideradas.**
-
-- **Manter Diretoria como cargo extra dentro de uma subárea escolhida
-  livremente** (o desenho original da ADR-017). Rejeitado pela própria Sofia:
-  não reflete a realidade — Diretoria não pertence a subárea nenhuma.
-- **Inventar uma subárea "Diretoria" por área** (ex.: uma subárea fictícia
-  dentro de cada Área, só para a Diretoria "morar" nela). Rejeitado: recria o
-  problema que a ADR-017 já tinha identificado e evitado (item 3 daquela
-  ADR) — a Diretoria não é uma subárea a mais, é liderança de área inteira.
-- **Um booleano `isDiretoria` no membro, mantendo `subarea` preenchida com a
-  subárea "de origem" da pessoa.** Rejeitado: mistura dois conceitos (onde a
-  pessoa atua vs. o que ela dirige) em campos que podem divergir sem
-  nenhuma validação cruzada os impedindo, e não responde à pergunta direta
-  de Sofia ("ela não pode estar atrelada a nenhuma subarea").
-- **Guardar só `diretoriaArea` sem tocar em `subarea` (deixando `subarea`
-  com algum valor arbitrário para Diretoria).** Rejeitado: um campo
-  `subarea` preenchido com lixo é pior que `null` — continuaria aparecendo
-  em telas e filtros como se fosse uma subárea de verdade.
-
-**Motivação.** Modelar exatamente a frase que motivou a correção: "a
-diretoria... não pode estar atrelada a nenhuma subárea, apenas a área". Um
-campo nulo é a forma mais direta de dizer "isto não se aplica aqui" — mais
-direta do que qualquer valor sentinela, e reforçada por uma constraint no
-banco para que a regra não dependa só da aplicação lembrar de respeitá-la.
-
-**Consequências.**
-
-- ✅ O modelo agora corresponde à estrutura real: Diretoria lidera uma área,
-  não integra uma subárea.
-- ✅ A exclusão mútua entre `subarea` e `diretoriaArea` é garantida em dois
-  níveis — aplicação (`toMemberCreateInput`) e banco (`check constraint`).
-- ✅ "Quem é de Gente e Gestão" (GG responsável, condutores de X1) passa a
-  incluir corretamente a Diretoria daquela área.
-- ⚠️ Toda tela que exibia `member.subarea` direto precisou trocar para
-  `memberSubareaLabel(member)`, e todo código que derivava área a partir da
-  subárea precisou trocar para `getMemberArea(member)` — superfície de
-  mudança real, listada e revisada arquivo a arquivo nesta ADR.
-- ⚠️ O formulário de cadastro ganhou uma bifurcação a mais (`positionType`),
-  aumentando um pouco a complexidade da tela — aceitável porque reflete uma
-  bifurcação real do domínio, não uma escolha arbitrária de UI.
+- ✅ Dump, backup ou acesso ao banco devolvem bytes inúteis sem a chave.
+- ✅ Dá para responder "quem viu o CPF dessa pessoa, e quando".
+- ✅ Duplicidade é impedida no banco, não só na tela.
+- ⚠️ **Perder `CPF_ENCRYPTION_KEY` é perder todos os CPFs**, inclusive os do
+  backup. Onde guardar a chave é decisão pendente (GERAL-013).
+- ⚠️ Ler CPF exige a Edge Function no ar. Ela cair não impede usar a
+  plataforma — só o campo de CPF deixa de abrir.
+- ⚠️ `verify_jwt = false` na função é deliberado: ela faz a autorização em duas
+  etapas por conta própria, e a verificação no gateway recusaria o pré-voo do
+  navegador antes de a função responder o CORS.
+- ⚠️ Retenção, rotação de chave e procedimento de incidente **não** foram
+  decididos — e nenhum prazo legal foi inventado. Ver `docs/RETENCAO_DADOS.md`.
 
 ---
 

@@ -105,7 +105,7 @@ export function FeedbackForm({
 
         <FormField
           label="Contexto adicional"
-          hint="Opcional. O que ajuda a entender o registro depois — combinados, situação da squad, o que motivou a conversa."
+          hint="Opcional. O que ajuda a entender o registro depois: combinados, situação da squad, o que motivou a conversa."
           error={errors.notes?.message}
         >
           {(field) => (

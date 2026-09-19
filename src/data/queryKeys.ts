@@ -15,6 +15,23 @@ export const queryKeys = {
     list: (filters?: MemberFilters) => ['members', 'list', filters ?? {}] as const,
     detail: (id: ID) => ['members', 'detail', id] as const,
     events: (id: ID) => ['members', 'events', id] as const,
+    /**
+     * URL assinada da foto, por CAMINHO no bucket — não por membro.
+     *
+     * É o caminho que determina a URL: duas telas mostrando a mesma pessoa
+     * compartilham a assinatura em vez de pedir uma nova cada uma.
+     */
+    photo: (path: string) => ['members', 'photo', path] as const,
+    /** Pendências de revisão que sobraram da importação desta pessoa. */
+    review: (id: ID) => ['members', 'review', id] as const,
+    /**
+     * SITUAÇÃO do CPF — tem ou não tem, e os quatro últimos dígitos.
+     *
+     * ⚠️ Não existe chave para o CPF completo, e a ausência é deliberada: o
+     * número não entra em cache. Ele é buscado por ação e vive em estado local
+     * da tela, que o descarta ao sair.
+     */
+    cpfStatus: (id: ID) => ['members', 'cpf-status', id] as const,
   },
   x1: {
     all: ['x1'] as const,
@@ -39,5 +56,9 @@ export const queryKeys = {
   gestoes: {
     all: ['gestoes'] as const,
     current: ['gestoes', 'current'] as const,
+  },
+  org: {
+    /** Áreas + subáreas + cargos. Uma chave só: eles são consultados juntos. */
+    catalog: ['org', 'catalog'] as const,
   },
 } as const;

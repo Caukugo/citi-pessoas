@@ -1,9 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  DEFAULT_FEEDBACKS_FILTERS,
-  type FeedbacksListFilters,
-} from '../model/feedbacksOverview';
+import { DEFAULT_FEEDBACKS_FILTERS, type FeedbacksListFilters } from '../model/feedbacksOverview';
 
 /**
  * Os filtros da visão consolidada vivem na URL, não em `useState`.
@@ -12,22 +9,21 @@ import {
  * que a GG manda no grupo. Além disso o botão voltar funciona e recarregar não
  * perde o recorte — a plataforma é usada entre uma aula e outra.
  *
- *   /feedbacks?busca=iris&subarea=Desenvolvimento&tipo=carta_de_ajuste
+ *   /feedbacks?busca=iris&subarea=solucoes-desenvolvimento&tipo=carta_de_ajuste
  */
 
 const PARAM = {
   search: 'busca',
-  subarea: 'subarea',
+  // Slug do catálogo, não o texto legado de `members.area`.
+  areaSlug: 'area',
+  subareaSlug: 'subarea',
   ggResponsibleId: 'gg',
   type: 'tipo',
 } as const;
 
 export interface FeedbacksFiltersControl {
   filters: FeedbacksListFilters;
-  setFilter: <K extends keyof FeedbacksListFilters>(
-    key: K,
-    value: FeedbacksListFilters[K],
-  ) => void;
+  setFilter: <K extends keyof FeedbacksListFilters>(key: K, value: FeedbacksListFilters[K]) => void;
   clear: () => void;
 }
 
@@ -39,7 +35,8 @@ export function useFeedbacksFilters(): FeedbacksFiltersControl {
     const params = new URLSearchParams(serialized);
     return {
       search: params.get(PARAM.search) ?? '',
-      subarea: params.get(PARAM.subarea) ?? '',
+      areaSlug: params.get(PARAM.areaSlug) ?? '',
+      subareaSlug: params.get(PARAM.subareaSlug) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
       type: params.get(PARAM.type) ?? '',
     };

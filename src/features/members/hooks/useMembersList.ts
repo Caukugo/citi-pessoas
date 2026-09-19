@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import {
+  orgIdBySlug,
   useLastCompletedX1ByMember,
   useMembers,
+  useOrgCatalog,
   useSettings,
   type ID,
   type Member,
-  type Subarea,
 } from '@/data';
 import {
   applyDerivedFilters,
@@ -28,8 +29,13 @@ import {
  *
  * Onde cada filtro é resolvido:
  *
- *   busca · subárea · situação · GG responsável  →  camada de dados (server-ready)
- *   cargo · situação de X1                       →  camada derivada (regra calculada)
+ *   busca · área · subárea · situação · GG responsável → camada de dados
+ *   cargo · situação de X1                             → camada derivada
+ *
+ * Área e subárea chegam como SLUG (é o que vive na URL) e saem daqui como ID,
+ * traduzidos contra o catálogo. Nenhuma comparação acontece por texto: é o que
+ * faz "Negócios" trazer também quem tem cargo de área inteira, que não está em
+ * subárea nenhuma.
  *
  * A assinatura deste hook não revela essa divisão de propósito — quando o
  * backend chegar, a divisão pode mudar de lugar sem mexer na tela.
@@ -46,12 +52,12 @@ export interface MembersListResult {
 }
 
 export function useMembersList(filters: MembersListFilters): MembersListResult {
+  const catalogQuery = useOrgCatalog();
+
   const membersQuery = useMembers({
     search: filters.search || undefined,
-    // `Subarea`, não `Member['subarea']`: este filtro nunca representa
-    // Diretoria (que não tem subárea, ADR-018) — é sempre uma subárea de
-    // verdade ou "nenhum filtro".
-    subarea: filters.subarea ? (filters.subarea as Subarea) : undefined,
+    areaId: orgIdBySlug(catalogQuery.data?.areas, filters.areaSlug),
+    subareaId: orgIdBySlug(catalogQuery.data?.subareas, filters.subareaSlug),
     status: filters.status,
     ggResponsibleId: filters.ggResponsibleId || undefined,
   });
@@ -63,11 +69,7 @@ export function useMembersList(filters: MembersListFilters): MembersListResult {
       return { items: [], summary: { total: 0, overdue: 0, firstPending: 0 } };
     }
 
-    const built = buildMemberListItems(
-      membersQuery.data,
-      lastX1Query.data,
-      settingsQuery.data,
-    );
+    const built = buildMemberListItems(membersQuery.data, lastX1Query.data, settingsQuery.data);
 
     // O resumo é calculado ANTES do filtro de situação: a faixa mostra o
     // panorama do recorte, e clicar nela é que estreita a lista.
@@ -82,12 +84,20 @@ export function useMembersList(filters: MembersListFilters): MembersListResult {
   return {
     items,
     summary,
-    isLoading: membersQuery.isLoading || lastX1Query.isLoading || settingsQuery.isLoading,
-    isError: membersQuery.isError || lastX1Query.isError || settingsQuery.isError,
+    // O catálogo entra no carregamento de propósito: sem ele o slug do filtro
+    // ainda não virou id, e a lista apareceria sem recorte por um instante.
+    isLoading:
+      membersQuery.isLoading ||
+      lastX1Query.isLoading ||
+      settingsQuery.isLoading ||
+      catalogQuery.isLoading,
+    isError:
+      membersQuery.isError || lastX1Query.isError || settingsQuery.isError || catalogQuery.isError,
     refetch: () => {
       void membersQuery.refetch();
       void lastX1Query.refetch();
       void settingsQuery.refetch();
+      void catalogQuery.refetch();
     },
   };
 }

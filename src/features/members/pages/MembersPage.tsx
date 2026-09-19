@@ -1,18 +1,13 @@
 import { useState } from 'react';
 import { Plus, SearchX, UserPlus } from 'lucide-react';
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  PageHeader,
-  Surface,
-} from '@/components/ui';
+import { Button, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { hasActiveFilters } from '../model/membersList';
 import { useMemberDirectory, useMembersList } from '../hooks/useMembersList';
 import { useMembersFilters } from '../hooks/useMembersFilters';
+import { MembersHero } from '../components/MembersHero';
 import { MembersOverviewBar } from '../components/MembersOverviewBar';
 import { MembersToolbar } from '../components/MembersToolbar';
+import { MembersFilterDrawer } from '../components/MembersFilterDrawer';
 import { MembersTable } from '../components/MembersTable';
 import { MemberCard } from '../components/MemberCard';
 import { CreateMemberDrawer } from '../components/CreateMemberDrawer';
@@ -24,8 +19,9 @@ import { CreateMemberDrawer } from '../components/CreateMemberDrawer';
  * atenção de GG?**
  *
  * Ordem de leitura, de cima para baixo: panorama (quantos, quantos atrasados)
- * → recorte (busca e filtros) → as pessoas. A ação principal — cadastrar
- * alguém — fica no canto superior direito, onde ela está em toda a plataforma.
+ * → recorte (filtro, situação e busca) → as pessoas. A diferença do desenho de
+ * 2026 é que recorte e lista passaram a viver no MESMO painel: o controle e o
+ * que ele controla ficam dentro da mesma moldura, e não em duas ilhas soltas.
  *
  * Esta página não conhece adapter, mock, cache nem localStorage. Ela entrega
  * filtros para `useMembersList` e recebe linhas prontas.
@@ -35,86 +31,133 @@ export function MembersPage() {
   const { items, summary, isLoading, isError, refetch } = useMembersList(filters);
   const directory = useMemberDirectory();
   const [createOpen, setCreateOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const filtering = hasActiveFilters(filters);
 
   return (
     <>
-      <PageHeader
-        title="Membros"
-        subtitle="Acompanhe as pessoas e suas jornadas no CITi."
-        actions={
-          <Button variant="primary" icon={<Plus size={15} />} onClick={() => setCreateOpen(true)}>
-            Novo membro
+      <MembersHero />
+
+      {/* Panorama + ação principal na mesma faixa, no mesmo ritmo de 24px. O
+          botão tem largura fixa e os cartões dividem o resto, então o gutter
+          direito de 46px vale para a linha inteira. */}
+      <div className="flex flex-col gap-[24px] xl:flex-row xl:items-start">
+        <MembersOverviewBar
+          className="min-w-0 flex-1"
+          summary={summary}
+          activeX1Status={filters.x1Status}
+          onSelectX1Status={(status) => setFilter('x1Status', status)}
+        />
+
+        {/* `relative` no invólucro, e não no botão: o disco do "+" precisa
+            transbordar a quina, e o botão é quem carrega o raio. */}
+        {/* `self-end` abaixo de `xl`: quando a faixa empilha, a ação continua
+            do lado direito, alinhada com a borda do painel — e não solta no
+            canto esquerdo, onde ela viraria mais um item da lista. */}
+        <div className="relative shrink-0 self-end xl:self-start">
+          {/* `Rectangle 128.svg`: 124×98 com entalhe côncavo na quina superior
+              esquerda. `rounded-[28px]` acompanha a classe porque o raio dela é
+              regra de componente e o `rounded-control` do Button é utilitário. */}
+          <Button
+            variant="accent"
+            onClick={() => setCreateOpen(true)}
+            className="notch-action h-[98px] w-[124px] flex-col items-end justify-end gap-0 rounded-[28px] p-[14px] text-right text-[13px] leading-[1.25] font-semibold whitespace-normal"
+          >
+            Novo Membro
           </Button>
-        }
-      />
+          {/* `Ellipse 48.svg` — 37px, encaixado no vazio do entalhe. É ornamento
+              do botão, não um segundo controle: quem clica é o botão inteiro. */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute top-[3px] left-[4px] flex h-[37px] w-[37px] items-center justify-center rounded-full bg-accent text-[17px] leading-none font-bold text-accent-foreground"
+          >
+            +
+          </span>
+        </div>
+      </div>
 
-      <MembersOverviewBar
-        summary={summary}
-        activeX1Status={filters.x1Status}
-        onSelectX1Status={(status) => setFilter('x1Status', status)}
-      />
+      {/* `Rectangle 105.svg`: o painel tem um RECESSO de 53px no meio da aresta
+          de cima, e é nele que as abas se encaixam.
 
-      <MembersToolbar
+          Por isso a lâmina é uma CAMADA à parte, `absolute inset-0` atrás do
+          conteúdo: máscara de CSS recorta os descendentes junto, e as abas —
+          que vivem exatamente dentro do recesso — sumiriam com ele. */}
+      <div className="relative pt-[11px] pb-[24px]">
+        <div aria-hidden className="notch-panel absolute inset-0" />
+
+        <div className="relative px-[24px]">
+          <MembersToolbar
+            filters={filters}
+            resultCount={items.length}
+            onChange={setFilter}
+            onOpenFilters={() => setFiltersOpen(true)}
+          />
+        </div>
+
+        <div className="relative">
+          {isLoading ? (
+            <LoadingState label="Carregando membros…" />
+          ) : isError ? (
+            <ErrorState
+              title="Não foi possível carregar os membros"
+              description="A lista não chegou. Pode ter sido uma falha momentânea de conexão."
+              onRetry={refetch}
+            />
+          ) : items.length === 0 ? (
+            filtering ? (
+              <EmptyState
+                icon={<SearchX size={20} aria-hidden />}
+                title="Nenhuma pessoa neste recorte"
+                description={
+                  filters.search
+                    ? `Ninguém corresponde a “${filters.search}” com os filtros atuais. Tente um nome mais curto ou limpe os filtros.`
+                    : 'Os filtros atuais não deixaram ninguém na lista. Limpe-os para ver todo mundo.'
+                }
+                action={<Button onClick={clear}>Limpar filtros</Button>}
+              />
+            ) : (
+              <EmptyState
+                icon={<UserPlus size={20} aria-hidden />}
+                title="Nenhum membro cadastrado ainda"
+                description="Cadastre a primeira pessoa aqui, ou traga a base inteira de uma vez pela Importação."
+                action={
+                  <Button
+                    variant="accent"
+                    icon={<Plus size={15} />}
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    Cadastrar primeiro membro
+                  </Button>
+                }
+              />
+            )
+          ) : (
+            <>
+              {/* Tabela para varrer muita gente; cartões quando a largura não
+                comporta uma linha inteira sem rolar para o lado. */}
+              <div className="hidden px-[24px] md:block">
+                <MembersTable items={items} directory={directory.byId} />
+              </div>
+              <div className="flex flex-col gap-[12px] px-[16px] pt-[18px] md:hidden">
+                {items.map((item) => (
+                  <MemberCard key={item.member.id} item={item} directory={directory.byId} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <MembersFilterDrawer
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
         filters={filters}
         options={directory.options}
+        resultCount={items.length}
         onChange={setFilter}
         onClear={clear}
       />
-
-      <Surface>
-        {isLoading ? (
-          <LoadingState label="Carregando membros…" />
-        ) : isError ? (
-          <ErrorState
-            title="Não foi possível carregar os membros"
-            description="A lista não chegou. Pode ter sido uma falha momentânea de conexão."
-            onRetry={refetch}
-          />
-        ) : items.length === 0 ? (
-          filtering ? (
-            <EmptyState
-              icon={<SearchX size={20} aria-hidden />}
-              title="Nenhuma pessoa neste recorte"
-              description={
-                filters.search
-                  ? `Ninguém corresponde a “${filters.search}” com os filtros atuais. Tente um nome mais curto ou limpe os filtros.`
-                  : 'Os filtros atuais não deixaram ninguém na lista. Limpe-os para ver todo mundo.'
-              }
-              action={<Button onClick={clear}>Limpar filtros</Button>}
-            />
-          ) : (
-            <EmptyState
-              icon={<UserPlus size={20} aria-hidden />}
-              title="Nenhum membro cadastrado ainda"
-              description="Cadastre a primeira pessoa aqui, ou traga a base inteira de uma vez pela Importação."
-              action={
-                <Button
-                  variant="primary"
-                  icon={<Plus size={15} />}
-                  onClick={() => setCreateOpen(true)}
-                >
-                  Cadastrar primeiro membro
-                </Button>
-              }
-            />
-          )
-        ) : (
-          <>
-            {/* Tabela para varrer muita gente; cartões quando a largura não
-                comporta uma linha inteira sem rolar para o lado. */}
-            <div className="hidden md:block">
-              <MembersTable items={items} directory={directory.byId} />
-            </div>
-            <div className="flex flex-col gap-3 p-3 md:hidden">
-              {items.map((item) => (
-                <MemberCard key={item.member.id} item={item} directory={directory.byId} />
-              ))}
-            </div>
-          </>
-        )}
-      </Surface>
 
       <CreateMemberDrawer
         open={createOpen}

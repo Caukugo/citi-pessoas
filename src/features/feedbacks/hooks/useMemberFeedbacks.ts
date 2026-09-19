@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
 import { useFeedbacksByMember, type Feedback, type FeedbackType, type ID } from '@/data';
-import { countByType, selectMemberFeedbacks, type FeedbackCounts } from '../model/feedbacksOverview';
+import {
+  countByType,
+  selectMemberFeedbacks,
+  type FeedbackCounts,
+} from '../model/feedbacksOverview';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────

@@ -1,11 +1,17 @@
 import {
+  Archive,
   ArrowRightLeft,
   BriefcaseBusiness,
   ClipboardList,
   DoorOpen,
+  PencilLine,
+  FileUp,
   LogIn,
   MessageSquare,
+  RotateCcw,
   StickyNote,
+  Timer,
+  UserCog,
   type LucideIcon,
 } from 'lucide-react';
 import { EmptyState, ErrorState, LoadingState, Panel } from '@/components/ui';
@@ -26,12 +32,22 @@ import { formatDate, relativeDays } from '@/lib/format';
 
 const ICON: Record<MemberEventType, LucideIcon> = {
   entrada: LogIn,
+  importacao: FileUp,
+  mudanca_area: ArrowRightLeft,
   mudanca_subarea: ArrowRightLeft,
   mudanca_cargo: BriefcaseBusiness,
   mudanca_gerente: ArrowRightLeft,
+  mudanca_responsavel_gg: UserCog,
+  // Lápis, não seta: correção é conserto de um dado errado, não uma mudança
+  // que aconteceu com a pessoa.
+  correcao_cadastral: PencilLine,
   x1: ClipboardList,
   feedback: MessageSquare,
+  // Fim natural do ciclo — relógio, não porta: ninguém saiu, o prazo acabou.
+  inativacao_automatica: Timer,
+  reativacao: RotateCcw,
   desligamento: DoorOpen,
+  arquivamento: Archive,
   observacao: StickyNote,
 };
 
@@ -59,10 +75,7 @@ export function MemberActivityTimeline({
       {isLoading ? (
         <LoadingState label="Carregando atividade…" />
       ) : isError ? (
-        <ErrorState
-          title="Não foi possível carregar a atividade"
-          onRetry={() => void refetch()}
-        />
+        <ErrorState title="Não foi possível carregar a atividade" onRetry={() => void refetch()} />
       ) : visible.length === 0 ? (
         <EmptyState
           title="Nada registrado ainda"

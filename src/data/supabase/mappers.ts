@@ -5,6 +5,11 @@ import type {
   Gestao,
   Member,
   MemberEvent,
+  MemberImportContinuation,
+  MemberRecordCorrection,
+  OrgArea,
+  OrgPosition,
+  OrgSubarea,
   Settings,
   X1,
 } from '../types';
@@ -23,21 +28,24 @@ export function fromMemberRow(row: Row): Member {
   return {
     id: row.id,
     fullName: row.full_name,
-    cpf: row.cpf,
     email: row.email,
-    linkedinUrl: row.linkedin_url,
+    personalEmail: row.personal_email,
     phone: row.phone,
     photoUrl: row.photo_url,
+    photoPath: row.photo_path,
     role: row.role,
-    subarea: row.subarea,
-    diretoriaArea: row.diretoria_area,
+    area: row.area,
     squad: row.squad,
+    areaId: row.area_id,
+    subareaId: row.subarea_id,
+    positionId: row.position_id,
     managerId: row.manager_id,
     ggResponsibleId: row.gg_responsible_id,
     course: row.course,
     semester: row.semester,
     university: row.university,
     department: row.department,
+    campus: row.campus,
     status: row.status,
     joinedAt: row.joined_at,
     exitedAt: row.exited_at,
@@ -51,21 +59,24 @@ export function fromMemberRow(row: Row): Member {
 export function toMemberRow(input: Partial<Member>): Row {
   const row: Row = {};
   if (input.fullName !== undefined) row.full_name = input.fullName;
-  if (input.cpf !== undefined) row.cpf = input.cpf;
   if (input.email !== undefined) row.email = input.email;
-  if (input.linkedinUrl !== undefined) row.linkedin_url = input.linkedinUrl;
+  if (input.personalEmail !== undefined) row.personal_email = input.personalEmail;
   if (input.phone !== undefined) row.phone = input.phone;
   if (input.photoUrl !== undefined) row.photo_url = input.photoUrl;
+  if (input.photoPath !== undefined) row.photo_path = input.photoPath;
   if (input.role !== undefined) row.role = input.role;
-  if (input.subarea !== undefined) row.subarea = input.subarea;
-  if (input.diretoriaArea !== undefined) row.diretoria_area = input.diretoriaArea;
+  if (input.area !== undefined) row.area = input.area;
   if (input.squad !== undefined) row.squad = input.squad;
+  if (input.areaId !== undefined) row.area_id = input.areaId;
+  if (input.subareaId !== undefined) row.subarea_id = input.subareaId;
+  if (input.positionId !== undefined) row.position_id = input.positionId;
   if (input.managerId !== undefined) row.manager_id = input.managerId;
   if (input.ggResponsibleId !== undefined) row.gg_responsible_id = input.ggResponsibleId;
   if (input.course !== undefined) row.course = input.course;
   if (input.semester !== undefined) row.semester = input.semester;
   if (input.university !== undefined) row.university = input.university;
   if (input.department !== undefined) row.department = input.department;
+  if (input.campus !== undefined) row.campus = input.campus;
   if (input.status !== undefined) row.status = input.status;
   if (input.joinedAt !== undefined) row.joined_at = input.joinedAt;
   if (input.exitedAt !== undefined) row.exited_at = input.exitedAt;
@@ -209,4 +220,102 @@ export function fromProfileRow(row: Row): AuthUser {
     role: row.role,
     memberId: row.member_id,
   };
+}
+
+// ─── Estrutura organizacional ────────────────────────────────────────────────
+
+export function fromOrgAreaRow(row: Row): OrgArea {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    sortOrder: row.sort_order,
+    isActive: row.is_active,
+  };
+}
+
+export function fromOrgSubareaRow(row: Row): OrgSubarea {
+  return {
+    id: row.id,
+    areaId: row.area_id,
+    name: row.name,
+    slug: row.slug,
+    sortOrder: row.sort_order,
+    isActive: row.is_active,
+    entryPositionId: row.entry_position_id,
+  };
+}
+
+export function fromOrgPositionRow(row: Row, aliases: string[] = []): OrgPosition {
+  return {
+    id: row.id,
+    areaId: row.area_id,
+    subareaId: row.subarea_id,
+    name: row.name,
+    abbreviation: row.abbreviation ?? null,
+    // Os apelidos vêm de `position_aliases`, numa consulta própria: eles são
+    // linhas de outra tabela, e não uma coluna do cargo.
+    aliases,
+    level: row.level,
+    isDirectorship: row.is_directorship,
+    continuationMonths: row.continuation_months,
+    isActive: row.is_active,
+  };
+}
+
+/**
+ * Resumo da continuação da BASE ATUAL, como `citi_import_member` devolve.
+ *
+ * O banco sempre manda o objeto, inclusive quando nada foi emendado
+ * (`cycles_added` = 0). Aqui isso vira `null`: para quem lê o relatório, "não
+ * houve continuação" e "houve uma continuação de zero ciclos" são a mesma
+ * coisa, e um `null` evita a segunda frase.
+ */
+export function fromImportContinuationJson(value: unknown): MemberImportContinuation | null {
+  if (!value || typeof value !== 'object') return null;
+
+  const raw = value as Row;
+  const cyclesAdded = Number(raw.cycles_added ?? 0);
+  if (!cyclesAdded) return null;
+
+  return {
+    originalEndOn: raw.original_end_on,
+    finalEndOn: raw.final_end_on,
+    cyclesAdded,
+    monthsPerBlock: Array.isArray(raw.block_months) ? raw.block_months.map(Number) : [],
+  };
+}
+
+/**
+ * Correção cadastral → o JSONB que `citi_correct_member_record` espera.
+ *
+ * ⚠️ SÓ AS CHAVES PRESENTES entram. `undefined` é "não mexe" e some daqui;
+ * `null` é "limpa o campo" e precisa chegar ao banco. Um `toMemberRow`
+ * genérico não serviria: ele não distingue as duas coisas, e é assim que uma
+ * correção de telefone apaga o e-mail pessoal de alguém.
+ */
+export function toCorrectionPayload(changes: MemberRecordCorrection): Row {
+  const DE_PARA: Record<keyof MemberRecordCorrection, string> = {
+    fullName: 'full_name',
+    email: 'email',
+    personalEmail: 'personal_email',
+    phone: 'phone',
+    birthDate: 'birth_date',
+    course: 'course',
+    department: 'department',
+    semester: 'semester',
+    university: 'university',
+    areaId: 'area_id',
+    subareaId: 'subarea_id',
+    positionId: 'position_id',
+  };
+
+  const payload: Row = {};
+  for (const [key, column] of Object.entries(DE_PARA) as [
+    keyof MemberRecordCorrection,
+    string,
+  ][]) {
+    if (key in changes && changes[key] !== undefined) payload[column] = changes[key];
+  }
+  return payload;
 }

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { configure } from '@testing-library/react';
+import { configure } from '@testing-library/dom';
 
 /**
  * Preparação global dos testes.
@@ -8,13 +8,14 @@ import { configure } from '@testing-library/react';
  */
 
 /**
- * O adapter mock simula latência de rede de propósito (`delay()` em
- * `src/data/mock/store.ts`), para que os estados de carregamento existam de
- * verdade nos testes — e um fluxo completo (login → renderizar → buscar
- * dados) soma vários desses. O padrão do testing-library para `findBy*` e
- * `waitFor` é 1000ms, curto demais para essa soma em uma máquina sob carga —
- * quando isso acontece, o teste falha por timeout, não porque algo quebrou.
- * Subir esse padrão evita esse falso negativo sem esconder uma demora real:
- * 5s ainda falha bem rápido se o elemento nunca aparecer de verdade.
+ * Quanto tempo `findBy*` e `waitFor` esperam antes de desistir.
+ *
+ * O padrão da biblioteca é 1s, e não dá: o adapter mock simula latência de rede
+ * em TODA chamada, de propósito, para que os estados de carregamento existam de
+ * verdade. Um login soma quatro dessas esperas, e com os arquivos de teste
+ * rodando em paralelo numa máquina ocupada o mesmo teste passava sozinho e
+ * falhava no conjunto — flutuação de máquina disfarçada de bug de código.
+ *
+ * Cinco segundos não deixam nenhum teste mais lento: só adiam a desistência.
  */
-configure({ asyncUtilTimeout: 5000 });
+configure({ asyncUtilTimeout: 5_000 });

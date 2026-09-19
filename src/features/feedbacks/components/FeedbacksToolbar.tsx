@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { FilterX } from 'lucide-react';
-import { Button, Chip, SearchInput, Select } from '@/components/ui';
-import { SUBAREAS, type Member } from '@/data';
+import { Filter } from 'lucide-react';
+import { Chip, SearchInput } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import {
   FEEDBACK_TYPES,
   FEEDBACK_TYPE_PLURAL,
-  hasActiveFeedbackFilters,
   type FeedbacksListFilters,
 } from '../model/feedbacksOverview';
 
 /**
- * Busca e filtros da visão consolidada.
+ * Barra de controles do painel: filtros · tipo de feedback · busca.
+ *
+ * Mesma anatomia da barra de Membros — controles de 34px, pílulas de tipo
+ * centralizadas no recesso do painel, busca à direita — para que as duas telas
+ * não tenham duas interpretações do mesmo recorte.
  *
  * A busca é digitada aqui e só depois de uma pausa vira consulta. Hoje isso
  * evita recalcular a agregação a cada tecla; quando a busca virar consulta no
@@ -20,21 +23,25 @@ import {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Os filtros que moram na gaveta — os que o botão redondo precisa anunciar. */
+function drawerFilterCount(filters: FeedbacksListFilters): number {
+  return [filters.areaSlug, filters.subareaSlug, filters.ggResponsibleId].filter(Boolean).length;
+}
+
 export function FeedbacksToolbar({
   filters,
-  ggPeople,
   onChange,
-  onClear,
+  onOpenFilters,
+  resultCount,
 }: {
   filters: FeedbacksListFilters;
-  ggPeople: Member[];
-  onChange: <K extends keyof FeedbacksListFilters>(
-    key: K,
-    value: FeedbacksListFilters[K],
-  ) => void;
-  onClear: () => void;
+  onChange: <K extends keyof FeedbacksListFilters>(key: K, value: FeedbacksListFilters[K]) => void;
+  onOpenFilters: () => void;
+  /** Quantas pessoas o recorte atual deixou na lista. */
+  resultCount: number;
 }) {
   const [searchDraft, setSearchDraft] = useState(filters.search);
+  const drawerFilters = drawerFilterCount(filters);
 
   // A URL é a fonte de verdade: se ela mudar por fora (voltar do navegador,
   // limpar filtros, link compartilhado), o campo acompanha.
@@ -47,52 +54,41 @@ export function FeedbacksToolbar({
   }, [searchDraft, filters.search, onChange]);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchInput
-          value={searchDraft}
-          onChange={setSearchDraft}
-          label="Buscar membro"
-          placeholder="Buscar por nome, cargo ou subárea…"
-          className="min-w-[16rem] flex-1"
-        />
-
-        {hasActiveFeedbackFilters(filters) && (
-          <Button icon={<FilterX size={15} />} onClick={onClear}>
-            Limpar filtros
-          </Button>
+    <div className="flex flex-wrap items-center gap-[10px] xl:relative xl:h-[34px] xl:flex-nowrap">
+      <button
+        type="button"
+        onClick={onOpenFilters}
+        aria-label={
+          drawerFilters === 0
+            ? 'Abrir filtros'
+            : `Abrir filtros: ${drawerFilters} ${drawerFilters === 1 ? 'filtro ativo' : 'filtros ativos'}`
+        }
+        title="Filtros"
+        className={cn(
+          'flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border transition-colors',
+          // Laranja só quando ele tem algo a dizer — mesma regra de Membros.
+          drawerFilters > 0
+            ? 'border-transparent bg-accent text-accent-foreground hover:bg-accent-hover'
+            : 'border-border bg-foreground/[0.04] text-muted-foreground hover:border-border-hover hover:text-foreground',
         )}
-      </div>
+      >
+        <Filter size={14} aria-hidden />
+      </button>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Select
-          aria-label="Filtrar por subárea"
-          value={filters.subarea}
-          onChange={(e) => onChange('subarea', e.target.value)}
-          placeholder="Todas as subáreas"
-          options={SUBAREAS.map((subarea) => ({ value: subarea, label: subarea }))}
-        />
-
-        <Select
-          aria-label="Filtrar por GG responsável"
-          value={filters.ggResponsibleId}
-          onChange={(e) => onChange('ggResponsibleId', e.target.value)}
-          placeholder="Qualquer GG responsável"
-          options={ggPeople.map((person) => ({ value: person.id, label: person.fullName }))}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
-          Tipo de feedback
-        </span>
-        {/* Chips e não select: são três opções, e o estado ativo precisa ficar
-            visível o tempo todo — filtrar por Carta de Ajuste muda bastante o
-            que a tabela significa. */}
+      {/* Centralizadas no painel a partir de `xl`, encaixadas no recesso da
+          aresta de cima. Abaixo disso o espaço não dá para tudo em uma linha e
+          elas voltam ao fluxo normal. */}
+      <div className="flex min-w-0 flex-1 gap-[4px] overflow-x-auto xl:absolute xl:left-1/2 xl:flex-none xl:-translate-x-1/2">
         {FEEDBACK_TYPES.map((type) => (
           <Chip
             key={type}
+            pill
+            accent
             active={filters.type === type}
+            className={cn(
+              'h-[34px] w-[128px] shrink-0 px-0 text-[12px]',
+              filters.type === type ? 'font-semibold' : 'font-medium',
+            )}
             // Clicar de novo no mesmo chip remove o filtro: é o gesto que
             // as pessoas tentam antes de procurar "limpar".
             onClick={() => onChange('type', filters.type === type ? '' : type)}
@@ -101,6 +97,23 @@ export function FeedbacksToolbar({
           </Chip>
         ))}
       </div>
+
+      <SearchInput
+        value={searchDraft}
+        onChange={setSearchDraft}
+        label="Buscar membro"
+        placeholder="Buscar por nome ou subárea…"
+        accent
+        className="w-full shrink-0 xl:ml-auto xl:w-[268px] xl:shrink"
+        inputClassName="h-[34px] text-[12px]"
+      />
+
+      {/* Quem usa leitor de tela precisa saber que o recorte mudou de tamanho
+          sem ter que reler a tabela inteira. Sem contador visível: o número já
+          está na faixa de indicadores logo acima. */}
+      <span aria-live="polite" className="sr-only">
+        {resultCount === 1 ? '1 resultado' : `${resultCount} resultados`}
+      </span>
     </div>
   );
 }

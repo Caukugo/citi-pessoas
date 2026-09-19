@@ -23,13 +23,7 @@ import { cn } from '@/lib/cn';
  * ```
  */
 
-export function TableWrapper({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function TableWrapper({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('w-full overflow-x-auto', className)}>{children}</div>;
 }
 

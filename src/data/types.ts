@@ -22,199 +22,60 @@ export type ISODate = string;
 /**
  * Situação do membro na organização.
  *
- * REGRA DE PRODUTO: nunca apagamos um membro.
- *   • `desligado`  — saiu sem concluir (ex.: trancou, foi desligado pela GG).
- *   • `arquivado`  — saiu por ter concluído sua passagem no CITi (ex.: formou).
+ * REGRA DE PRODUTO: nunca apagamos um membro. O histórico permanece sempre.
  *
- * Ver ADR-014 (docs/DECISIONS.md) para o histórico dessa definição.
+ *   ativo      está atualmente na empresa
+ *   inativo    TERMINOU NATURALMENTE o ciclo de gestão
+ *   desligado  saiu ANTES de terminar o ciclo
+ *   arquivado  mantido apenas para histórico
+ *
+ * A diferença entre `inativo` e `desligado` não é cosmética: só quem ficou
+ * inativo por conclusão natural pode ser reativado (continuação de ciclo).
+ * Quem foi desligado, não.
  */
-export type MemberStatus = 'ativo' | 'desligado' | 'arquivado';
+export type MemberStatus = 'ativo' | 'inativo' | 'desligado' | 'arquivado';
 
-/** Rótulo de exibição (singular) de cada situação — fonte única, não repita em componente. */
 export const MEMBER_STATUS_LABEL: Record<MemberStatus, string> = {
   ativo: 'Ativo',
+  inativo: 'Inativo',
   desligado: 'Desligado',
   arquivado: 'Arquivado',
 };
 
 /**
- * Subáreas do CITi (nível inferior da hierarquia). Configurável na
- * Administração no futuro.
+ * Os nomes que a coluna de texto legada `members.area` costuma ter.
  *
- * É a que o membro efetivamente integra — ver `Member.subarea`.
+ * ⚠️ A coluna se chama "area", mas o conteúdo sempre foi o nome de uma
+ * SUBÁREA (`Dados`, `Comercial`, …) — e, para quem tem cargo de área inteira,
+ * o nome da ÁREA. O tipo se chama `LegacySubareaName` para parar de repetir a
+ * confusão: quem manda são `areaId` e `subareaId`.
+ *
+ * Esta lista sobrevive só onde ainda não há catálogo (o formulário de cadastro
+ * manual). Listagens e filtros NÃO a usam mais. Sai junto com a coluna —
+ * backlog DATA-007.
  */
-export type Subarea =
-  | 'Gente e Gestão'
+export type LegacySubareaName =
   | 'Desenvolvimento'
+  | 'Dados'
   | 'Produto'
-  | 'Inteligência de Dados'
   | 'Marketing'
+  | 'Gestão'
+  | 'Gente e Gestão'
   | 'Comercial'
   | 'Institucional'
   | 'Inovação';
 
-/**
- * Áreas do CITi (nível superior da hierarquia área → subárea — ADR-015).
- */
-export type Area = 'Gente e Gestão' | 'Soluções' | 'Negócios' | 'Institucional';
-
-/**
- * Hierarquia área → subárea VIGENTE NESTA GESTÃO, alinhada ao organograma de
- * "Contexto das funcionalidades e estrutura da plataforma" (ADR-015, que
- * substitui a lista plana de subáreas da ADR-014).
- *
- * ⚠️ Nomes de área/subárea (e de cargo) não são permanentes: cada gestão pode
- * renomeá-los. Esta constante é a nomenclatura da gestão ATUAL — não um fato
- * imutável do CITi. Quando gestões passadas forem importadas, a nomenclatura
- * da época delas entra como texto livre no evento/observação correspondente
- * (`MemberEvent`), sem forçar nomes antigos a caber neste enum vigente — é o
- * mesmo princípio de ADR-007 (posição atual + histórico em eventos) e ADR-012
- * (módulo completo de gestões é evolução futura, não Fase 1). Ver ADR-015.
- */
-export const AREA_STRUCTURE: Record<Area, Subarea[]> = {
-  'Gente e Gestão': ['Gente e Gestão'],
-  Soluções: ['Desenvolvimento', 'Produto', 'Inteligência de Dados'],
-  Negócios: ['Marketing', 'Comercial'],
-  Institucional: ['Institucional', 'Inovação'],
-};
-
-export const AREAS: Area[] = Object.keys(AREA_STRUCTURE) as Area[];
-export const SUBAREAS: Subarea[] = AREAS.flatMap((area) => AREA_STRUCTURE[area]);
-
-const SUBAREA_TO_AREA = AREAS.reduce<Record<string, Area>>((acc, area) => {
-  for (const subarea of AREA_STRUCTURE[area]) acc[subarea] = area;
-  return acc;
-}, {}) as Record<Subarea, Area>;
-
-/** A área (nível superior) de uma subárea, segundo a hierarquia vigente. */
-export function getAreaForSubarea(subarea: Subarea): Area {
-  return SUBAREA_TO_AREA[subarea];
-}
-
-/**
- * Cargos possíveis NA GESTÃO ATUAL (ADR-017). Todo cargo do CITi está preso a
- * uma subárea ou, no caso da Diretoria, a uma área — não existe cargo solto.
- *
- * ⚠️ Mesmo princípio de `AREA_STRUCTURE` (ADR-015): nome de cargo não é
- * permanente, cada gestão pode renomear. Isto é a nomenclatura vigente, não
- * um catálogo histórico — gestões passadas/futuras com cargos diferentes não
- * geram uma versão nova deste union type, viram texto livre em `MemberEvent`
- * (mesmo princípio de ADR-007/ADR-012/ADR-015).
- */
-export type Cargo =
-  // Gente e Gestão
-  | 'Analista de Gente e Gestão'
-  | 'Especialista em Gente e Gestão'
-  | 'Gerente de Gente e Gestão'
-  // Desenvolvimento
-  | 'Pessoa Desenvolvedora'
-  | 'Analista de Software'
-  | 'Gerente de Software'
-  | 'Líder de Desenvolvimento'
-  // Produto
-  | 'Analista de Produto'
-  | 'Especialista em Produto'
-  | 'Gerente de Produto'
-  | 'Líder de Produto'
-  // Inteligência de Dados
-  | 'Analista de Dados'
-  | 'Especialista de Dados'
-  | 'Gerente de Dados'
-  | 'Líder de Dados'
-  // Marketing
-  | 'Analista de Marketing'
-  | 'Especialista de Marketing'
-  | 'Gerente de Marketing'
-  // Comercial
-  | 'Gerente de Contas'
-  | 'Gerente de Contas Chave'
-  | 'Gerente Comercial'
-  // Institucional
-  | 'Relationship Manager'
-  | 'Gerente Institucional'
-  // Inovação
-  | 'Agente de Inovação'
-  | 'Head de Inovação'
-  // Diretoria (ligada à ÁREA, não à subárea — ver `CARGOS_DIRETORIA`)
-  | 'Diretor(a) Institucional (CEO)'
-  | 'Diretor(a) de Soluções (CTO)'
-  | 'Diretor(a) de Negócios (CRO)'
-  | 'Diretor(a) de Operações (COO)';
-
-/**
- * Cargos de cada subárea, na ordem do organograma vigente — o ÚLTIMO cargo de
- * cada lista é a liderança maior daquela subárea.
- */
-export const CARGOS_POR_SUBAREA: Record<Subarea, Cargo[]> = {
-  'Gente e Gestão': [
-    'Analista de Gente e Gestão',
-    'Especialista em Gente e Gestão',
-    'Gerente de Gente e Gestão',
-  ],
-  Desenvolvimento: ['Pessoa Desenvolvedora', 'Analista de Software', 'Gerente de Software', 'Líder de Desenvolvimento'],
-  Produto: ['Analista de Produto', 'Especialista em Produto', 'Gerente de Produto', 'Líder de Produto'],
-  'Inteligência de Dados': ['Analista de Dados', 'Especialista de Dados', 'Gerente de Dados', 'Líder de Dados'],
-  Marketing: ['Analista de Marketing', 'Especialista de Marketing', 'Gerente de Marketing'],
-  Comercial: ['Gerente de Contas', 'Gerente de Contas Chave', 'Gerente Comercial'],
-  Institucional: ['Relationship Manager', 'Gerente Institucional'],
-  Inovação: ['Agente de Inovação', 'Head de Inovação'],
-};
-
-/**
- * Cargo de Diretoria por ÁREA (não por subárea) — é a liderança maior da
- * área inteira, respondendo por todas as subáreas dela. Fica em uma tabela à
- * parte de `CARGOS_POR_SUBAREA` porque "Diretoria" não é uma nona subárea:
- * é um cargo que qualquer pessoa de qualquer subárea daquela área pode
- * assumir, mantendo a subárea em que atua (ver ADR-017).
- */
-export const CARGOS_DIRETORIA: Record<Area, Cargo> = {
-  Institucional: 'Diretor(a) Institucional (CEO)',
-  Soluções: 'Diretor(a) de Soluções (CTO)',
-  Negócios: 'Diretor(a) de Negócios (CRO)',
-  'Gente e Gestão': 'Diretor(a) de Operações (COO)',
-};
-
-/** Todos os cargos válidos na gestão atual — união de subárea + diretoria. */
-export const ALL_CARGOS: Cargo[] = [
-  ...SUBAREAS.flatMap((subarea) => CARGOS_POR_SUBAREA[subarea]),
-  ...AREAS.map((area) => CARGOS_DIRETORIA[area]),
+export const LEGACY_SUBAREA_NAMES: LegacySubareaName[] = [
+  'Desenvolvimento',
+  'Dados',
+  'Produto',
+  'Marketing',
+  'Gestão',
+  'Gente e Gestão',
+  'Comercial',
+  'Institucional',
+  'Inovação',
 ];
-
-/**
- * Cargos de liderança maior de alguma subárea (o último de cada lista em
- * `CARGOS_POR_SUBAREA`) ou de alguma área (`CARGOS_DIRETORIA`).
- *
- * Existe para telas que precisam saber "esta pessoa lidera algo", sem
- * recorrer a um regex sobre o texto do cargo (que quebra a cada gestão que
- * renomear os cargos) nem a um campo booleano solto no membro (que poderia
- * divergir do cargo escrito — ver ADR-017).
- */
-export const LIDERANCA_CARGOS: Cargo[] = [
-  ...SUBAREAS.map((subarea) => CARGOS_POR_SUBAREA[subarea][CARGOS_POR_SUBAREA[subarea].length - 1]),
-  ...AREAS.map((area) => CARGOS_DIRETORIA[area]),
-];
-
-/**
- * Cargos que uma pessoa alocada nesta subárea pode assumir.
- *
- * ⚠️ Revisado em ADR-018: Diretoria NÃO é mais oferecida aqui como opção
- * extra. A Diretoria lidera a ÁREA inteira, não uma subárea específica —
- * uma pessoa da Diretoria não integra nenhuma subárea (`Member.subarea` fica
- * `null` para ela; ver `Member.diretoriaArea`). Cadastrar alguém da
- * Diretoria é um caminho separado no formulário, que usa `CARGOS_DIRETORIA`
- * diretamente a partir da Área escolhida — nunca `cargoOptionsForSubarea()`.
- */
-export function cargoOptionsForSubarea(subarea: Subarea): Cargo[] {
-  return [...CARGOS_POR_SUBAREA[subarea]];
-}
-
-/** Os quatro cargos de Diretoria, um por área. */
-export const DIRETORIA_CARGOS: Cargo[] = AREAS.map((area) => CARGOS_DIRETORIA[area]);
-
-/** `true` quando o cargo é um dos quatro de Diretoria (ligados à área, não à subárea). */
-export function isDiretoriaCargo(cargo: Cargo): boolean {
-  return (DIRETORIA_CARGOS as string[]).includes(cargo);
-}
 
 /**
  * O Membro é a entidade central do produto. X1, Feedback e qualquer
@@ -229,32 +90,38 @@ export interface Member {
 
   // Identificação
   fullName: string;
-  /** CPF, com ou sem pontuação. Validado (dígitos verificadores) em `memberSchema.ts`. */
-  cpf?: string | null;
   /** E-mail institucional: nome.sobrenome@citi.org.br */
   email: string;
-  /** Link do perfil do LinkedIn. Substituiu o antigo e-mail pessoal. */
-  linkedinUrl?: string | null;
+  personalEmail?: string | null;
   phone?: string | null;
   photoUrl?: string | null;
+  /**
+   * Caminho do arquivo dentro do bucket privado `member-photos`
+   * (`<memberId>/<arquivo>`). O bucket não é público: a URL de exibição é
+   * assinada na hora. `photoUrl` segue valendo para fotos externas antigas.
+   */
+  photoPath?: string | null;
 
   // Posição atual na organização
-  /** Cargo, restrito ao vocabulário da gestão atual — ver `Cargo` (ADR-017). */
-  role: Cargo;
+  role: string;
   /**
-   * Subárea que o membro integra — `null` para quem é da Diretoria (ADR-018):
-   * a Diretoria lidera a ÁREA inteira, não uma subárea específica, então não
-   * faz sentido prender essa pessoa a uma. Use `getMemberArea()` para obter a
-   * área nos dois casos, e `memberSubareaLabel()` para exibição.
+   * Texto legado (`members.area`). Traz o nome da subárea, ou o da área quando
+   * o cargo vale para a área inteira. Mantido só por compatibilidade: para
+   * exibir e filtrar, use `areaId` / `subareaId` e o catálogo.
    */
-  subarea: Subarea | null;
-  /**
-   * Área que a pessoa da Diretoria dirige (ADR-018). Preenchida SÓ quando
-   * `subarea` é `null` — os dois campos são mutuamente exclusivos: a pessoa
-   * está alocada numa subárea OU é Diretoria de uma área, nunca as duas coisas.
-   */
-  diretoriaArea?: Area | null;
+  area: string;
   squad?: string | null;
+
+  /**
+   * Ligação com a estrutura organizacional normalizada (`areas`, `subareas`,
+   * `positions`). Convivem com `area` e `role` em texto: as telas atuais ainda
+   * leem o texto, e migrá-las é passo separado.
+   *
+   * No modo mock são sempre `null` — o mock não tem a estrutura normalizada.
+   */
+  areaId?: ID | null;
+  subareaId?: ID | null;
+  positionId?: ID | null;
   /** Gerente — é quem conduz o X1. */
   managerId?: ID | null;
   /** Integrante de GG que acompanha este membro. */
@@ -266,6 +133,8 @@ export interface Member {
   university?: string | null;
   /** Departamento acadêmico: CIn, CCSA, CCS, CAC… Usado nos recortes institucionais. */
   department?: string | null;
+  /** Campus da UFPE (Recife, Caruaru, Vitória de Santo Antão). Migration 0022. */
+  campus?: string | null;
 
   // Ciclo de vida
   status: MemberStatus;
@@ -283,40 +152,336 @@ export interface Member {
 export type MemberCreateInput = Omit<Member, 'id' | 'createdAt' | 'updatedAt'>;
 export type MemberUpdateInput = Partial<MemberCreateInput>;
 
-/**
- * Área da pessoa, cobrindo os dois formatos possíveis de posição (ADR-018):
- * quem integra uma subárea deriva a área normalmente a partir dela; quem é
- * da Diretoria não tem subárea e guarda a área diretamente em
- * `diretoriaArea`. Sempre use esta função em vez de ler `subarea`/
- * `diretoriaArea` direto — é o único lugar que sabe resolver os dois casos.
- */
-export function getMemberArea(member: Pick<Member, 'subarea' | 'diretoriaArea'>): Area | null {
-  if (member.subarea) return getAreaForSubarea(member.subarea);
-  return member.diretoriaArea ?? null;
-}
-
-/**
- * Rótulo de exibição da posição organizacional da pessoa — o que a maioria
- * das telas hoje mostra lendo `member.subarea` direto. Para a Diretoria não
- * existe subárea para mostrar, então o rótulo vira "Diretoria (<Área>)".
- */
-export function memberSubareaLabel(member: Pick<Member, 'subarea' | 'diretoriaArea'>): string {
-  if (member.subarea) return member.subarea;
-  if (member.diretoriaArea) return `Diretoria (${member.diretoriaArea})`;
-  return '—';
-}
-
 /** Filtros da listagem de membros (MEM-002 / MEM-003). */
 export interface MemberFilters {
   /** Busca livre por nome ou e-mail. */
   search?: string;
-  /** Filtra por subárea (nível inferior). */
-  subarea?: Subarea;
-  /** Filtra por área (nível superior) — todas as subáreas dela. */
-  area?: Area;
+  /**
+   * Recorte pela estrutura normalizada, nunca pelo texto legado.
+   *
+   * `areaId` traz TODA a área — inclusive quem tem cargo de área inteira e
+   * portanto não está em subárea nenhuma. `subareaId` traz só quem é daquela
+   * subárea: a diretoria de área não aparece ali, porque ela não pertence a
+   * uma subárea só.
+   */
+  areaId?: ID;
+  subareaId?: ID;
   status?: MemberStatus;
   ggResponsibleId?: ID;
   managerId?: ID;
+}
+
+// ─── Estrutura organizacional ─────────────────────────────────────────────────
+
+/**
+ * Áreas, subáreas e cargos vivem no banco (`areas`, `subareas`, `positions`),
+ * criados pela migration 0003. Não são constantes do código: a Administração
+ * vai poder editá-los, e a importação precisa validar contra o que existe de
+ * verdade — não contra uma lista escrita aqui que envelhece em silêncio.
+ *
+ * ⚠️ Não confunda com `LegacySubareaName` acima, que é o texto livre legado de
+ * `members.area`. As duas coisas convivem enquanto o cadastro manual não migra.
+ */
+export interface OrgArea {
+  id: ID;
+  name: string;
+  /** Identificador estável, imune a correção de nome. Ex.: `gente-e-gestao`. */
+  slug: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface OrgSubarea {
+  id: ID;
+  areaId: ID;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  isActive: boolean;
+  /**
+   * Cargo de quem ENTRA nesta subárea.
+   *
+   * ⚠️ NÃO é usado na importação da base atual: quem já está no CITi pode ser
+   * analista, especialista, gerente, líder ou diretor, e o cargo vem da
+   * planilha. Isto existe para as entradas futuras pelo Google Forms.
+   */
+  entryPositionId?: ID | null;
+}
+
+export interface OrgPosition {
+  id: ID;
+  areaId: ID;
+  /**
+   * `null` = o cargo vale para a ÁREA inteira. É assim que "Diretoria de
+   * Negócios" serve a Comercial e a Marketing sem existir duas vezes.
+   */
+  subareaId?: ID | null;
+  /** Nome CANÔNICO. É ele que as telas mostram. */
+  name: string;
+  /**
+   * Sigla, quando o cargo tem uma (`CEO`). Não é o nome: é o rótulo curto que
+   * aparece em crachá e organograma.
+   */
+  abbreviation?: string | null;
+  /**
+   * Outros nomes pelos quais este MESMO cargo é conhecido — `Presidência`,
+   * `Diretoria Institucional`, `CEO`.
+   *
+   * ⚠️ Apelido não é cargo. Dois cargos equivalentes no catálogo fazem a mesma
+   * pessoa ser importada num ou noutro conforme o que a planilha escreveu, e o
+   * filtro por cargo devolver metade da resposta. Por isso a lista vive AQUI,
+   * dentro do cargo, e a resolução por texto passa por ela (migration 0017).
+   */
+  aliases: string[];
+  /** Ordem hierárquica dentro da subárea: 1 é o mais alto. */
+  level: number;
+  isDirectorship: boolean;
+  /** Meses concedidos numa continuação. A REGRA, não uma comparação de nome. */
+  continuationMonths: number;
+  isActive: boolean;
+}
+
+export interface OrgCatalog {
+  areas: OrgArea[];
+  subareas: OrgSubarea[];
+  positions: OrgPosition[];
+}
+
+// ─── Catálogo acadêmico (UFPE) ────────────────────────────────────────────────
+//
+// Migration 0020. Usado para validar a resposta do Google Forms (campus ×
+// curso) antes de criar um membro — ver `citi_resolve_academic_course`. Ainda
+// sem tela própria nesta fase, do mesmo jeito que `OrgArea`/`OrgSubarea`
+// existiram antes de qualquer tela de Administração para elas.
+
+export interface AcademicCampus {
+  id: ID;
+  /** "Recife", "Caruaru", "Vitória de Santo Antão" — o que aparece no Forms. */
+  name: string;
+  /** Nome oficial da UFPE (ex.: "Campus Acadêmico do Agreste, em Caruaru"). */
+  officialName: string;
+  slug: string;
+  isActive: boolean;
+}
+
+/** "Unidade acadêmica" — NUNCA "departamento". CIn, CAC, CTG, CAA e CAV são Centros. */
+export interface AcademicUnit {
+  id: ID;
+  sigla: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface AcademicCourse {
+  id: ID;
+  campusId: ID;
+  academicUnitId: ID;
+  /** Nome do curso, sem grau: "Educação Física", não "Educação Física - Bacharelado". */
+  name: string;
+  degree: 'Bacharelado' | 'Licenciatura' | 'Bacharelado Interdisciplinar' | 'Licenciatura Intercultural';
+  /**
+   * Rótulo pronto para a opção do Google Forms — já com o campus explícito
+   * quando o mesmo curso existe em mais de um campus.
+   */
+  formsLabel: string;
+  isActive: boolean;
+  sourceUrl: string;
+}
+
+// ─── Importação de membros ────────────────────────────────────────────────────
+
+/** De onde uma pessoa chegou à plataforma. */
+export type MemberIntakeSource = 'csv' | 'google_forms' | 'manual';
+
+/**
+ * O que aconteceu com uma linha na confirmação da importação.
+ *
+ *   criado        virou membro novo, com ciclo e histórico
+ *   ja_existia    o e-mail já estava cadastrado; nada foi alterado
+ *   ja_importado  este mesmo envio já tinha sido processado antes
+ *   falhou        a gravação foi desfeita; `errorMessage` explica
+ */
+export type MemberImportOutcome = 'criado' | 'ja_existia' | 'ja_importado' | 'falhou';
+
+/**
+ * Por que uma submissão importada ainda precisa de olho humano.
+ *
+ * São CÓDIGOS, não frases: é isso que se consegue contar, filtrar e traduzir.
+ * A tradução para português vive na tela (`ImportResult.tsx`), porque texto de
+ * interface muda e o registro no banco não pode mudar junto.
+ *
+ * ⚠️ Nenhum destes bloqueia a importação. A pessoa entra; o que falta é
+ * correção posterior. Bloqueio é `ImportIssue` com severidade `error`.
+ */
+export type MemberIntakeReviewReason =
+  /** A planilha trouxe algo no campo, mas não é uma data. `birth_date` ficou nula. */
+  | 'invalid_birth_date'
+  /** A planilha informou um arquivo de foto que não está no .zip. */
+  | 'photo_missing'
+  /** A foto veio, mas não é JPEG, PNG nem WebP. */
+  | 'invalid_photo_type'
+  /** A foto passa do limite de 5 MB do bucket. */
+  | 'photo_too_large'
+  /** O membro entrou, mas o upload para o Storage falhou. */
+  | 'photo_upload_failed'
+  /** A planilha não trouxe CPF. A pessoa entra sem ele. */
+  | 'cpf_missing'
+  /** Veio CPF, mas não é um CPF (dígito verificador, tamanho, sequência). */
+  | 'invalid_cpf'
+  /**
+   * O membro entrou, mas o CPF não chegou ao serviço que o cifra — falha
+   * TÉCNICA (erro de rede, exceção, `membro_inexistente`). Não confundir com
+   * `cpf_duplicado`: aqui o problema é a gravação em si, não o dado.
+   */
+  | 'cpf_store_failed'
+  /**
+   * CPF válido, mas já pertence a OUTRO membro (`citi_set_member_cpf`
+   * devolveu `outcome: 'duplicado'`). Não é falha técnica — é um conflito de
+   * dado que precisa de decisão humana (qual cadastro está certo). Reimportar
+   * ou reprocessar sozinho não resolve; `cpf_store_failed` sugeriria "tenta
+   * de novo", o que seria enganoso aqui.
+   */
+  | 'cpf_duplicado';
+
+export interface MemberImportInput {
+  /** Chave estável do envio. Reenviar o mesmo CSV não cria nada de novo. */
+  externalId: string;
+  /** A linha original da planilha, guardada como veio. */
+  payload: Record<string, string>;
+  fullName: string;
+  email: string;
+  positionId: ID;
+  /**
+   * `null` = cargo de ÁREA inteira (`positions.subarea_id` nulo) importado sem
+   * subárea. A pessoa entra com `members.subarea_id` nulo, e a área vem do
+   * próprio cargo.
+   */
+  subareaId: ID | null;
+  gestaoId: ID;
+  phone?: string | null;
+  course?: string | null;
+  department?: string | null;
+  birthDate?: ISODate | null;
+  /**
+   * Data de referência SUGERIDA pela prévia.
+   *
+   * ⚠️ Quem decide é o banco. Chamada pela API, a função usa a data do servidor
+   * e recusa uma sugestão que esteja mais de um dia à frente — prévia velha ou
+   * relógio errado mudaria quantos ciclos a pessoa ganha. O valor efetivamente
+   * usado volta em `MemberImportResult.referenceDate`.
+   */
+  referenceDate?: ISODate;
+}
+
+/**
+ * O que a regra da BASE ATUAL acrescentou a uma pessoa na importação.
+ *
+ * O CSV descreve quem está no CITi hoje. Quando o ciclo da gestão de entrada já
+ * tinha terminado, o banco emenda blocos contíguos de continuação — com os
+ * meses do cargo — até cobrir a data de referência. A pessoa nunca fica
+ * inativa, e os ciclos anteriores ficam encerrados por `continuado`.
+ *
+ * `null` quando o ciclo inicial ainda estava vigente: não havia o que emendar.
+ */
+export interface MemberImportContinuation {
+  /** Fim do ciclo que a gestão de entrada calculou. */
+  originalEndOn: ISODate;
+  /** Fim do último bloco — o ciclo que ficou vigente. */
+  finalEndOn: ISODate;
+  cyclesAdded: number;
+  /** Meses de cada bloco, na ordem em que foram emendados. */
+  monthsPerBlock: number[];
+}
+
+export interface MemberImportResult {
+  outcome: MemberImportOutcome;
+  memberId?: ID | null;
+  submissionId?: ID | null;
+  cycleId?: ID | null;
+  status?: MemberStatus | null;
+  /** Início do ciclo VIGENTE ao fim da importação. */
+  startedOn?: ISODate | null;
+  /** Fim do ciclo VIGENTE ao fim da importação. */
+  expectedEndOn?: ISODate | null;
+  /** A data de referência que o BANCO usou. Pode diferir da prévia. */
+  referenceDate?: ISODate | null;
+  /** Continuação inferida pela base atual, ou `null` se não houve nenhuma. */
+  continuation?: MemberImportContinuation | null;
+  errorMessage?: string | null;
+}
+
+/** Uma foto pronta para ir ao bucket privado `member-photos`. */
+export interface MemberPhotoUpload {
+  fileName: string;
+  /** `image/jpeg`, `image/png` ou `image/webp`. */
+  contentType: string;
+  bytes: Uint8Array;
+}
+
+// ─── CPF (dado privado) ───────────────────────────────────────────────────────
+
+/**
+ * O que a TELA pode saber sobre o CPF sem pedir o número.
+ *
+ * Vem de `citi_member_cpf_status`, que é uma consulta normal com RLS de GG.
+ * Serve para o perfil dizer "tem CPF, terminado em 4725" sem acionar o serviço
+ * de decifra — e sem gerar uma linha de auditoria de LEITURA a cada abertura de
+ * tela.
+ */
+export interface MemberCpfStatus {
+  hasCpf: boolean;
+  /** Quatro últimos dígitos, em claro. Nunca o número inteiro. */
+  last4: string | null;
+  updatedAt: ISODate | null;
+}
+
+/** O que o serviço devolve ao gravar um CPF. */
+export type MemberCpfWriteOutcome = 'criado' | 'atualizado' | 'duplicado' | 'membro_inexistente';
+
+export interface MemberCpfWriteResult {
+  outcome: MemberCpfWriteOutcome;
+  last4?: string | null;
+  /**
+   * Quando `duplicado`: de QUEM é o CPF. É id de membro (dado de cadastro) —
+   * o CPF da outra pessoa nunca volta.
+   */
+  conflictMemberId?: ID | null;
+}
+
+// ─── Correção cadastral (PERFIL-006) ─────────────────────────────────────────
+
+/**
+ * O que uma correção de cadastro pode alterar.
+ *
+ * ⚠️ CHAVE AUSENTE ≠ CHAVE NULA. Ausente é "não mexe"; nula é "limpa o campo".
+ * Sem essa diferença, corrigir o telefone apagaria o e-mail pessoal que ninguém
+ * tocou. É por isso que o tipo é `Partial` de verdade e a camada de dados só
+ * envia as chaves presentes.
+ *
+ * O que NÃO entra aqui, de propósito:
+ *   • `status`, `joinedAt`, `exitedAt` — sair e voltar têm fluxo próprio;
+ *   • `ggResponsibleId` — alocação de GG tem tela e evento próprios;
+ *   • foto — vai para o Storage, que não participa da transação do Postgres;
+ *   • CPF — exige modelagem de segurança própria e não entra por aqui.
+ */
+export interface MemberRecordCorrection {
+  fullName?: string;
+  email?: string;
+  personalEmail?: string | null;
+  /** Guardado só com dígitos. A formatação é decisão de tela. */
+  phone?: string | null;
+  birthDate?: ISODate | null;
+  course?: string | null;
+  department?: string | null;
+  semester?: number | null;
+  university?: string | null;
+  /**
+   * Lotação. Os três andam juntos: o CARGO manda — cargo de área inteira zera a
+   * subárea, e a área sai do cargo.
+   */
+  areaId?: ID | null;
+  subareaId?: ID | null;
+  positionId?: ID;
 }
 
 // ─── Gestão ───────────────────────────────────────────────────────────────────
@@ -589,12 +754,20 @@ export interface AnonymousFeedbackModeration {
 
 export type MemberEventType =
   | 'entrada'
+  | 'importacao'
+  | 'mudanca_area'
   | 'mudanca_subarea'
   | 'mudanca_cargo'
   | 'mudanca_gerente'
+  | 'mudanca_responsavel_gg'
+  /** Um dado do cadastro estava errado e foi corrigido (PERFIL-006). */
+  | 'correcao_cadastral'
   | 'x1'
   | 'feedback'
+  | 'inativacao_automatica'
+  | 'reativacao'
   | 'desligamento'
+  | 'arquivamento'
   | 'observacao';
 
 /**

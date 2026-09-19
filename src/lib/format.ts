@@ -9,21 +9,39 @@ import { ptBR } from 'date-fns/locale';
  * (`'2026-03-15'` ou `'2026-03-15T14:00:00Z'`) e só viram texto na hora de exibir.
  */
 
+/**
+ * `'81988887777'` → `'(81) 98888-7777'`.
+ *
+ * O banco guarda o telefone só com DÍGITOS, para que o mesmo número não exista
+ * de duas formas e a busca ache as duas. A máscara é decisão de tela e mora
+ * aqui — o que não couber no padrão brasileiro volta como veio, em vez de sair
+ * cortado ao meio.
+ */
+export function formatPhone(value: string | null | undefined): string {
+  if (!value) return '·';
+
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+
+  return value;
+}
+
 /** `'2026-03-15'` → `'15/03/2026'` */
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), 'dd/MM/yyyy', { locale: ptBR });
 }
 
 /** `'2026-03-15'` → `'15 de março de 2026'` */
 export function formatDateLong(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), "d 'de' MMMM 'de' yyyy", { locale: ptBR });
 }
 
 /** `'2026-03-15T14:00:00Z'` → `'15/03/2026 às 11:00'` */
 export function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—';
+  if (!iso) return '·';
   return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
 }
 
@@ -36,7 +54,7 @@ export function daysSince(iso: string | null | undefined, now: Date = new Date()
 /** `'há 12 dias'`, `'hoje'`, `'em 3 dias'` — para timelines e listas. */
 export function relativeDays(iso: string | null | undefined, now: Date = new Date()): string {
   const diff = daysSince(iso, now);
-  if (diff === null) return '—';
+  if (diff === null) return '·';
   if (diff === 0) return 'hoje';
   if (diff === 1) return 'ontem';
   if (diff === -1) return 'amanhã';
@@ -70,43 +88,4 @@ export function normalizeText(value: string): string {
     .replace(/\p{Diacritic}/gu, '')
     .trim()
     .toLowerCase();
-}
-
-function onlyDigits(value: string): string {
-  return value.replace(/\D/g, '');
-}
-
-function cpfCheckDigit(base: string): number {
-  let sum = 0;
-  for (let i = 0; i < base.length; i++) {
-    sum += Number(base[i]) * (base.length + 1 - i);
-  }
-  const rest = sum % 11;
-  return rest < 2 ? 0 : 11 - rest;
-}
-
-/**
- * Valida um CPF pelo algoritmo oficial dos dígitos verificadores — não só a
- * máscara. Aceita com ou sem pontuação.
- *
- * Sequências como `'111.111.111-11'` têm dígitos verificadores que "batem"
- * pela fórmula, mas nunca são CPFs reais emitidos — por isso são rejeitadas
- * à parte.
- */
-export function isValidCPF(value: string): boolean {
-  const digits = onlyDigits(value);
-  if (digits.length !== 11) return false;
-  if (/^(\d)\1{10}$/.test(digits)) return false;
-
-  const base = digits.slice(0, 9);
-  const d1 = cpfCheckDigit(base);
-  const d2 = cpfCheckDigit(base + d1);
-  return digits === `${base}${d1}${d2}`;
-}
-
-/** `'12345678909'` → `'123.456.789-09'`. Sem 11 dígitos, devolve o valor original. */
-export function formatCPF(value: string): string {
-  const digits = onlyDigits(value);
-  if (digits.length !== 11) return value;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
 }

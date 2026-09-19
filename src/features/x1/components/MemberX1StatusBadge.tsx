@@ -29,7 +29,7 @@ export function MemberX1StatusBadge({
   const Icon = ICON[status];
 
   return (
-    <Badge tone={MEMBER_X1_STATUS_TONE[status]} className={className}>
+    <Badge tone={MEMBER_X1_STATUS_TONE[status]} pill className={className}>
       <Icon size={12} aria-hidden />
       {MEMBER_X1_STATUS_LABEL[status]}
     </Badge>

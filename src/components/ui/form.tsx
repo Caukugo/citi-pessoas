@@ -29,6 +29,15 @@ const CONTROL = cn(
   'disabled:cursor-not-allowed disabled:opacity-50',
 );
 
+/**
+ * Formato pílula dos controles.
+ *
+ * É uma propriedade, e não algo passado por `className`, porque `rounded-full`
+ * e `rounded-control` são a mesma família de utilitário do Tailwind e a ordem
+ * de vitória entre as duas não é previsível.
+ */
+const CONTROL_PILL = 'rounded-full';
+
 const CONTROL_ERROR = 'border-bad/60 focus:border-bad/60 focus:ring-bad/15';
 
 export interface FormFieldProps {
@@ -52,14 +61,7 @@ export interface FormFieldProps {
  * </FormField>
  * ```
  */
-export function FormField({
-  label,
-  hint,
-  error,
-  required,
-  children,
-  className,
-}: FormFieldProps) {
+export function FormField({ label, hint, error, required, children, className }: FormFieldProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -137,15 +139,22 @@ export interface SelectOption {
 
 export const Select = forwardRef<
   HTMLSelectElement,
-  SelectHTMLAttributes<HTMLSelectElement> & FieldSlot & { options: SelectOption[]; placeholder?: string }
->(function Select({ className, describedBy, invalid, options, placeholder, ...rest }, ref) {
+  SelectHTMLAttributes<HTMLSelectElement> &
+    FieldSlot & { options: SelectOption[]; placeholder?: string; pill?: boolean }
+>(function Select({ className, describedBy, invalid, options, placeholder, pill, ...rest }, ref) {
   return (
     <select
       {...rest}
       ref={ref}
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
-      className={cn(CONTROL, 'h-10 px-3', invalid && CONTROL_ERROR, className)}
+      className={cn(
+        CONTROL,
+        'h-10 px-3',
+        pill && cn(CONTROL_PILL, 'px-4'),
+        invalid && CONTROL_ERROR,
+        className,
+      )}
     >
       {placeholder && (
         <option value="" className="bg-popover">
@@ -217,35 +226,79 @@ export function SearchInput({
   onChange,
   placeholder = 'Buscar…',
   className,
+  inputClassName,
+  pill,
+  accent = false,
   label = 'Buscar',
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Ajustes de layout do contêiner (largura, flex). */
   className?: string;
+  /** Ajustes do campo em si (altura, espaçamento). */
+  inputClassName?: string;
+  pill?: boolean;
+  /**
+   * Tratamento de destaque: a lupa dentro de um disco laranja sólido colado na
+   * borda esquerda. Implica `pill` — o disco é redondo e da altura do campo,
+   * então um campo de canto reto não fecharia em volta dele.
+   *
+   * A borda é neutra em repouso e só acende em laranja no foco.
+   */
+  accent?: boolean;
   label?: string;
 }) {
+  const rounded = pill || accent;
+
   return (
     <div className={cn('relative', className)}>
-      <Search
-        size={16}
-        className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-        aria-hidden
-      />
+      {accent ? (
+        <span
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute top-0 left-0 flex aspect-square h-full',
+            'items-center justify-center rounded-full bg-accent text-accent-foreground',
+          )}
+        >
+          <Search size={15} />
+        </span>
+      ) : (
+        <Search
+          size={16}
+          className={cn(
+            'pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground',
+            pill ? 'left-4' : 'left-3',
+          )}
+          aria-hidden
+        />
+      )}
       <input
         type="search"
         aria-label={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={cn(CONTROL, 'h-10 pr-9 pl-10')}
+        className={cn(
+          CONTROL,
+          'h-10 pr-9 pl-10',
+          rounded && cn(CONTROL_PILL, 'pr-11 pl-11'),
+          // O aro laranja CHEIO saiu: um campo de busca não é uma ação. Ele
+          // aparece só no foco, que é quando o laranja quer dizer algo.
+          accent &&
+            'border-border bg-foreground/[0.03] pl-[44px] focus:border-accent focus:ring-accent/25',
+          inputClassName,
+        )}
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Limpar busca"
-          className="absolute top-1/2 right-2.5 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground',
+            rounded ? 'right-4' : 'right-2.5',
+          )}
         >
           <X size={14} />
         </button>

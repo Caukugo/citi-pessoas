@@ -31,8 +31,8 @@ function member(id: string, overrides: Partial<Member> = {}): Member {
     id,
     fullName: 'Pessoa de Teste',
     email: `${id}@citi.org.br`,
-    role: 'Pessoa Desenvolvedora',
-    subarea: 'Desenvolvimento',
+    role: 'Desenvolvedora',
+    area: 'Desenvolvimento',
     status: 'ativo',
     joinedAt: '2026-01-01',
     createdAt: NOW.toISOString(),
@@ -115,8 +115,8 @@ describe('summarizeMembers', () => {
 describe('applyDerivedFilters', () => {
   const items = buildMemberListItems(
     [
-      member('mbr-a', { role: 'Analista de Software' }),
-      member('mbr-b', { role: 'Gerente de Software' }),
+      member('mbr-a', { role: 'Desenvolvedora Frontend' }),
+      member('mbr-b', { role: 'Gerente de Desenvolvimento' }),
     ],
     { 'mbr-a': completedX1('mbr-a', '2026-05-01') }, // atrasado
     settings,
@@ -136,7 +136,7 @@ describe('applyDerivedFilters', () => {
   it('filtra por cargo', () => {
     const result = applyDerivedFilters(items, {
       ...DEFAULT_MEMBERS_FILTERS,
-      role: 'Gerente de Software',
+      role: 'Gerente de Desenvolvimento',
     });
 
     expect(result).toHaveLength(1);
@@ -162,37 +162,22 @@ describe('hasActiveFilters', () => {
 describe('deriveDirectoryOptions', () => {
   it('lista cargos sem repetir e em ordem alfabética', () => {
     const options = deriveDirectoryOptions([
-      member('1', { role: 'Gerente de Software' }),
-      member('2', { role: 'Analista de Software' }),
-      member('3', { role: 'Gerente de Software' }),
+      member('1', { role: 'Gerente' }),
+      member('2', { role: 'Analista' }),
+      member('3', { role: 'Gerente' }),
     ]);
 
-    expect(options.roles).toEqual(['Analista de Software', 'Gerente de Software']);
+    expect(options.roles).toEqual(['Analista', 'Gerente']);
   });
 
   it('só oferece pessoas ativas de Gente e Gestão como GG responsável', () => {
     const options = deriveDirectoryOptions([
-      member('1', { fullName: 'Marina', subarea: 'Gente e Gestão' }),
-      member('2', { fullName: 'Otávio', subarea: 'Gente e Gestão', status: 'desligado' }),
-      member('3', { fullName: 'Helena', subarea: 'Desenvolvimento' }),
+      member('1', { fullName: 'Marina', area: 'Gente e Gestão' }),
+      member('2', { fullName: 'Otávio', area: 'Gente e Gestão', status: 'desligado' }),
+      member('3', { fullName: 'Helena', area: 'Desenvolvimento' }),
     ]);
 
     expect(options.ggPeople.map((p) => p.fullName)).toEqual(['Marina']);
-  });
-
-  it('inclui a Diretoria de Gente e Gestão como GG responsável, mesmo sem subárea (ADR-018)', () => {
-    const options = deriveDirectoryOptions([
-      member('1', { fullName: 'Marina', subarea: 'Gente e Gestão' }),
-      member('2', {
-        fullName: 'Heloísa',
-        role: 'Diretor(a) de Operações (COO)',
-        subarea: null,
-        diretoriaArea: 'Gente e Gestão',
-      }),
-      member('3', { fullName: 'Helena', subarea: 'Desenvolvimento' }),
-    ]);
-
-    expect(options.ggPeople.map((p) => p.fullName).sort()).toEqual(['Heloísa', 'Marina']);
   });
 });
 

@@ -18,10 +18,7 @@ import {
  * torna correto o quadro não ter arrastar.
  */
 
-function anon(
-  id: string,
-  overrides: Partial<AnonymousFeedback> = {},
-): AnonymousFeedback {
+function anon(id: string, overrides: Partial<AnonymousFeedback> = {}): AnonymousFeedback {
   return {
     id,
     content: 'Um relato qualquer.',
@@ -65,11 +62,7 @@ describe('columnOf', () => {
 describe('buildModerationBoard', () => {
   it('monta as três colunas na ordem do fluxo', () => {
     const board = buildModerationBoard([ciente, pendente, direcionado]);
-    expect(board.map((column) => column.id)).toEqual([
-      'pendentes',
-      'direcionados',
-      'cientes',
-    ]);
+    expect(board.map((column) => column.id)).toEqual(['pendentes', 'direcionados', 'cientes']);
   });
 
   it('distribui cada relato em exatamente uma coluna', () => {
@@ -145,9 +138,7 @@ describe('applyModerationFilters', () => {
 
   it('reconhece quando há filtro ativo', () => {
     expect(hasActiveModerationFilters(DEFAULT_MODERATION_FILTERS)).toBe(false);
-    expect(
-      hasActiveModerationFilters({ ...DEFAULT_MODERATION_FILTERS, period: '30' }),
-    ).toBe(true);
+    expect(hasActiveModerationFilters({ ...DEFAULT_MODERATION_FILTERS, period: '30' })).toBe(true);
   });
 });
 

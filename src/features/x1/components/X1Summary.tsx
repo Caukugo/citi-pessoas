@@ -13,7 +13,7 @@ import type { MemberX1Overview } from '../hooks/useMemberX1';
  * desatualizados em relação à lista de X1 logo abaixo.
  */
 
-const DASH = '—';
+const DASH = '·';
 
 export function X1Summary({ overview }: { overview: MemberX1Overview }) {
   const { lastX1, scheduled, nextRecommendedDate, periodicityDays, hasPeriodicityException } =
@@ -48,8 +48,7 @@ export function X1Summary({ overview }: { overview: MemberX1Overview }) {
     {
       label: 'Conversas registradas',
       value: overview.completed.length > 0 ? String(overview.completed.length) : DASH,
-      detail:
-        overview.completed.length === 1 ? 'X1 realizado' : 'X1 realizados até agora',
+      detail: overview.completed.length === 1 ? 'X1 realizado' : 'X1 realizados até agora',
     },
   ];
 

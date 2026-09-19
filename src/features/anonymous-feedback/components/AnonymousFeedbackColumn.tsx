@@ -34,7 +34,7 @@ function ColumnEmpty({
   if (columnId === 'pendentes') {
     return (
       <div className="px-3 py-8 text-center">
-        <CheckCircle2 size={18} className="mx-auto mb-2 text-primary" aria-hidden />
+        <CheckCircle2 size={18} className="mx-auto mb-2 text-ok" aria-hidden />
         <p className="text-xs font-semibold text-foreground">Tudo em dia</p>
         <p className="mt-1 text-xs text-muted-foreground">
           Não existem feedbacks aguardando moderação.

@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
-import { FEEDBACK_TYPE_LABEL, memberSubareaLabel, type FeedbackType, type ID, type Member } from '@/data';
+import {
+  FEEDBACK_TYPE_LABEL,
+  MEMBER_STATUS_LABEL,
+  type FeedbackType,
+  useMemberOrgLabels,
+  type ID,
+  type Member,
+} from '@/data';
 import { cn } from '@/lib/cn';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
@@ -22,9 +29,37 @@ import {
  * destino próprio: o nome vai para o Perfil, cada contagem abre aquele recorte
  * do histórico. Uma linha clicável por cima disso deixaria de ser previsível —
  * e aninhar botão dentro de linha-botão é inválido para leitor de tela.
+ *
+ * Escala e larguras acompanham a tabela de Membros: as duas telas são a mesma
+ * grade lendo dados diferentes, e divergir aqui seria divergir o sistema.
  */
 
-const DASH = '—';
+const DASH = '·';
+
+/** Sem respiro à esquerda: cada coluna começa na sua própria borda. */
+const CELL = 'px-0 pr-[14px]';
+
+/** Linha de 56px — o mesmo passo da tabela de Membros. */
+const ROW = 'h-[56px] py-0';
+
+/** Corpo das células: um só peso e um só tamanho para toda a grade. */
+const CELL_TEXT = 'text-[12px] font-medium text-foreground';
+
+/**
+ * A coluna de ÚLTIMO FEEDBACK tem largura FIXA: ela carrega data mais uma
+ * linha de apoio ("há 4 dias · informal"), que não pode quebrar. As outras seis
+ * dividem o resto em proporção.
+ */
+const COLUMNS = [
+  { label: 'Membro', width: 'w-[26.5%]' },
+  { label: 'Subárea', width: 'w-[10.5%]' },
+  { label: 'GG responsável', width: 'w-[14%]' },
+  ...FEEDBACK_TYPES.map((type) => ({
+    label: FEEDBACK_TYPE_PLURAL[type],
+    width: type === 'carta_de_ajuste' ? 'w-[12%]' : 'w-[8.5%]',
+  })),
+  { label: 'Último feedback', width: 'w-[175px]' },
+];
 
 /**
  * Uma contagem.
@@ -46,7 +81,7 @@ function CountCell({
 }) {
   if (value === 0) {
     return (
-      <span className="font-[family-name:var(--font-display)] text-sm text-muted-foreground/40">
+      <span className="font-[family-name:var(--font-display)] text-[13px] text-muted-foreground/40">
         0
       </span>
     );
@@ -59,10 +94,10 @@ function CountCell({
       // `aria-label` e não um `<span className="sr-only">`: o número e o texto
       // de apoio são nós irmãos, e o nome acessível de um botão concatena os
       // filhos sem inserir espaço — o leitor de tela anunciaria "1informais".
-      aria-label={`${value} ${FEEDBACK_TYPE_PLURAL[type].toLowerCase()} de ${memberName} — abrir registros`}
+      aria-label={`${value} ${FEEDBACK_TYPE_PLURAL[type].toLowerCase()} de ${memberName}, abrir registros`}
       className={cn(
-        'rounded-control px-2 py-1 font-[family-name:var(--font-display)] text-sm font-semibold',
-        'text-foreground transition-colors hover:bg-foreground/[0.06] hover:text-primary',
+        'rounded-full px-[7px] py-[2px] font-[family-name:var(--font-display)] text-[13px] font-semibold',
+        'text-foreground transition-colors hover:bg-accent/[0.14] hover:text-accent',
       )}
     >
       {value}
@@ -79,36 +114,51 @@ export function FeedbacksTable({
   directory: Map<ID, Member>;
   onOpenHistory: (memberId: ID, type: FeedbackType) => void;
 }) {
+  const orgLabel = useMemberOrgLabels();
+
   return (
     <TableWrapper>
-      <Table className="min-w-[54rem]">
-        <THead>
-          <TR>
-            <TH>Membro</TH>
-            <TH>Subárea</TH>
-            <TH>GG responsável</TH>
-            {FEEDBACK_TYPES.map((type) => (
-              <TH key={type} align="right">
-                {FEEDBACK_TYPE_PLURAL[type]}
+      {/* `table-fixed`: sem ele as porcentagens são só sugestão — a coluna com
+          o texto mais longo rouba espaço das outras e o `truncate` nunca chega
+          a acontecer. Abaixo de 900px quem rola é o TableWrapper, dentro do
+          painel; a página nunca rola na horizontal. */}
+      <Table className="min-w-[900px] table-fixed">
+        <THead className="border-b border-divider">
+          <TR className="border-0">
+            {COLUMNS.map((column) => (
+              <TH
+                key={column.label}
+                className={cn(
+                  CELL,
+                  column.width,
+                  'pt-[24px] pb-[11px] text-[10px] tracking-[0.16em] whitespace-nowrap',
+                )}
+              >
+                {column.label}
               </TH>
             ))}
-            <TH>Último feedback</TH>
           </TR>
         </THead>
         <TBody>
           {rows.map(({ member, counts, lastFeedback }) => (
-            <TR key={member.id}>
-              <TD>
-                <div className="flex items-center gap-3">
-                  <Avatar name={member.fullName} photoUrl={member.photoUrl} size="sm" />
+            <TR key={member.id} className="border-divider">
+              <TD className={cn(CELL, ROW)}>
+                <div className="flex items-center gap-[12px]">
+                  <Avatar
+                    name={member.fullName}
+                    photoUrl={member.photoUrl}
+                    size="md"
+                    shape="circle"
+                    className="h-[34px] w-[34px] text-[11px]"
+                  />
                   <div className="min-w-0">
                     <Link
                       to={ROUTES.memberProfile(member.id)}
-                      className="truncate font-semibold text-foreground transition-colors hover:text-primary"
+                      className="block truncate text-[13px] font-semibold text-foreground transition-colors hover:text-accent"
                     >
                       {member.fullName}
                     </Link>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-[11px] text-muted-foreground">
                       {member.role || DASH}
                     </p>
                   </div>
@@ -116,21 +166,27 @@ export function FeedbacksTable({
                       continua existindo. A etiqueta evita ler a linha como se
                       fosse alguém ativo hoje. */}
                   {member.status !== 'ativo' && (
-                    <Badge tone="neutral">
-                      {member.status === 'desligado' ? 'Desligado' : 'Arquivado'}
+                    <Badge
+                      tone="neutral"
+                      pill
+                      className="h-[20px] shrink-0 border-transparent px-[9px] text-[11px] font-medium whitespace-nowrap"
+                    >
+                      {MEMBER_STATUS_LABEL[member.status]}
                     </Badge>
                   )}
                 </div>
               </TD>
 
-              <TD>{memberSubareaLabel(member)}</TD>
+              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
+                {orgLabel(member).subarea}
+              </TD>
 
-              <TD className="max-w-[12rem] truncate">
+              <TD className={cn(CELL, ROW, CELL_TEXT, 'truncate')}>
                 {memberNameById(directory, member.ggResponsibleId) ?? DASH}
               </TD>
 
               {FEEDBACK_TYPES.map((type) => (
-                <TD key={type} align="right">
+                <TD key={type} className={cn(CELL, ROW)}>
                   <CountCell
                     value={counts[type]}
                     type={type}
@@ -140,19 +196,22 @@ export function FeedbacksTable({
                 </TD>
               ))}
 
-              <TD className="whitespace-nowrap">
+              <TD className={cn(CELL, ROW, 'pr-0 whitespace-nowrap')}>
                 {lastFeedback ? (
                   <span className="flex flex-col">
-                    <time dateTime={lastFeedback.givenAt} className="text-foreground-secondary">
+                    <time
+                      dateTime={lastFeedback.givenAt}
+                      className="text-[12px] font-medium text-foreground"
+                    >
                       {formatDate(lastFeedback.givenAt)}
                     </time>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {relativeDays(lastFeedback.givenAt)} ·{' '}
                       {FEEDBACK_TYPE_LABEL[lastFeedback.type]}
                     </span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Nenhum registro</span>
+                  <span className="text-[12px] text-muted-foreground">Nenhum registro</span>
                 )}
               </TD>
             </TR>

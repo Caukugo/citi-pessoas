@@ -40,7 +40,7 @@ export function X1Tab({
       <Surface>
         <ErrorState
           title="Não foi possível carregar os X1"
-          description="O histórico desta pessoa não chegou. Nada foi perdido — tente de novo."
+          description="O histórico desta pessoa não chegou. Nada foi perdido, tente de novo."
           onRetry={overview.refetch}
         />
       </Surface>

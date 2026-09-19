@@ -16,9 +16,12 @@ export * from './types';
 export * from './errors';
 export { queryKeys } from './queryKeys';
 
+export * from './cpf';
 export * from './members';
 export * from './x1';
 export * from './feedbacks';
 export * from './anonymousFeedback';
 export * from './settings';
 export * from './gestoes';
+export * from './org';
+export * from './membersImport';

@@ -31,9 +31,28 @@ outra) · `In Progress`
 | DATA-004 | Modelo Feedback Anônimo | Sofia | ✅ Done |
 | DATA-005 | Dados de desenvolvimento | Sofia | ✅ Done |
 | DATA-006 | Fundação da importação | Sofia | ✅ Done |
+| DATA-007 | Remover a coluna legada `members.area` | Sofia | ⛔ Blocked |
 
 Pendência do EPIC 0: aplicar a migration em um projeto Supabase real e convidar
 as contas da GG — **BASE-006**, responsável Sofia/Cauan.
+
+### DATA-007 — Remover a coluna legada `members.area`
+
+Listagens e filtros já leem a estrutura normalizada (`area_id` / `subarea_id`).
+A coluna de texto `members.area` ficou **só** por compatibilidade: é ela que o
+formulário de cadastro manual ainda escreve, com a lista `LEGACY_SUBAREA_NAMES`
+de `src/data/types.ts` — uma lista que se chama "área" e guarda nome de
+subárea, e que envelhece calada quando a Administração criar uma subárea nova.
+
+🔴 técnica · **Dependências:** o cadastro manual passar a gravar `area_id`,
+`subarea_id` e `position_id` a partir do catálogo · **Branch:** `chore/drop-legacy-area`
+
+**Critérios de aceite**
+
+- [ ] Formulário de cadastro escolhe área, subárea e cargo pelo catálogo
+- [ ] Nenhum código de tela lê `member.area` (hoje só `memberOrgLabels()` lê, como último recurso)
+- [ ] Migration derruba `members.area` e a `citi_import_member` para de preenchê-la
+- [ ] `LegacySubareaName` e `LEGACY_SUBAREA_NAMES` saem de `types.ts`
 
 ---
 
@@ -216,6 +235,59 @@ onde as demais seções vão encaixar.
 
 A aba de X1 já está integrada ao Perfil. Falta a seção de Feedbacks (FB-007),
 que hoje mostra um estado "preparado" explicando o que vai aparecer ali.
+
+---
+
+### PERFIL-006 — Editar dados cadastrais do membro
+
+- **Responsável:** Gabi · **Reviewer:** Sofia · 🟡 assistida · Alta · **✅ Implementada**
+- **Dependências:** PERFIL-002 · **Branch:** `feat/member-profile-edit`
+
+> ✅ **Entregue.** Botão `Editar cadastro` no Perfil, com identificação,
+> contato, acadêmico, **foto** e a seção `Lotação e cargo` (área → subárea →
+> cargo, com "Área inteira" quando o cargo cobre a área toda). A gravação passa
+> por `citi_correct_member_record` (migration 0016): valida, registra o evento
+> `correcao_cadastral` com antes e depois, e resolve **só** a pendência de
+> revisão que a correção eliminou. O responsável de GG tem campo próprio, com
+> "Alocação pendente" quando nulo. Ver ADR-015.
+
+> ⚠️ **Obrigatória ANTES da importação das 70 pessoas.** Hoje não existe
+> nenhuma forma de corrigir o cadastro de alguém pela plataforma. A importação
+> deixa pendências propositalmente — data de nascimento ilegível vira
+> `needs_review` e entra em branco — e **reimportar não resolve**: a importação
+> nunca sobrescreve quem já está cadastrado. Sem esta tela, a única saída é
+> editar direto no banco.
+>
+> O piloto pode rodar antes dela, porque usa dados fictícios.
+
+**Objetivo.** Permitir que a GG corrija os dados cadastrais de um membro pelo
+Perfil, começando pelos campos que a importação pode deixar incompletos.
+
+**Critérios de aceite**
+
+- [ ] Editar, no mínimo: data de nascimento, contato, curso e departamento
+      acadêmico.
+- [ ] Data de nascimento aparece no Perfil (`MemberInfoGrid`) — hoje ela nem é
+      exibida.
+- [ ] Validação com `zod` + `<FormField>`, campo vazio virando `null`.
+- [ ] A alteração vira registro em `member_events` — histórico é preservado,
+      não sobrescrito.
+- [ ] Corrigir o campo pendente resolve o `needs_review` da submissão
+      (`citi_flag_intake_review` com a lista de motivos restante).
+- [ ] Quatro estados tratados; sucesso com `useToast()`.
+
+**Instruções**
+
+Use `useUpdateMember()`, que já existe em `@/data`. O formulário segue o padrão
+de `features/x1/components/CreateX1Drawer.tsx`.
+
+⚠️ **Não crie RBAC.** "Usuários autorizados de GG" aqui significa quem tem
+acesso à plataforma — GG e Diretoria de GG têm o mesmo acesso funcional
+(`CLAUDE.md §4`). Não esconda a edição por papel.
+
+A resolução do `needs_review` é a parte que exige combinar com a Sofia: a
+função do banco já aceita lista vazia para devolver a submissão a `processed`
+(migration 0013), mas falta decidir como a tela sabe quais motivos sobraram.
 
 ---
 
@@ -672,6 +744,9 @@ Execução. Sem dono fixo — quem estiver livre pega.
 | GERAL-009 | Definir a política de retenção de dados | Média | Ready |
 | GERAL-010 | Decidir se o repositório vai para uma organização do CITi | Média | Ready |
 | GERAL-011 | Definir a estratégia de sincronização com a planilha CITi Pessoas | Média | Bloqueada por IMPORT-001 |
+| GERAL-012 | **Revisar a autorização antes da carga dos 70 reais** | Alta | ✅ **Concluída** (migration `0019`) — `citi_is_gg()` passou a conferir o papel; `anon` ficou sem grant nenhum além do INSERT do feedback anônimo; toda `security definer` com `search_path`; trava do último GG |
+| GERAL-013 | **Retenção de CPF**: prazo depois do desligamento, quem aprova a remoção, processo de correção/exclusão, rotação de chave, recuperação em backup e procedimento de incidente | Alta | Ready — **decisão de gestão, não técnica**. Ver `docs/RETENCAO_DADOS.md` |
+| GERAL-014 | **Tela de administração de usuários e papéis** (convite via Auth admin API, troca de papel, desativação). As garantias de integridade já estão no banco (`0019`); falta a interface e a decisão de SMTP do convite | Média | Ready |
 
 > ⚠️ **GERAL-001 é o mais urgente.** A stack foi decidida por necessidade (ADR-011)
 > e precisa do aval do time **antes** de `BASE-006` — depois que houver dado real

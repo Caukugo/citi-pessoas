@@ -413,16 +413,6 @@ diferentes; regras finais de PCCO por campanha; estratégia de auditoria técnic
 
 Esses pontos **não impedem** o desenvolvimento da Fase 1.
 
-**Adicionado em 2026-09-14 (ver ADR-014 em `docs/DECISIONS.md`):** o status do
-membro passou a usar `arquivado` para representar especificamente "concluiu
-sua passagem no CITi" (ex.: formou), em oposição a `desligado` (saiu sem
-concluir). Isso alinha o modelo ao cadastro de membro do documento de
-contexto oficial (Ativo/Desligado/Concluído), sem adicionar um valor novo ao
-enum. A regra 19 acima ("Membro desligado é arquivado, não apagado") foi
-escrita antes dessa distinção existir — hoje só quem CONCLUIU vira
-`arquivado`; quem é desligado sem concluir permanece com status `desligado`
-(preservado, não apagado, mas não "arquivado").
-
 ---
 
 ## 19. Critério de sucesso
