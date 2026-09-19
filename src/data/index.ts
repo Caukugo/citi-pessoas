@@ -25,3 +25,4 @@ export * from './settings';
 export * from './gestoes';
 export * from './org';
 export * from './membersImport';
+export * from './googleFormsIntake';

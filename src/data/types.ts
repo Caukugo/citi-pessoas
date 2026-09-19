@@ -503,6 +503,60 @@ export interface Gestao {
   status: 'ativa' | 'finalizada';
 }
 
+// ─── Entrada de membros via Google Forms ─────────────────────────────────────
+//
+// Migration 0026. O Google Form é PERMANENTE — configurado uma única vez
+// (`GoogleFormsIntakeConfig`). A cada gestão, a GG abre uma `IntakeCampaign`
+// nova pela Administração: só isso muda, nunca o formulário em si.
+
+/**
+ * Configuração PERMANENTE do formulário — o que NUNCA muda de gestão para
+ * gestão. `formId`/`responderUrl` são configurados uma única vez, ao ligar a
+ * integração pela primeira vez (Apps Script, gatilho e segredo continuam
+ * fora da plataforma).
+ *
+ * ⚠️ `responderUrl` não é segredo: é o link público que a GG copia e
+ * distribui. O que NUNCA aparece aqui é `GOOGLE_FORMS_WEBHOOK_SECRET` — esse
+ * vive só nos secrets da Edge Function.
+ */
+export interface GoogleFormsIntakeConfig {
+  enabled: boolean;
+  formId: string | null;
+  responderUrl: string | null;
+  updatedAt: ISODate;
+}
+
+/** O que a GG informa ao ligar a integração pela primeira vez (ou corrigir o link/form_id). */
+export type GoogleFormsIntakeConfigInput = Partial<
+  Pick<GoogleFormsIntakeConfig, 'enabled' | 'formId' | 'responderUrl'>
+>;
+
+export type IntakeCampaignStatus = 'ativa' | 'encerrada';
+
+/**
+ * Uma campanha de entrada: a janela em que o formulário permanente aceita
+ * respostas para UMA gestão e UMA data oficial de entrada.
+ *
+ * REGRA DE PRODUTO: `gestaoId`/`entryDate` são imutáveis depois de criada —
+ * corrigir um engano é encerrar e abrir outra, nunca editar. No máximo uma
+ * `ativa` por vez. Encerrada não é apagada: é histórico.
+ */
+export interface IntakeCampaign {
+  id: ID;
+  gestaoId: ID;
+  entryDate: ISODate;
+  status: IntakeCampaignStatus;
+  activatedAt: ISODate;
+  activatedById?: ID | null;
+  closedAt?: ISODate | null;
+  closedById?: ID | null;
+}
+
+export interface StartIntakeCampaignInput {
+  gestaoId: ID;
+  entryDate: ISODate;
+}
+
 // ─── Cultura ──────────────────────────────────────────────────────────────────
 
 /**

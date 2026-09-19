@@ -22,7 +22,6 @@ import { handleRequest, type Env } from './handler.ts';
 const WEBHOOK_SECRET = 'segredo-de-teste-do-webhook';
 const MEMBER_ID = '11111111-1111-4111-8111-111111111111';
 const SUBMISSION_ID = '22222222-2222-4222-8222-222222222222';
-const GESTAO_ID = '33333333-3333-4333-8333-333333333333';
 const SUBAREA_ID = '44444444-4444-4444-8444-444444444444';
 const FORM_ID = 'form-fictício-123';
 
@@ -117,12 +116,10 @@ function fakeBackend(
 
     if (url.includes('/rest/v1/google_forms_intake_config')) {
       if (configAusente) return new Response(JSON.stringify([]), { status: 200 });
-      return new Response(
-        JSON.stringify([
-          { enabled, gestao_id: GESTAO_ID, entry_date: '2026-09-01', form_id: FORM_ID },
-        ]),
-        { status: 200 },
-      );
+      // Gestão e data oficial de entrada NÃO vêm mais daqui (0026): a
+      // configuração permanente só tem `enabled` e `form_id`. Quem resolve
+      // gestão/data é a campanha ativa, dentro do RPC de importação.
+      return new Response(JSON.stringify([{ enabled, form_id: FORM_ID }]), { status: 200 });
     }
 
     if (url.includes('rpc/citi_resolve_academic_course')) {
@@ -280,7 +277,7 @@ describe('google-forms-intake — configuração', () => {
     expect((await response.json()).error).toBe('integracao_desabilitada');
   });
 
-  it('recusa quando não existe configuração (gestão de entrada não configurada)', async () => {
+  it('recusa quando não existe configuração permanente (form_id nunca configurado)', async () => {
     const { fetchImpl } = fakeBackend({ configAusente: true });
     const request = await requisicaoAssinada(basePayload());
     const response = await handleRequest(request, { env, fetchImpl });
@@ -420,6 +417,24 @@ describe('google-forms-intake — caminho feliz e pendências', () => {
     const json = await response.json();
     expect(json.member_id).toBe(MEMBER_ID);
     expect(json.review_reasons).toContain('cpf_store_failed');
+  });
+});
+
+describe('google-forms-intake — campanha de entrada', () => {
+  it('sem campanha ativa: recusa criar membro e não toca CPF, foto ou pendência', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'sem_campanha_ativa', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.outcome).toBe('sem_campanha_ativa');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('/storage/v1/object/'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('citi_flag_intake_review'))).toBe(false);
   });
 });
 

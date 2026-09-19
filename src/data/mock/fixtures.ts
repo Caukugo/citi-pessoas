@@ -3,6 +3,7 @@ import type {
   AuthUser,
   Feedback,
   Gestao,
+  GoogleFormsIntakeConfig,
   Member,
   MemberEvent,
   Settings,
@@ -1234,6 +1235,18 @@ export const SETTINGS: Settings = {
   // Exceção por membro (ADM-002): Edmundo está de saída e é acompanhado a cada 60 dias.
   x1PeriodicityByMember: { 'mbr-009': 60 },
   currentGestaoId: CURRENT_GESTAO_ID,
+  updatedAt: NOW,
+};
+
+// ─── Entrada de membros via Google Forms (modo mock) ─────────────────────────
+//
+// Desabilitada e sem formulário configurado, como o padrão da migration 0021
+// — configurar é uma decisão explícita da GG, feita pela Administração.
+
+export const GOOGLE_FORMS_INTAKE_CONFIG: GoogleFormsIntakeConfig = {
+  enabled: false,
+  formId: null,
+  responderUrl: null,
   updatedAt: NOW,
 };
 

@@ -63,15 +63,14 @@ interface IntakePayload {
 
 interface ConfigRow {
   enabled: boolean;
-  gestao_id: string | null;
-  entry_date: string | null;
   form_id: string | null;
 }
 
 type ResolveOutcome = { outcome: string; [key: string]: unknown };
 
 type ImportOutcome = {
-  outcome: 'criado' | 'ja_importado' | 'ja_existia';
+  outcome: 'criado' | 'ja_importado' | 'ja_existia' | 'sem_campanha_ativa';
+  /** Ausente só quando `outcome === 'sem_campanha_ativa'` — nenhum membro foi criado. */
   member_id: string;
   submission_id: string;
   cycle_id?: string;
@@ -144,7 +143,7 @@ function parseBirthDate(value: string | null | undefined): string | null {
 
 async function fetchConfig(env: Env, fetchImpl: FetchLike): Promise<ConfigRow | null> {
   const response = await fetchImpl(
-    `${env.supabaseUrl}/rest/v1/google_forms_intake_config?id=eq.1&select=enabled,gestao_id,entry_date,form_id`,
+    `${env.supabaseUrl}/rest/v1/google_forms_intake_config?id=eq.1&select=enabled,form_id`,
     { headers: { apikey: env.serviceKey, Authorization: `Bearer ${env.serviceKey}` } },
   );
   if (!response.ok) return null;
@@ -238,11 +237,15 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
   }
 
   try {
-    // ── Configuração da integração ──
+    // ── Configuração permanente da integração ──
+    // Gestão e data oficial de entrada NÃO vivem mais aqui — são resolvidas
+    // pela campanha ativa, dentro de `citi_import_member_via_forms` (0026).
+    // Aqui só se confere o que é do FORMULÁRIO em si: está ligado, e é o
+    // Form autorizado.
     const config = await fetchConfig(env, fetchImpl);
     if (!config) return errorResponse('configuracao_ausente', 503, id);
     if (!config.enabled) return errorResponse('integracao_desabilitada', 503, id);
-    if (!config.gestao_id || !config.entry_date || !config.form_id) {
+    if (!config.form_id) {
       return errorResponse('configuracao_incompleta', 503, id);
     }
 
@@ -338,6 +341,9 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
     const birthDateInvalid = Boolean(payload.birthDate) && !birthDate;
 
     // ── Cria o membro (ou reconhece idempotência/e-mail já existente) ──
+    // Gestão e data oficial de entrada NÃO são mais parâmetro: a função
+    // resolve sozinha, atomicamente, a partir da campanha ativa (ou do
+    // snapshot já gravado nesta submissão, se houver — nunca recalcula).
     const importResult = await callRpc<ImportOutcome>(
       env,
       'citi_import_member_via_forms',
@@ -347,8 +353,6 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
         p_full_name: payload.fullName,
         p_email: payload.institutionalEmail,
         p_subarea_id: subareaId,
-        p_gestao_id: config.gestao_id,
-        p_joined_on: config.entry_date,
         p_phone: payload.phone ?? null,
         p_campus: payload.campus,
         p_course: payload.course,
@@ -364,6 +368,22 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
     }
 
     const result = importResult.data;
+
+    // Sem campanha de entrada ativa: nenhuma resposta nova cria membro. A
+    // tentativa fica registrada (sem snapshot de campanha, porque não houve
+    // nenhuma) para ser reprocessada assim que a GG ativar uma.
+    if (result.outcome === 'sem_campanha_ativa') {
+      return jsonResponse(
+        {
+          outcome: 'sem_campanha_ativa',
+          submission_id: result.submission_id,
+          message: 'Nenhuma campanha de entrada ativa. Peça para a GG iniciar uma na Administração.',
+          request_id: id,
+        },
+        503,
+        null,
+      );
+    }
 
     // Réplica de uma resposta já processada, ou e-mail que já pertence a
     // outra pessoa: NUNCA toca CPF, foto ou pendências de novo. É isto que

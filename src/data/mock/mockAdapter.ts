@@ -876,6 +876,10 @@ export const mockAdapter: DataAdapter = {
           payload: input.payload,
           errorMessage: null,
           reviewReasons: [],
+          // CSV não tem campanha — snapshot é exclusivo de google_forms.
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         };
         db.intakeSubmissions.push(submission);
         return submission.id;
@@ -1066,6 +1070,9 @@ export const mockAdapter: DataAdapter = {
           payload,
           errorMessage: error,
           reviewReasons: [],
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         });
       }
       commit();
@@ -1107,6 +1114,80 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = { ...db.members[index], photoPath: path, updatedAt: nowISO() };
       commit();
       return path;
+    },
+  },
+
+  googleFormsIntake: {
+    async getConfig() {
+      await delay();
+      return mockDb().googleFormsIntakeConfig;
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.googleFormsIntakeConfig = {
+        ...db.googleFormsIntakeConfig,
+        ...input,
+        updatedAt: nowISO(),
+      };
+      commit();
+      return db.googleFormsIntakeConfig;
+    },
+
+    async getActiveCampaign() {
+      await delay();
+      return mockDb().intakeCampaigns.find((c) => c.status === 'ativa') ?? null;
+    },
+
+    async listCampaigns() {
+      await delay();
+      return [...mockDb().intakeCampaigns].sort((a, b) =>
+        b.activatedAt.localeCompare(a.activatedAt),
+      );
+    },
+
+    async startCampaign(input) {
+      await delay();
+      const db = mockDb();
+
+      // Mesma trava do banco (índice único parcial, migration 0026): no
+      // máximo uma campanha `ativa` por vez.
+      if (db.intakeCampaigns.some((c) => c.status === 'ativa')) {
+        throw new DataError(
+          'conflict',
+          'Já existe uma campanha de entrada ativa. Encerre-a antes de iniciar outra.',
+        );
+      }
+
+      const campaign = {
+        id: mockId('campaign'),
+        gestaoId: input.gestaoId,
+        entryDate: input.entryDate,
+        status: 'ativa' as const,
+        activatedAt: nowISO(),
+        activatedById: db.currentUser?.id ?? null,
+        closedAt: null,
+        closedById: null,
+      };
+      db.intakeCampaigns.push(campaign);
+      commit();
+      return campaign;
+    },
+
+    async closeCampaign(campaignId) {
+      await delay();
+      const db = mockDb();
+      const campaign = db.intakeCampaigns.find((c) => c.id === campaignId && c.status === 'ativa');
+      if (!campaign) {
+        throw new DataError('not_found', 'Campanha não encontrada ou já encerrada.');
+      }
+
+      campaign.status = 'encerrada';
+      campaign.closedAt = nowISO();
+      campaign.closedById = db.currentUser?.id ?? null;
+      commit();
+      return campaign;
     },
   },
 };

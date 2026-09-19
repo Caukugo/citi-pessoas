@@ -8,7 +8,10 @@ import type {
   FeedbackCreateInput,
   Gestao,
   FeedbackUpdateInput,
+  GoogleFormsIntakeConfig,
+  GoogleFormsIntakeConfigInput,
   ID,
+  IntakeCampaign,
   Member,
   MemberCreateInput,
   MemberEvent,
@@ -23,6 +26,7 @@ import type {
   MemberUpdateInput,
   OrgCatalog,
   Settings,
+  StartIntakeCampaignInput,
   X1,
   X1CreateInput,
   X1UpdateInput,
@@ -57,6 +61,8 @@ export interface DataAdapter {
   org: OrgRepository;
   /** Importação da base CITi Pessoas por planilha (EPIC 7). */
   membersImport: MembersImportRepository;
+  /** Formulário permanente de entrada (Google Forms) e suas campanhas. */
+  googleFormsIntake: GoogleFormsIntakeRepository;
 }
 
 export interface MembersRepository {
@@ -244,6 +250,31 @@ export interface MembersImportRepository {
    * ⚠️ Não existe URL pública: o bucket é privado e a exibição usa URL assinada.
    */
   uploadPhoto(memberId: ID, photo: MemberPhotoUpload): Promise<string>;
+}
+
+export interface GoogleFormsIntakeRepository {
+  /** Configuração permanente: form_id, link público, liga/desliga. */
+  getConfig(): Promise<GoogleFormsIntakeConfig>;
+  /** Configurada uma única vez (e corrigida raramente, se o link mudar). */
+  updateConfig(input: GoogleFormsIntakeConfigInput): Promise<GoogleFormsIntakeConfig>;
+
+  /** A campanha `ativa` agora, ou `null` se nenhuma estiver. */
+  getActiveCampaign(): Promise<IntakeCampaign | null>;
+  /** Histórico completo, mais recente primeiro. */
+  listCampaigns(): Promise<IntakeCampaign[]>;
+
+  /**
+   * Cria e ativa uma campanha nova. Recusa se já existir uma `ativa` — é
+   * preciso encerrar antes. Operação atômica (função única no Postgres).
+   */
+  startCampaign(input: StartIntakeCampaignInput): Promise<IntakeCampaign>;
+
+  /**
+   * Encerra a campanha ativa. Ela continua existindo como histórico — nunca
+   * é apagada. Novas respostas do Forms passam a ser recusadas até a
+   * próxima campanha ser ativada.
+   */
+  closeCampaign(campaignId: ID): Promise<IntakeCampaign>;
 }
 
 export interface AuthRepository {
