@@ -48,23 +48,37 @@ describe('app shell', () => {
     expect(screen.getByText(/não há cadastro público/i)).toBeVisible();
   });
 
-  it('deixa entrar com as credenciais de desenvolvimento e mostra a área interna', async () => {
-    const user = userEvent.setup();
-    renderAt(ROUTES.login);
+  it(
+    'deixa entrar com as credenciais de desenvolvimento e mostra a área interna',
+    async () => {
+      const user = userEvent.setup();
+      renderAt(ROUTES.login);
 
-    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
-    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
+      await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+      await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
-    // Depois do login a home redireciona para Membros.
-    await waitFor(async () =>
-      expect(await screen.findByRole('heading', { name: 'Membros' })).toBeVisible(),
-    );
+      // Depois do login a home redireciona para Membros.
+      await waitFor(async () =>
+        expect(await screen.findByRole('heading', { name: 'Membros' })).toBeVisible(),
+      );
 
-    // A navegação de todas as features da Fase 1 já está registrada.
-    expect(screen.getByRole('link', { name: /^X1$/ })).toBeVisible();
-    expect(screen.getByRole('link', { name: /feedbacks/i })).toBeVisible();
-    expect(screen.getByRole('link', { name: /moderação/i })).toBeVisible();
-  });
+      // A navegação de todas as features da Fase 1 já está registrada.
+      expect(screen.getByRole('link', { name: /^X1$/ })).toBeVisible();
+      expect(screen.getByRole('link', { name: /feedbacks/i })).toBeVisible();
+      expect(screen.getByRole('link', { name: /moderação/i })).toBeVisible();
+    },
+    // `asyncUtilTimeout` (src/test/setup.ts) foi elevado para 5000ms por causa
+    // da latência simulada do adapter mock sob máquina ocupada — mas o timeout
+    // padrão do próprio Vitest para o teste inteiro TAMBÉM é 5000ms. Este é o
+    // único teste do arquivo com múltiplas esperas assíncronas em sequência
+    // (login + redirecionamento), então é o único que fica sem nenhuma margem
+    // entre o orçamento de UMA espera e o limite do teste inteiro. Medido:
+    // mesmo em origin/main, sem nenhuma mudança de código, a duração real
+    // deste teste variou entre 1,5s e 4s só entre execuções consecutivas na
+    // mesma máquina — perto o bastante do limite de 5s para estourar sob
+    // contenção, sem que o código sob teste esteja errado.
+    10_000,
+  );
 
   it('mostra erro claro quando a senha está errada', async () => {
     const user = userEvent.setup();
