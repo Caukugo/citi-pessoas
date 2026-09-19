@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DE CAMPANHAS DE ENTRADA (migrations 0026 + 0027 + 0029)
+-- TESTES DE CAMPANHAS DE ENTRADA (migrations 0026 + 0027 + 0029 + 0030)
 --
 -- Como rodar:
 --   npx supabase db query --linked -f supabase/tests/0011_campanhas_de_entrada.sql
@@ -14,9 +14,18 @@
 --    vivem em supabase/tests/0012_gestoes_elegiveis_e_prazo.sql — este
 --    arquivo cobre o que já existia na 0026/0027 (snapshot, reprocessamento,
 --    imutabilidade), atualizado para a assinatura por RÓTULO.
+-- ⚠️ Testes específicos da janela por submitted_at (0030) vivem em
+--    supabase/tests/0013_prazo_por_timestamp_da_resposta.sql — aqui, todo
+--    payload passado para citi_import_member_via_forms carrega um
+--    `responded_at` explícito (0030 exige um timestamp válido desde a
+--    primeira tentativa) escolhido para cair dentro/fora da janela certa;
+--    `now()` é ESTÁVEL dentro desta transação (mesmo valor do início ao fim),
+--    por isso os instantes fictícios usam deslocamentos explícitos
+--    (`v_agora - interval ...`), nunca comparação implícita de ordem por
+--    `now()` puro.
 --
---    1. sem campanha ativa: citi_import_member_via_forms recusa (sem_campanha_ativa),
---       não cria membro nem ciclo
+--    1. sem campanha com janela correspondente: citi_import_member_via_forms
+--       recusa (fora_da_janela_de_campanha), não cria membro nem ciclo
 --    2. citi_start_intake_campaign cria e ativa a campanha
 --    3. no máximo uma campanha ativa — a função recusa iniciar outra
 --    4. no máximo uma campanha ativa — mesmo por INSERT direto (índice único),
@@ -70,6 +79,19 @@ declare
   v_member_id  uuid;
   v_count      integer;
   v_passou     integer := 0;
+
+  -- `now()` é estável dentro da transação inteira — os deslocamentos
+  -- explícitos abaixo são o que garante ordem determinística entre "antes de
+  -- qualquer campanha existir" e "dentro da janela da campanha 1".
+  v_agora        constant timestamptz := now();
+  v_ts_resposta_1 constant timestamptz := v_agora - interval '1 hour'; -- ANTES de qualquer campanha
+  v_ts_resposta_2 constant timestamptz := v_agora; -- início exato da janela da campanha 1
+  -- ISO 8601 em UTC ('T', 'Z') a partir de um timestamptz, sem depender do
+  -- TimeZone da sessão (que `to_char`/`::text` sozinhos usariam).
+  v_ts_resposta_1_iso constant text :=
+    replace((v_ts_resposta_1 at time zone 'UTC')::text, ' ', 'T') || 'Z';
+  v_ts_resposta_2_iso constant text :=
+    replace((v_ts_resposta_2 at time zone 'UTC')::text, ' ', 'T') || 'Z';
 begin
   select id into v_subarea_id from subareas where slug = c_subarea_slug;
   if v_subarea_id is null then
@@ -89,20 +111,20 @@ begin
   update member_intake_campaigns set status = 'encerrada', closed_at = now()
    where status = 'ativa';
 
-  -- ═══ 1. Sem campanha ativa: recusa criar membro ═══════════════════════════
+  -- ═══ 1. Sem campanha com janela correspondente: recusa criar membro ═══════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-1',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', v_ts_resposta_1_iso),
     p_full_name   => 'Pessoa Sem Campanha',
     p_email       => c_email_1,
     p_subarea_id  => v_subarea_id
   );
 
-  if v_res ->> 'outcome' <> 'sem_campanha_ativa' then
-    raise exception '% 1a: esperado sem_campanha_ativa, veio %.', marcador, v_res ->> 'outcome';
+  if v_res ->> 'outcome' <> 'fora_da_janela_de_campanha' then
+    raise exception '% 1a: esperado fora_da_janela_de_campanha, veio %.', marcador, v_res ->> 'outcome';
   end if;
   if exists (select 1 from members where email = c_email_1) then
-    raise exception '% 1b: membro não deveria ter sido criado sem campanha ativa.', marcador;
+    raise exception '% 1b: membro não deveria ter sido criado sem campanha com janela correspondente.', marcador;
   end if;
   if not exists (
     select 1 from member_intake_submissions
@@ -150,7 +172,7 @@ begin
   -- ═══ 5. Resposta processada grava o snapshot da campanha ativa ════════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-2',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', v_ts_resposta_2_iso),
     p_full_name   => 'Pessoa Campanha Um',
     p_email       => c_email_2,
     p_subarea_id  => v_subarea_id
@@ -193,7 +215,7 @@ begin
 
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-2', -- MESMA resposta do passo 5
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', v_ts_resposta_2_iso), -- MESMO responded_at — imutável (0030)
     p_full_name   => 'Pessoa Campanha Um',
     p_email       => c_email_2,
     p_subarea_id  => v_subarea_id
@@ -267,14 +289,14 @@ begin
   -- deve devolver a MESMA rejeição, sem criar membro nenhum.
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:campanha-resposta-1',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', v_ts_resposta_1_iso), -- MESMO responded_at — imutável (0030)
     p_full_name   => 'Pessoa Sem Campanha',
     p_email       => c_email_1,
     p_subarea_id  => v_subarea_id
   );
 
-  if v_res ->> 'outcome' <> 'sem_campanha_ativa' then
-    raise exception '% 10a: rejeição deveria continuar sem_campanha_ativa (permanente), veio %.',
+  if v_res ->> 'outcome' <> 'fora_da_janela_de_campanha' then
+    raise exception '% 10a: rejeição deveria continuar fora_da_janela_de_campanha (permanente), veio %.',
       marcador, v_res ->> 'outcome';
   end if;
   if exists (select 1 from members where email = c_email_1) then
@@ -287,7 +309,7 @@ begin
   if v_submission.campaign_id is not null then
     raise exception '% 10c: submissão rejeitada permanentemente não deveria ter campaign_id nenhum.', marcador;
   end if;
-  if not v_submission.campaign_rejected or v_submission.rejection_reason <> 'sem_campanha_ativa' then
+  if not v_submission.campaign_rejected or v_submission.rejection_reason <> 'fora_da_janela_de_campanha' then
     raise exception '% 10d: campaign_rejected/rejection_reason não confere.', marcador;
   end if;
   v_passou := v_passou + 1;

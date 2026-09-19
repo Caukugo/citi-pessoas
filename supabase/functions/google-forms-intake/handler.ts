@@ -69,8 +69,20 @@ interface ConfigRow {
 type ResolveOutcome = { outcome: string; [key: string]: unknown };
 
 type ImportOutcome = {
-  outcome: 'criado' | 'ja_importado' | 'ja_existia' | 'sem_campanha_ativa' | 'prazo_encerrado';
-  /** Ausente quando `outcome` é `sem_campanha_ativa`/`prazo_encerrado` — nenhum membro foi criado. */
+  outcome:
+    | 'criado'
+    | 'ja_importado'
+    | 'ja_existia'
+    | 'fora_da_janela_de_campanha'
+    | 'timestamp_resposta_ausente'
+    | 'timestamp_resposta_invalido'
+    | 'timestamp_resposta_divergente'
+    | 'falha_tecnica'
+    // Códigos históricos (0027) — só aparecem em `rejection_reason` de uma
+    // linha antiga já rejeitada permanentemente antes desta migration (0030).
+    | 'sem_campanha_ativa'
+    | 'prazo_encerrado';
+  /** Ausente em qualquer outcome que não seja `criado`/`ja_importado`/`ja_existia` — nenhum membro foi criado/reconhecido. */
   member_id: string;
   submission_id: string;
   cycle_id?: string;
@@ -125,6 +137,20 @@ function decodeBase64(value: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
+}
+
+/**
+ * ISO 8601 com fuso explícito ('Z' ou '+hh:mm'/'-hh:mm') — nunca uma data ou
+ * hora "solta" que dependeria de fuso implícito. `Date.parse` sozinho aceita
+ * formatos ambíguos demais (e alguns não-ISO); o regex garante a FORMA antes
+ * de confiar no valor.
+ */
+const ISO_8601_COM_FUSO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
+function isIso8601WithTimezone(value: string | null | undefined): value is string {
+  if (!value || !ISO_8601_COM_FUSO_RE.test(value)) return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
 }
 
 /** Data de calendário real e não futura. Só isso — regra igual à da importação CSV. */
@@ -353,6 +379,43 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
 
     const externalId = `google_forms:${payload.formId}:${payload.responseId}`;
 
+    // ── Timestamp real da resposta: validado ANTES da RPC (a RPC também se
+    // protege — nunca confia só no handler — mas falhar rápido aqui evita um
+    // round-trip inteiro para um valor obviamente malformado). Mesmos códigos
+    // de domínio que a RPC devolveria para o mesmo problema, retryable (não é
+    // rejeição permanente: um reenvio do Apps Script com o campo corrigido
+    // pode capturar a janela certa depois).
+    if (!payload.respondedAt) {
+      await callRpc(
+        env,
+        'citi_record_intake_failure',
+        {
+          p_external_id: externalId,
+          p_payload: { form_id: payload.formId, response_id: payload.responseId, responded_at: null },
+          p_error: 'Timestamp de resposta ausente (respondedAt).',
+        },
+        fetchImpl,
+      );
+      return jsonResponse({ outcome: 'failed', reason: 'timestamp_resposta_ausente', request_id: id }, 422, null);
+    }
+    if (!isIso8601WithTimezone(payload.respondedAt)) {
+      await callRpc(
+        env,
+        'citi_record_intake_failure',
+        {
+          p_external_id: externalId,
+          p_payload: {
+            form_id: payload.formId,
+            response_id: payload.responseId,
+            responded_at: payload.respondedAt,
+          },
+          p_error: `Timestamp de resposta inválido (não é ISO 8601 com fuso): "${payload.respondedAt}".`,
+        },
+        fetchImpl,
+      );
+      return jsonResponse({ outcome: 'failed', reason: 'timestamp_resposta_invalido', request_id: id }, 422, null);
+    }
+
     // Allowlist estrita: só o que pode ir para a plataforma. Nunca CPF, nunca
     // bytes de foto — o que a 0007/0011 chamam de "payload fiel" aqui é fiel
     // à ALLOWLIST, não ao formulário inteiro.
@@ -452,24 +515,57 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
 
     const result = importResult.data;
 
-    // Sem campanha de entrada ativa, ou prazo de resposta já encerrado: em
-    // nenhum dos dois casos uma resposta nova cria membro. Ambas rejeições
-    // são PERMANENTES no banco (0027, `campaign_rejected`) — reprocessar esta
+    // Nenhuma campanha com janela contendo o instante real da resposta
+    // (0030): rejeição PERMANENTE (`campaign_rejected`) — reprocessar esta
     // mesma resposta depois sempre devolve o mesmo outcome, nunca captura uma
-    // campanha diferente que passe a existir.
-    if (result.outcome === 'sem_campanha_ativa' || result.outcome === 'prazo_encerrado') {
-      const message =
-        result.outcome === 'sem_campanha_ativa'
-          ? 'Nenhuma campanha de entrada ativa. Peça para a GG iniciar uma na Administração.'
-          : 'O prazo de resposta desta campanha já encerrou.';
+    // campanha diferente que passe a existir. `sem_campanha_ativa`/
+    // `prazo_encerrado` só aparecem em linhas rejeitadas antes da 0030.
+    if (
+      result.outcome === 'fora_da_janela_de_campanha' ||
+      result.outcome === 'sem_campanha_ativa' ||
+      result.outcome === 'prazo_encerrado'
+    ) {
       return jsonResponse(
         {
           outcome: result.outcome,
           submission_id: result.submission_id,
-          message,
+          message: 'Nenhuma campanha de entrada válida para o instante em que esta resposta foi enviada.',
           request_id: id,
         },
         503,
+        null,
+      );
+    }
+
+    // Timestamp ausente/inválido/divergente: o handler já valida antes da
+    // RPC (acima) — só chega aqui numa chamada direta à RPC ou numa condição
+    // de corrida rara. Retryable (não marca campaign_rejected): um reenvio
+    // com o campo corrigido pode capturar a janela certa depois.
+    if (
+      result.outcome === 'timestamp_resposta_ausente' ||
+      result.outcome === 'timestamp_resposta_invalido' ||
+      result.outcome === 'timestamp_resposta_divergente'
+    ) {
+      return jsonResponse(
+        { outcome: result.outcome, submission_id: result.submission_id, request_id: id },
+        422,
+        null,
+      );
+    }
+
+    // Falha técnica DEPOIS de capturar o snapshot (campanha/timestamp já
+    // gravados) — ex.: subárea/cargo ausente ou inativo. Retryable: o
+    // snapshot já gravado é reaproveitado no próximo reprocessamento, mesmo
+    // que a campanha tenha sido encerrada nesse meio-tempo.
+    if (result.outcome === 'falha_tecnica') {
+      return jsonResponse(
+        {
+          outcome: 'falha_tecnica',
+          submission_id: result.submission_id,
+          message: 'Falha técnica ao criar o membro. Corrija a causa (ver aba de status) e reenvie.',
+          request_id: id,
+        },
+        502,
         null,
       );
     }

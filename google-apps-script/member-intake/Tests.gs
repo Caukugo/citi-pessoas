@@ -459,6 +459,146 @@ function test_writeStatusRow_reprocessarAtualizaLinhaExistenteSemDuplicar() {
   Logger.log('OK: writeStatusRow_ atualiza a linha existente pelo response_id ao reprocessar; nunca duplica; response_id diferente vira linha nova.');
 }
 
+// ─── installSyncTrigger_ — zero, um e vários gatilhos (Sync.gs) ─────────────
+//
+// Usa installSyncTriggerCore_ (não ScriptApp de verdade): fabrica uma lista
+// de gatilhos fictícios, cada um só com getHandlerFunction(), e confere o que
+// o núcleo decide fazer com deleteTrigger_/createTrigger_ fictícios.
+
+function fakeTrigger_(handlerFunctionName) {
+  return { getHandlerFunction: function () { return handlerFunctionName; } };
+}
+
+function test_installSyncTrigger_zeroGatilhos_cria() {
+  var criados = 0;
+  var apagados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () { return []; },
+    deleteTrigger: function () { apagados += 1; },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'criado' || criados !== 1 || apagados !== 0) {
+    throw new Error('FALHOU: com zero gatilhos, deveria criar exatamente um e não apagar nenhum.');
+  }
+  Logger.log('OK: installSyncTriggerCore_ com zero gatilhos cria exatamente um.');
+}
+
+function test_installSyncTrigger_umGatilho_naoMexe() {
+  var criados = 0;
+  var apagados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () { return [fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME)]; },
+    deleteTrigger: function () { apagados += 1; },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'ja_existia' || criados !== 0 || apagados !== 0) {
+    throw new Error('FALHOU: com um gatilho já existente, não deveria criar nem apagar nada.');
+  }
+  Logger.log('OK: installSyncTriggerCore_ com um gatilho existente não mexe em nada.');
+}
+
+function test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes() {
+  var apagadosHandlers = [];
+  var criados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () {
+      return [
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_('outraFuncaoQualquer'), // gatilho de OUTRA função — nunca deveria ser tocado
+      ];
+    },
+    deleteTrigger: function (trigger) { apagadosHandlers.push(trigger.getHandlerFunction()); },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'duplicados_removidos' || criados !== 0) {
+    throw new Error('FALHOU: com vários gatilhos duplicados, não deveria criar um novo — só remover os excedentes.');
+  }
+  if (apagadosHandlers.length !== 2) {
+    throw new Error('FALHOU: com 3 duplicados, deveria apagar exatamente 2 (mantendo 1) — apagou ' + apagadosHandlers.length + '.');
+  }
+  apagadosHandlers.forEach(function (nome) {
+    if (nome !== SYNC_TRIGGER_FUNCTION_NAME) {
+      throw new Error('FALHOU: apagou um gatilho de OUTRA função (' + nome + ') — não deveria tocar nele.');
+    }
+  });
+  Logger.log('OK: installSyncTriggerCore_ com vários duplicados mantém 1, remove os excedentes, nunca toca gatilho de outra função.');
+}
+
+// ─── applyFallbackOnFetchFailure_ — falha de rede antes/depois do prazo ─────
+// (Sync.gs) — usa applyFallbackOnFetchFailureCore_ (sem PropertiesService,
+// FormApp nem Date.now() de verdade).
+
+function test_fallback_semSincronizacaoAnterior_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return null; },
+    now: function () { return Date.parse('2030-06-15T12:00:00Z'); },
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_nunca_sincronizou' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: sem nenhuma sincronização válida anterior, deveria fechar o formulário.');
+  }
+  Logger.log('OK: fallback sem sincronização anterior fecha o formulário.');
+}
+
+function test_fallback_prazoConhecidoJaVenceu_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T12:00:01Z'); }, // 1s DEPOIS do prazo salvo
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_prazo_vencido' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: com o prazo conhecido já vencido, deveria fechar o formulário.');
+  }
+  Logger.log('OK: fallback com prazo conhecido já vencido fecha o formulário.');
+}
+
+function test_fallback_prazoConhecidoAindaNaoVenceu_preserva() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T11:59:59Z'); }, // 1s ANTES do prazo salvo
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'preservado' || estados.length !== 0) {
+    throw new Error(
+      'FALHOU: com o prazo conhecido ainda no futuro, NÃO deveria mexer no estado do formulário ' +
+      '(setAccepting não deveria ter sido chamado nenhuma vez).',
+    );
+  }
+  Logger.log('OK: fallback com prazo conhecido ainda válido preserva o estado atual, sem chamar setAccepting.');
+}
+
+function test_fallback_prazoSalvoIlegivel_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return 'isto não é uma data'; },
+    now: function () { return Date.now(); },
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_prazo_ilegivel' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: com o prazo salvo ilegível, deveria fechar por precaução.');
+  }
+  Logger.log('OK: fallback com prazo salvo ilegível fecha por precaução.');
+}
+
 // ─── Executa tudo ────────────────────────────────────────────────────────────
 
 function runAllTests() {
@@ -483,6 +623,15 @@ function runAllTests() {
   test_findFormResponseById_naoAchaIdInexistente();
   test_normalizarReprocessResponseId();
   test_writeStatusRow_reprocessarAtualizaLinhaExistenteSemDuplicar();
+
+  test_installSyncTrigger_zeroGatilhos_cria();
+  test_installSyncTrigger_umGatilho_naoMexe();
+  test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes();
+
+  test_fallback_semSincronizacaoAnterior_fecha();
+  test_fallback_prazoConhecidoJaVenceu_fecha();
+  test_fallback_prazoConhecidoAindaNaoVenceu_preserva();
+  test_fallback_prazoSalvoIlegivel_fecha();
 
   Logger.log('Todos os testes manuais passaram.');
 }

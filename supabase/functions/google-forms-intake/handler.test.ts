@@ -468,6 +468,86 @@ describe('google-forms-intake — campanha de entrada', () => {
     expect(chamadas.some((c) => c.url.includes('/storage/v1/object/'))).toBe(false);
     expect(chamadas.some((c) => c.url.includes('citi_flag_intake_review'))).toBe(false);
   });
+
+  it('fora da janela de campanha (migration 0030): recusa criar membro, mesmo mapeamento de sem_campanha_ativa/prazo_encerrado', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'fora_da_janela_de_campanha', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.outcome).toBe('fora_da_janela_de_campanha');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
+
+  it('respondedAt ausente: recusa ANTES de chamar citi_import_member_via_forms', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const payload = basePayload();
+    delete (payload as Record<string, unknown>).respondedAt;
+    const request = await requisicaoAssinada(payload);
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('failed');
+    expect(json.reason).toBe('timestamp_resposta_ausente');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_record_intake_failure'))).toBe(true);
+  });
+
+  it('respondedAt sem fuso explícito (formato inválido): recusa ANTES de chamar citi_import_member_via_forms', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const request = await requisicaoAssinada(basePayload({ respondedAt: '2026-09-18 12:00:00' }));
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('failed');
+    expect(json.reason).toBe('timestamp_resposta_invalido');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+  });
+
+  it('respondedAt com texto qualquer (não é data nenhuma): recusa antes da RPC', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const request = await requisicaoAssinada(basePayload({ respondedAt: 'não é uma data' }));
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.reason).toBe('timestamp_resposta_invalido');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+  });
+
+  it('timestamp_resposta_divergente (migration 0030): recusa sem tocar CPF/foto', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'timestamp_resposta_divergente', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('timestamp_resposta_divergente');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
+
+  it('falha_tecnica após capturar o snapshot (migration 0030): retryable, não toca CPF/foto', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'falha_tecnica', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json.outcome).toBe('falha_tecnica');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
 });
 
 describe('google-forms-intake — sincronização de status (GET, Apps Script)', () => {
