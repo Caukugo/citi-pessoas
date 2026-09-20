@@ -27,7 +27,13 @@ const PARAM = {
 
 const GG_RESPONSIBLE_ASSIGNED_VALUES: MembersListFilters['ggResponsibleAssigned'][] = ['sem', 'com'];
 
-const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'inativo', 'desligado', 'arquivado'];
+/**
+ * Valores aceitos vindos da URL. `'arquivado'` fica de fora de propósito: não
+ * existe opção dele na interface (`MembersToolbar.tsx`), e um link antigo com
+ * `?situacao=arquivado` não pode reintroduzir esse filtro por trás — ele volta
+ * para o padrão (`ativo`), como qualquer outro valor inválido.
+ */
+const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'inativo', 'desligado'];
 
 export interface MembersFiltersControl {
   filters: MembersListFilters;

@@ -10,6 +10,7 @@ import type {
   ID,
   Member,
   MemberCreateInput,
+  MemberDeactivateInput,
   MemberImportResult,
   MemberIntakeReviewReason,
   X1,
@@ -17,7 +18,12 @@ import type {
 import { MOCK_USERS } from './fixtures';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
 import { cycleBoundsFor } from '../cycleBounds';
-import { currentCycleAfterRoster, planRosterContinuation } from '../import/currentRoster';
+import {
+  addDaysISO,
+  addMonthsISO,
+  currentCycleAfterRoster,
+  planRosterContinuation,
+} from '../import/currentRoster';
 import { checkCpf, cpfLast4 } from '../cpf';
 import {
   computeGestaoPeriod,
@@ -44,6 +50,25 @@ import { commit, delay, mockDb, mockId, nowISO } from './store';
  */
 
 const authListeners = new Set<(user: AuthUser | null) => void>();
+
+/**
+ * Ciclo ATUAL aproximado de um membro, só para o modo mock validar
+ * `deactivate` (migration 0032).
+ *
+ * ⚠️ SIMPLIFICAÇÃO CONHECIDA: o mock não modela `member_cycles` (não existe
+ * array de ciclos no `MockDatabase` — ver `store.ts`). No banco real, a fonte
+ * é `member_cycles.expected_end_on`, calculada a partir da gestão de entrada e
+ * de eventuais continuações (0005/0015). Aqui, sem gestão nem cargo
+ * normalizados para a maioria dos membros fictícios, o ciclo é só "12 meses a
+ * partir de `joinedAt`", sem continuação nenhuma. Suficiente para testar o
+ * FLUXO da tela; não é a regra de produto — essa mora no Postgres.
+ */
+function mockCurrentCycle(member: Member): { startedOn: string; expectedEndOn: string } {
+  return {
+    startedOn: member.joinedAt,
+    expectedEndOn: addDaysISO(addMonthsISO(member.joinedAt, 12), -1),
+  };
+}
 
 function notifyAuth(user: AuthUser | null) {
   authListeners.forEach((listener) => listener(user));
@@ -468,6 +493,89 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = { ...db.members[index], status: 'arquivado', updatedAt: nowISO() };
       commit();
       return db.members[index];
+    },
+
+    async deactivate(id, input: MemberDeactivateInput) {
+      await delay();
+      const db = mockDb();
+      const index = db.members.findIndex((m) => m.id === id);
+      if (index < 0) {
+        throw new DataError('not_found', `membro_inexistente: membro ${id} não encontrado.`);
+      }
+
+      const member = db.members[index];
+      if (member.status !== 'ativo') {
+        throw new DataError(
+          'invalid',
+          `membro_nao_ativo: só é possível desligar quem está ativo. Situação atual: ${member.status}.`,
+        );
+      }
+
+      const endedOn = input.endedOn;
+      if (!endedOn) {
+        throw new DataError('invalid', 'data_obrigatoria: informe a data efetiva do desligamento.');
+      }
+
+      const REASON_MAX_CHARS = 500;
+      const reason = input.reason?.trim() || null;
+      if (reason && reason.length > REASON_MAX_CHARS) {
+        throw new DataError(
+          'invalid',
+          `motivo_muito_longo: o motivo aceita no máximo ${REASON_MAX_CHARS} caracteres (recebido ${reason.length}).`,
+        );
+      }
+
+      const cycle = mockCurrentCycle(member);
+      const hoje = recifeTodayISO();
+
+      if (endedOn > hoje) {
+        throw new DataError(
+          'invalid',
+          `data_futura: a data de desligamento não pode ser no futuro (hoje em Recife: ${hoje}).`,
+        );
+      }
+      if (endedOn < cycle.startedOn) {
+        throw new DataError(
+          'invalid',
+          `data_anterior_ao_ciclo: a data não pode ser anterior ao início do ciclo atual (${cycle.startedOn}).`,
+        );
+      }
+      if (endedOn >= cycle.expectedEndOn) {
+        throw new DataError(
+          'invalid',
+          `data_nao_e_interrupcao_antecipada: ${endedOn} não é anterior ao fim previsto do ciclo (${cycle.expectedEndOn}) — isto é conclusão natural, não desligamento. Use o fluxo de inativação por conclusão de ciclo.`,
+        );
+      }
+
+      const gerenciados = db.members.filter((m) => m.managerId === id && m.status === 'ativo').length;
+      const responsaveis = db.members.filter(
+        (m) => m.ggResponsibleId === id && m.status === 'ativo',
+      ).length;
+      if (gerenciados > 0 || responsaveis > 0) {
+        throw new DataError(
+          'conflict',
+          `membro_com_dependentes: ${gerenciados} pessoa(s) ativa(s) têm este membro como gerente e ${responsaveis} como responsável de GG — redistribua antes de desligar.`,
+        );
+      }
+
+      const desligado: Member = { ...member, status: 'desligado', exitedAt: endedOn, updatedAt: nowISO() };
+      db.members[index] = desligado;
+
+      db.memberEvents.push({
+        id: mockId('evt'),
+        memberId: id,
+        type: 'desligamento',
+        occurredAt: endedOn,
+        title: 'Desligamento do CITi',
+        description: reason
+          ? `Ciclo interrompido antes do fim previsto. Motivo: ${reason}.`
+          : 'Ciclo interrompido antes do fim previsto.',
+        sourceId: null,
+        createdAt: nowISO(),
+      });
+
+      commit();
+      return desligado;
     },
 
     async getPhotoUrl(path) {

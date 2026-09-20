@@ -769,6 +769,142 @@ describe('atribuição em lote de responsável de GG (modo mock)', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+describe('deactivate — desligamento de membro (migration 0032)', () => {
+  /**
+   * `joinedAt: '2026-01-01'` dá, pela aproximação do mock (ver `mockCurrentCycle`
+   * em `mockAdapter.ts`), um ciclo de 2026-01-01 a 2026-12-31 — "hoje" (data real
+   * de execução do teste) cai dentro dele, o que é o cenário normal.
+   */
+  async function criarAtivo(overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]> = {}) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Desligamento',
+      email: `fixture.deslig.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Gente e Gestão',
+      status: 'ativo',
+      joinedAt: '2026-01-01',
+      ...overrides,
+    });
+  }
+
+  it('desliga um membro ativo: status vira desligado (nunca inativo), exitedAt grava a data', async () => {
+    const membro = await criarAtivo();
+
+    const resultado = await mockAdapter.members.deactivate(membro.id, {
+      endedOn: '2026-06-15',
+      reason: 'Mudança de curso',
+    });
+
+    expect(resultado.status).toBe('desligado');
+    expect(resultado.exitedAt).toBe('2026-06-15');
+
+    const depois = await mockAdapter.members.getById(membro.id);
+    expect(depois?.status).toBe('desligado');
+  });
+
+  it('sucesso registra exatamente um evento de desligamento', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'desligamento',
+    );
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('membro inativo (não ativo) é recusado', async () => {
+    const membro = await criarAtivo({ status: 'inativo' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_nao_ativo/);
+  });
+
+  it('repetir sobre quem já foi desligado é recusado — não duplica evento', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-20' }),
+    ).rejects.toThrow(/membro_nao_ativo/);
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'desligamento',
+    );
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('data no futuro é recusada', async () => {
+    const membro = await criarAtivo();
+    const futuro = new Date();
+    futuro.setDate(futuro.getDate() + 5);
+
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: futuro.toISOString().slice(0, 10) }),
+    ).rejects.toThrow(/data_futura/);
+  });
+
+  it('data anterior ao início do ciclo é recusada', async () => {
+    const membro = await criarAtivo({ joinedAt: '2026-01-01' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2025-12-31' }),
+    ).rejects.toThrow(/data_anterior_ao_ciclo/);
+  });
+
+  it('data que não é interrupção antecipada (ciclo já vencido) é recusada', async () => {
+    // Ciclo 2024-01-01 → 2024-12-31: já venceu bem antes de hoje.
+    const membro = await criarAtivo({ joinedAt: '2024-01-01' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2025-06-01' }),
+    ).rejects.toThrow(/data_nao_e_interrupcao_antecipada/);
+  });
+
+  it('dependente ativo como manager_id bloqueia, com a contagem — sem redistribuição automática', async () => {
+    const gerente = await criarAtivo();
+    await criarAtivo({ managerId: gerente.id });
+
+    await expect(
+      mockAdapter.members.deactivate(gerente.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_com_dependentes/);
+
+    expect((await mockAdapter.members.getById(gerente.id))?.status).toBe('ativo');
+  });
+
+  it('dependente ativo como gg_responsible_id bloqueia', async () => {
+    const responsavel = await criarAtivo();
+    await criarAtivo({ ggResponsibleId: responsavel.id });
+
+    await expect(
+      mockAdapter.members.deactivate(responsavel.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_com_dependentes/);
+  });
+
+  it('motivo acima do limite de caracteres é recusado', async () => {
+    const membro = await criarAtivo();
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15', reason: 'x'.repeat(501) }),
+    ).rejects.toThrow(/motivo_muito_longo/);
+  });
+
+  it('motivo só com espaços vira null, nunca string vazia', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15', reason: '   ' });
+
+    const eventos = await mockAdapter.members.listEvents(membro.id);
+    const evento = eventos.find((e) => e.type === 'desligamento');
+    expect(evento?.description).not.toContain('Motivo:');
+  });
+
+  it('não altera CPF, foto nem outros dados do membro', async () => {
+    const membro = await criarAtivo({ photoPath: 'algum/caminho.png' });
+    const resultado = await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    expect(resultado.photoPath).toBe('algum/caminho.png');
+    expect(resultado.fullName).toBe(membro.fullName);
+    expect(resultado.email).toBe(membro.email);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('CPF (modo mock)', () => {
   /** Fictícios, com dígitos verificadores corretos. */
   const CPF_A = '529.982.247-25';

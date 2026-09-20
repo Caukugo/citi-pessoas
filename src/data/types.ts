@@ -185,6 +185,19 @@ export interface BulkAssignGgResponsibleResult {
   ggResponsibleName: string;
 }
 
+/**
+ * O que a tela de Perfil manda para `citi_deactivate_member` (migration 0032).
+ *
+ * `endedOn` é a data EFETIVA do desligamento — precisa ser anterior ao fim
+ * previsto do ciclo em andamento (interrupção antecipada). Igual ou depois
+ * disso é conclusão natural, não desligamento, e o banco recusa.
+ */
+export interface MemberDeactivateInput {
+  endedOn: ISODate;
+  /** Opcional; o banco recusa acima do limite de caracteres. */
+  reason?: string | null;
+}
+
 // ─── Estrutura organizacional ─────────────────────────────────────────────────
 
 /**

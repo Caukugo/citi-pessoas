@@ -16,6 +16,7 @@ import type {
   Member,
   MemberCreateInput,
   MemberEvent,
+  MemberDeactivateInput,
   MemberFilters,
   MemberImportInput,
   MemberImportResult,
@@ -98,6 +99,20 @@ export interface MembersRepository {
 
   /** Não existe exclusão: arquivar preserva o histórico. */
   archive(id: ID): Promise<Member>;
+
+  /**
+   * Desliga um membro ATIVO — interrompe o ciclo em andamento ANTES do fim
+   * previsto (migration 0032). Nunca produz `inativo`: essa continua sendo a
+   * conclusão natural, automática (`citi_deactivate_finished_cycles`).
+   *
+   * O banco recusa (entre outras coisas): membro não ativo, sem ciclo em
+   * andamento, data no futuro, data anterior ao início do ciclo, data que não
+   * representa interrupção antecipada (igual ou depois do fim previsto — isso
+   * é conclusão natural), ou dependente ativo apontando para este membro como
+   * `managerId`/`ggResponsibleId` (redistribuir é passo manual, fora desta
+   * chamada). Atômica: tudo ou nada.
+   */
+  deactivate(id: ID, input: MemberDeactivateInput): Promise<Member>;
 
   /**
    * URL ASSINADA e temporária da foto, a partir do `photoPath`.

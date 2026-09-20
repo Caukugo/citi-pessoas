@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Avatar, Badge, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
+import { Badge, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
 import {
   FEEDBACK_TYPE_LABEL,
   MEMBER_STATUS_LABEL,
@@ -12,6 +12,7 @@ import { cn } from '@/lib/cn';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
 import { memberNameById } from '@/features/members/model/membersList';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   FEEDBACK_TYPES,
   FEEDBACK_TYPE_PLURAL,
@@ -144,9 +145,8 @@ export function FeedbacksTable({
             <TR key={member.id} className="border-divider">
               <TD className={cn(CELL, ROW)}>
                 <div className="flex items-center gap-[12px]">
-                  <Avatar
-                    name={member.fullName}
-                    photoUrl={member.photoUrl}
+                  <MemberAvatar
+                    member={member}
                     size="md"
                     shape="circle"
                     className="h-[34px] w-[34px] text-[11px]"

@@ -8,6 +8,7 @@ import type {
   MemberCpfStatus,
   MemberCpfWriteResult,
   MemberCreateInput,
+  MemberDeactivateInput,
   MemberFilters,
   MemberIntakeReviewReason,
   MemberRecordCorrection,
@@ -145,6 +146,29 @@ export function useArchiveMember() {
     mutationFn: archiveMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+    },
+  });
+}
+
+/**
+ * Desliga um membro ativo — interrompe o ciclo em andamento antes do fim
+ * previsto (migration 0032). Nunca produz `inativo`.
+ */
+export function deactivateMember(id: ID, input: MemberDeactivateInput): Promise<Member> {
+  return db.members.deactivate(id, input);
+}
+
+export function useDeactivateMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: ID; input: MemberDeactivateInput }) =>
+      deactivateMember(id, input),
+    onSuccess: (member) => {
+      // Listagem (badge, filtro por situação) e perfil (botão some, badge
+      // aparece) precisam refletir a mudança juntos.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.detail(member.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.events(member.id) });
     },
   });
 }

@@ -172,9 +172,11 @@ describe('fluxo Membros → Perfil → X1', () => {
     await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
 
     expect(await screen.findByText(/este membro não existe/i)).toBeVisible();
-    // Lembrete da regra: membro nunca é apagado, então some da lista por
-    // arquivamento — e o texto precisa dizer isso.
-    expect(screen.getByText(/arquivad/i)).toBeVisible();
+    // Lembrete da regra: membro nunca é apagado — mas o texto NÃO pode sugerir
+    // "arquivamento" como algo que a interface oferece (não existe essa ação
+    // na tela; ver MembersToolbar.tsx / DesignSystemPage.tsx).
+    expect(screen.getByText(/nunca são apagados/i)).toBeVisible();
+    expect(screen.queryByText(/arquiv/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /voltar para membros/i })).toBeVisible();
   }, 15_000);
 });

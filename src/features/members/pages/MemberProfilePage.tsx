@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Pencil, Plus, UserX } from 'lucide-react';
+import { Pencil, Plus, UserMinus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -27,6 +27,7 @@ import { MemberCpfField } from '../components/MemberCpfField';
 import { MemberActivityTimeline } from '../components/MemberActivityTimeline';
 import { MemberInfoGrid } from '../components/MemberInfoGrid';
 import { MemberProfileHeader } from '../components/MemberProfileHeader';
+import { DeactivateMemberDialog } from '../components/DeactivateMemberDialog';
 
 /**
  * EPIC 2 — PERFIL DO MEMBRO (PERFIL-001 a PERFIL-004)
@@ -52,6 +53,7 @@ export function MemberProfilePage() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   const memberQuery = useMember(memberId);
   const directory = useMemberDirectory();
@@ -122,7 +124,7 @@ export function MemberProfilePage() {
           <EmptyState
             icon={<UserX size={20} aria-hidden />}
             title="Este membro não existe"
-            description="O endereço pode estar errado, ou a pessoa pode ter sido arquivada. Lembre que membros nunca são apagados, procure também entre os arquivados."
+            description="O endereço pode estar errado. Lembre que membros nunca são apagados — confira se o link foi copiado certo."
             action={
               <Button variant="primary" onClick={() => navigate(ROUTES.members)}>
                 Voltar para Membros
@@ -157,6 +159,17 @@ export function MemberProfilePage() {
             <Button icon={<Pencil size={15} />} onClick={() => setEditOpen(true)}>
               Editar cadastro
             </Button>
+            {/* Só para quem está no ciclo em andamento — nunca para inativo
+                (concluiu normalmente) nem para quem já foi desligado. */}
+            {member.status === 'ativo' && (
+              <Button
+                variant="danger"
+                icon={<UserMinus size={15} />}
+                onClick={() => setDeactivateOpen(true)}
+              >
+                Desligar membro
+              </Button>
+            )}
             <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
               {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
             </Button>
@@ -214,6 +227,13 @@ export function MemberProfilePage() {
       )}
 
       <EditMemberDrawer open={editOpen} onClose={() => setEditOpen(false)} member={member} />
+
+      <DeactivateMemberDialog
+        open={deactivateOpen}
+        onClose={() => setDeactivateOpen(false)}
+        member={member}
+        onSuccess={() => setDeactivateOpen(false)}
+      />
 
       <CreateX1Drawer
         open={registerOpen}
