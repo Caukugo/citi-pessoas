@@ -455,3 +455,22 @@ enabled = true
 # ─────────────────────────────────────────────────────────────────────────────
 [functions.google-calendar-oauth]
 verify_jwt = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar` — o serviço da Agenda de X1 (X1-009/X1-010).
+#
+# `verify_jwt = false` pela MESMA razão do `member-cpf`: o pré-voo do navegador
+# (OPTIONS, que não leva Authorization) seria recusado no gateway antes de
+# chegar à função, e a agenda quebraria com um erro de CORS sem explicação.
+#
+# A autorização NÃO é mais fraca por isso — é mais estrita. Dentro do handler,
+# `authorize()` valida o token no Auth do Supabase E confere o papel em
+# `profiles` (gg ou gg_diretoria). Autenticado sem perfil é bloqueado, que é o
+# furo que a 0019 fechou no banco.
+#
+# ⚠️ E há uma guarda que o gateway não teria como fazer: só o ORGANIZADOR
+# reagenda ou cancela, conferido linha a linha contra a sessão. Ver
+# supabase/functions/google-calendar/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar]
+verify_jwt = false
