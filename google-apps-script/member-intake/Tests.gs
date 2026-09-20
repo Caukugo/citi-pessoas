@@ -459,6 +459,336 @@ function test_writeStatusRow_reprocessarAtualizaLinhaExistenteSemDuplicar() {
   Logger.log('OK: writeStatusRow_ atualiza a linha existente pelo response_id ao reprocessar; nunca duplica; response_id diferente vira linha nova.');
 }
 
+// ─── installSyncTrigger_ — zero, um e vários gatilhos (Sync.gs) ─────────────
+//
+// Usa installSyncTriggerCore_ (não ScriptApp de verdade): fabrica uma lista
+// de gatilhos fictícios, cada um só com getHandlerFunction(), e confere o que
+// o núcleo decide fazer com deleteTrigger_/createTrigger_ fictícios.
+
+function fakeTrigger_(handlerFunctionName) {
+  return { getHandlerFunction: function () { return handlerFunctionName; } };
+}
+
+function test_installSyncTrigger_zeroGatilhos_cria() {
+  var criados = 0;
+  var apagados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () { return []; },
+    deleteTrigger: function () { apagados += 1; },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'criado' || criados !== 1 || apagados !== 0) {
+    throw new Error('FALHOU: com zero gatilhos, deveria criar exatamente um e não apagar nenhum.');
+  }
+  Logger.log('OK: installSyncTriggerCore_ com zero gatilhos cria exatamente um.');
+}
+
+function test_installSyncTrigger_umGatilho_naoMexe() {
+  var criados = 0;
+  var apagados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () { return [fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME)]; },
+    deleteTrigger: function () { apagados += 1; },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'ja_existia' || criados !== 0 || apagados !== 0) {
+    throw new Error('FALHOU: com um gatilho já existente, não deveria criar nem apagar nada.');
+  }
+  Logger.log('OK: installSyncTriggerCore_ com um gatilho existente não mexe em nada.');
+}
+
+function test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes() {
+  var apagadosHandlers = [];
+  var criados = 0;
+  var resultado = installSyncTriggerCore_({
+    listTriggers: function () {
+      return [
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_(SYNC_TRIGGER_FUNCTION_NAME),
+        fakeTrigger_('outraFuncaoQualquer'), // gatilho de OUTRA função — nunca deveria ser tocado
+      ];
+    },
+    deleteTrigger: function (trigger) { apagadosHandlers.push(trigger.getHandlerFunction()); },
+    createTrigger: function () { criados += 1; },
+    log: function () {},
+  });
+
+  if (resultado !== 'duplicados_removidos' || criados !== 0) {
+    throw new Error('FALHOU: com vários gatilhos duplicados, não deveria criar um novo — só remover os excedentes.');
+  }
+  if (apagadosHandlers.length !== 2) {
+    throw new Error('FALHOU: com 3 duplicados, deveria apagar exatamente 2 (mantendo 1) — apagou ' + apagadosHandlers.length + '.');
+  }
+  apagadosHandlers.forEach(function (nome) {
+    if (nome !== SYNC_TRIGGER_FUNCTION_NAME) {
+      throw new Error('FALHOU: apagou um gatilho de OUTRA função (' + nome + ') — não deveria tocar nele.');
+    }
+  });
+  Logger.log('OK: installSyncTriggerCore_ com vários duplicados mantém 1, remove os excedentes, nunca toca gatilho de outra função.');
+}
+
+// ─── Pontos de entrada públicos (seletor do Apps Script) ────────────────────
+//
+// Uma função terminada em "_" não aparece no seletor "Executar → escolher
+// função" do editor — já tivemos esse problema antes. Este teste é
+// estrutural (checa a referência da função, nunca CHAMA nenhuma delas — elas
+// tocam ScriptApp/FormApp de verdade) para pegar exatamente essa regressão:
+// nome errado ou parâmetro exigido quebraria tanto o seletor manual quanto um
+// gatilho de tempo (que nunca entrega argumento nenhum).
+
+function test_pontosDeEntradaPublicos_semUnderscoreSemParametro() {
+  var pontos = [
+    { nome: 'installSyncTrigger', fn: typeof installSyncTrigger !== 'undefined' ? installSyncTrigger : null },
+    { nome: 'syncFormNow', fn: typeof syncFormNow !== 'undefined' ? syncFormNow : null },
+    { nome: 'removeSyncTrigger', fn: typeof removeSyncTrigger !== 'undefined' ? removeSyncTrigger : null },
+    {
+      nome: 'syncFormAcceptingResponses',
+      fn: typeof syncFormAcceptingResponses !== 'undefined' ? syncFormAcceptingResponses : null,
+    },
+  ];
+
+  pontos.forEach(function (ponto) {
+    if (typeof ponto.fn !== 'function') {
+      throw new Error('FALHOU: ' + ponto.nome + ' deveria existir como função de nível superior.');
+    }
+    if (ponto.nome.charAt(ponto.nome.length - 1) === '_') {
+      throw new Error('FALHOU: ' + ponto.nome + ' termina em "_" — não apareceria no seletor do Apps Script.');
+    }
+    if (ponto.fn.length !== 0) {
+      throw new Error(
+        'FALHOU: ' + ponto.nome + ' deveria aceitar zero parâmetros (compatível com "Executar" e com ' +
+        'gatilho de tempo, que nunca entrega argumento) — tem ' + ponto.fn.length + '.',
+      );
+    }
+  });
+
+  Logger.log(
+    'OK: installSyncTrigger, syncFormNow, removeSyncTrigger e syncFormAcceptingResponses são públicas, ' +
+    'sem "_" no final, sem parâmetro.',
+  );
+}
+
+// ─── applyDesiredFormStateCore_ — sincronização idempotente (Sync.gs) ───────
+//
+// Motivo: `syncFormAcceptingResponses` rodava a cada minuto e, com o Forms já
+// fechado, repetia `setCustomClosedFormMessage`/`setAcceptingResponses` com o
+// MESMO valor toda vez — e o Forms lança `Invalid data updating form` para
+// essa escrita redundante. Estes testes fabricam o estado atual do Form
+// (`isAccepting`/`getClosedMessage`) e contam quantas vezes cada setter seria
+// chamado — nenhum toca `FormApp` de verdade.
+
+function fakeFormState_(isAccepting, closedMessage) {
+  var chamadasSetAccepting = [];
+  var chamadasSetClosedMessage = [];
+  var deps = {
+    isAccepting: function () { return isAccepting; },
+    getClosedMessage: function () { return closedMessage; },
+    setAccepting: function (value) { chamadasSetAccepting.push(value); },
+    setClosedMessage: function (message) { chamadasSetClosedMessage.push(message); },
+  };
+  return { deps: deps, chamadasSetAccepting: chamadasSetAccepting, chamadasSetClosedMessage: chamadasSetClosedMessage };
+}
+
+function test_applyDesiredFormState_abertoParaAberto_nenhumSetter() {
+  var fake = fakeFormState_(true, 'mensagem qualquer, não importa quando está aberto');
+  var resultado = applyDesiredFormStateCore_(true, fake.deps);
+
+  if (resultado !== 'aberto_sem_mudanca' || fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: aberto→aberto não deveria chamar nenhum setter (evita "Invalid data updating form").');
+  }
+  Logger.log('OK: aberto→aberto não chama nenhum setter.');
+}
+
+function test_applyDesiredFormState_fechadoParaFechadoMensagemIgual_nenhumSetter() {
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_sem_mudanca' || fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: fechado→fechado com a mesma mensagem não deveria chamar nenhum setter — este é o bug real (Sync:98).');
+  }
+  Logger.log('OK: fechado→fechado com mensagem igual não chama nenhum setter.');
+}
+
+function test_applyDesiredFormState_abertoParaFechado_mensagemAntesDeAccepting() {
+  var fake = fakeFormState_(true, 'mensagem antiga, diferente');
+  var ordem = [];
+  fake.deps.setClosedMessage = function (message) { ordem.push('mensagem'); fake.chamadasSetClosedMessage.push(message); };
+  fake.deps.setAccepting = function (value) { ordem.push('accepting'); fake.chamadasSetAccepting.push(value); };
+
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_mensagem_e_accepting') {
+    throw new Error('FALHOU: aberto→fechado deveria mudar mensagem e accepting (veio "' + resultado + '").');
+  }
+  if (ordem.length !== 2 || ordem[0] !== 'mensagem' || ordem[1] !== 'accepting') {
+    throw new Error('FALHOU: ao fechar, a mensagem deveria ser ajustada ANTES do accepting=false (ordem: ' + ordem.join(',') + ').');
+  }
+  if (fake.chamadasSetClosedMessage[0] !== CLOSED_FORM_MESSAGE || fake.chamadasSetAccepting[0] !== false) {
+    throw new Error('FALHOU: aberto→fechado deveria gravar CLOSED_FORM_MESSAGE e accepting=false.');
+  }
+  Logger.log('OK: aberto→fechado ajusta a mensagem antes de mudar accepting.');
+}
+
+function test_applyDesiredFormState_fechadoParaAberto_somenteAccepting() {
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+  var resultado = applyDesiredFormStateCore_(true, fake.deps);
+
+  if (resultado !== 'aberto_setAccepting' || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: fechado→aberto não deveria tocar a mensagem, só accepting.');
+  }
+  if (fake.chamadasSetAccepting.length !== 1 || fake.chamadasSetAccepting[0] !== true) {
+    throw new Error('FALHOU: fechado→aberto deveria chamar setAccepting(true) exatamente uma vez.');
+  }
+  Logger.log('OK: fechado→aberto chama somente setAccepting(true).');
+}
+
+function test_applyDesiredFormState_fechadoComMensagemDiferente_somenteMensagem() {
+  var fake = fakeFormState_(false, 'mensagem antiga, diferente');
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_apenas_mensagem' || fake.chamadasSetAccepting.length !== 0) {
+    throw new Error('FALHOU: fechado com mensagem diferente→fechado não deveria tocar accepting, só a mensagem.');
+  }
+  if (fake.chamadasSetClosedMessage.length !== 1 || fake.chamadasSetClosedMessage[0] !== CLOSED_FORM_MESSAGE) {
+    throw new Error('FALHOU: fechado com mensagem diferente→fechado deveria atualizar para CLOSED_FORM_MESSAGE.');
+  }
+  Logger.log('OK: fechado com mensagem diferente→fechado só atualiza a mensagem.');
+}
+
+function test_applyDesiredFormState_duasSincronizacoesFechadasConsecutivas_semErro() {
+  // Simula exatamente o cenário do bug: o Form já está fechado com a mensagem
+  // certa, e DUAS sincronizações seguidas rodam sobre esse mesmo estado — a
+  // segunda não pode repetir nenhum setter (é a repetição que quebrava com
+  // "Invalid data updating form" de verdade).
+  var isAccepting = false;
+  var closedMessage = null; // primeira sincronização: Form nunca foi fechado antes
+  var totalSetAccepting = 0;
+  var totalSetClosedMessage = 0;
+  var deps = {
+    isAccepting: function () { return isAccepting; },
+    getClosedMessage: function () { return closedMessage; },
+    setAccepting: function (value) { totalSetAccepting += 1; isAccepting = value; },
+    setClosedMessage: function (message) { totalSetClosedMessage += 1; closedMessage = message; },
+  };
+
+  var primeiro = applyDesiredFormStateCore_(false, deps);
+  var segundo = applyDesiredFormStateCore_(false, deps);
+
+  if (primeiro !== 'fechado_apenas_mensagem') {
+    throw new Error('FALHOU: primeira sincronização deveria só gravar a mensagem (Form já estava fechado).');
+  }
+  if (segundo !== 'fechado_sem_mudanca') {
+    throw new Error('FALHOU: segunda sincronização consecutiva deveria detectar que nada mudou.');
+  }
+  if (totalSetClosedMessage !== 1 || totalSetAccepting !== 0) {
+    throw new Error(
+      'FALHOU: duas sincronizações fechadas consecutivas deveriam gravar a mensagem só UMA vez e nunca ' +
+      'tocar accepting (veio setClosedMessage=' + totalSetClosedMessage + ', setAccepting=' + totalSetAccepting + ').',
+    );
+  }
+  Logger.log('OK: duas sincronizações fechadas consecutivas terminam sem repetir nenhum setter.');
+}
+
+function test_applyDesiredFormState_fallbackAposDeadlineComFormularioJaFechado_semMutacaoSemErro() {
+  // `applyFallbackOnFetchFailureCore_` decide 'fechado' (prazo vencido) e
+  // chama deps.setAccepting(false); `applyFallbackOnFetchFailure_` real
+  // encaminha isso para `applyDesiredFormState_`. Aqui simulamos exatamente
+  // essa ponte, com o Form já fechado e com a mensagem certa.
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+
+  var resultadoFallback = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T12:00:01Z'); }, // 1s DEPOIS do prazo
+    setAccepting: function (value) {
+      applyDesiredFormStateCore_(value, fake.deps);
+    },
+    log: function () {},
+  });
+
+  if (resultadoFallback !== 'fechado_prazo_vencido') {
+    throw new Error('FALHOU: fallback com prazo vencido deveria decidir fechar.');
+  }
+  if (fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error(
+      'FALHOU: com o Form já fechado e a mensagem certa, o fallback pós-deadline não deveria mutar nada ' +
+      '— é este exato caminho que lançava "Invalid data updating form".',
+    );
+  }
+  Logger.log('OK: fallback após deadline com formulário já fechado não muta nada e não lança erro.');
+}
+
+// ─── applyFallbackOnFetchFailure_ — falha de rede antes/depois do prazo ─────
+// (Sync.gs) — usa applyFallbackOnFetchFailureCore_ (sem PropertiesService,
+// FormApp nem Date.now() de verdade).
+
+function test_fallback_semSincronizacaoAnterior_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return null; },
+    now: function () { return Date.parse('2030-06-15T12:00:00Z'); },
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_nunca_sincronizou' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: sem nenhuma sincronização válida anterior, deveria fechar o formulário.');
+  }
+  Logger.log('OK: fallback sem sincronização anterior fecha o formulário.');
+}
+
+function test_fallback_prazoConhecidoJaVenceu_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T12:00:01Z'); }, // 1s DEPOIS do prazo salvo
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_prazo_vencido' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: com o prazo conhecido já vencido, deveria fechar o formulário.');
+  }
+  Logger.log('OK: fallback com prazo conhecido já vencido fecha o formulário.');
+}
+
+function test_fallback_prazoConhecidoAindaNaoVenceu_preserva() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T11:59:59Z'); }, // 1s ANTES do prazo salvo
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'preservado' || estados.length !== 0) {
+    throw new Error(
+      'FALHOU: com o prazo conhecido ainda no futuro, NÃO deveria mexer no estado do formulário ' +
+      '(setAccepting não deveria ter sido chamado nenhuma vez).',
+    );
+  }
+  Logger.log('OK: fallback com prazo conhecido ainda válido preserva o estado atual, sem chamar setAccepting.');
+}
+
+function test_fallback_prazoSalvoIlegivel_fecha() {
+  var estados = [];
+  var resultado = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return 'isto não é uma data'; },
+    now: function () { return Date.now(); },
+    setAccepting: function (v) { estados.push(v); },
+    log: function () {},
+  });
+
+  if (resultado !== 'fechado_prazo_ilegivel' || estados.length !== 1 || estados[0] !== false) {
+    throw new Error('FALHOU: com o prazo salvo ilegível, deveria fechar por precaução.');
+  }
+  Logger.log('OK: fallback com prazo salvo ilegível fecha por precaução.');
+}
+
 // ─── Executa tudo ────────────────────────────────────────────────────────────
 
 function runAllTests() {
@@ -483,6 +813,25 @@ function runAllTests() {
   test_findFormResponseById_naoAchaIdInexistente();
   test_normalizarReprocessResponseId();
   test_writeStatusRow_reprocessarAtualizaLinhaExistenteSemDuplicar();
+
+  test_pontosDeEntradaPublicos_semUnderscoreSemParametro();
+
+  test_installSyncTrigger_zeroGatilhos_cria();
+  test_installSyncTrigger_umGatilho_naoMexe();
+  test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes();
+
+  test_applyDesiredFormState_abertoParaAberto_nenhumSetter();
+  test_applyDesiredFormState_fechadoParaFechadoMensagemIgual_nenhumSetter();
+  test_applyDesiredFormState_abertoParaFechado_mensagemAntesDeAccepting();
+  test_applyDesiredFormState_fechadoParaAberto_somenteAccepting();
+  test_applyDesiredFormState_fechadoComMensagemDiferente_somenteMensagem();
+  test_applyDesiredFormState_duasSincronizacoesFechadasConsecutivas_semErro();
+  test_applyDesiredFormState_fallbackAposDeadlineComFormularioJaFechado_semMutacaoSemErro();
+
+  test_fallback_semSincronizacaoAnterior_fecha();
+  test_fallback_prazoConhecidoJaVenceu_fecha();
+  test_fallback_prazoConhecidoAindaNaoVenceu_preserva();
+  test_fallback_prazoSalvoIlegivel_fecha();
 
   Logger.log('Todos os testes manuais passaram.');
 }

@@ -1,0 +1,21 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 0028 — Novo status de gestão: `planejada`
+--
+-- POR QUÊ: a 0027 precisou cadastrar gestões futuras (2027.1–2028.2) para o
+-- Google Forms, mas `gestao_status` só tinha `'ativa' | 'finalizada'` — nenhum
+-- dos dois descreve "existe, tem data definida, mas ainda não começou". A 0027
+-- usou `'finalizada'` como placeholder, o que é semanticamente errado (a
+-- gestão não terminou — nem começou). A 0029 corrige isso e passa a EXIGIR
+-- `status = 'planejada'` para uma gestão poder receber campanha de entrada.
+--
+-- ⚠️ ESTA MIGRATION FAZ UMA COISA SÓ, DE PROPÓSITO — mesmo motivo já
+-- documentado nesta base (0004, 0006, 0015): Postgres não permite usar um
+-- valor de enum na mesma transação em que ele foi adicionado, e a CLI do
+-- Supabase roda cada migration numa transação. O valor é criado aqui; quem o
+-- usa (a correção das 4 gestões futuras e a nova RPC) é a 0029.
+--
+-- Nenhum registro existente muda de status aqui. `ativa` e `finalizada`
+-- continuam significando exatamente o que significavam.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+alter type gestao_status add value if not exists 'planejada';

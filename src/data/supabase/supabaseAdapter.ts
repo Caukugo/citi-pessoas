@@ -22,7 +22,9 @@ import {
   fromAnonymousFeedbackRow,
   fromFeedbackRow,
   fromGestaoRow,
+  fromGoogleFormsIntakeConfigRow,
   fromImportContinuationJson,
+  fromIntakeCampaignRow,
   fromMemberEventRow,
   fromMemberRow,
   fromOrgAreaRow,
@@ -838,6 +840,87 @@ export const supabaseAdapter: DataAdapter = {
       if (error) fail(error, 'Erro ao gravar o caminho da foto');
 
       return path;
+    },
+  },
+
+  googleFormsIntake: {
+    async getConfig() {
+      const { data, error } = await supabase()
+        .from('google_forms_intake_config')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a configuração do formulário');
+      if (!data) throw new DataError('not_found', 'Configuração do formulário não encontrada.');
+      return fromGoogleFormsIntakeConfigRow(data);
+    },
+
+    async updateConfig(input) {
+      const row: Record<string, unknown> = {};
+      if (input.enabled !== undefined) row.enabled = input.enabled;
+      if (input.formId !== undefined) row.form_id = input.formId;
+      if (input.responderUrl !== undefined) row.responder_url = input.responderUrl;
+
+      const { data, error } = await supabase()
+        .from('google_forms_intake_config')
+        .update(row)
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) fail(error, 'Erro ao salvar a configuração do formulário');
+      return fromGoogleFormsIntakeConfigRow(data);
+    },
+
+    async getActiveCampaign() {
+      const { data, error } = await supabase()
+        .from('member_intake_campaigns')
+        .select('*')
+        .eq('status', 'ativa')
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a campanha de entrada ativa');
+      return data ? fromIntakeCampaignRow(data) : null;
+    },
+
+    async listCampaigns() {
+      const { data, error } = await supabase()
+        .from('member_intake_campaigns')
+        .select('*')
+        .order('activated_at', { ascending: false });
+      if (error) fail(error, 'Erro ao listar campanhas de entrada');
+      return (data ?? []).map(fromIntakeCampaignRow);
+    },
+
+    async startCampaign(input) {
+      // Uma chamada só: localiza a gestão pelo RÓTULO ou cria como
+      // `planejada` (0029), valida (status, período, prazo, sem campanha
+      // anterior) e cria a campanha — tudo na mesma transação do Postgres,
+      // serializada por advisory lock. Erros de negócio chegam aqui como
+      // mensagem prefixada por um código estável (`gestao_ja_possui_campanha:`
+      // etc.) — nunca um erro de SQL bruto.
+      const { data, error } = await supabase().rpc('citi_start_intake_campaign', {
+        p_gestao_label: input.gestaoLabel,
+        p_entry_date: input.entryDate,
+        p_response_deadline_at: input.responseDeadlineAt,
+      });
+      if (error) fail(error, 'Erro ao iniciar a campanha de entrada');
+      return fromIntakeCampaignRow(data as Record<string, unknown>);
+    },
+
+    async closeCampaign(campaignId) {
+      const { data, error } = await supabase().rpc('citi_close_intake_campaign', {
+        p_campaign_id: campaignId,
+      });
+      if (error) fail(error, 'Erro ao encerrar a campanha de entrada');
+      return fromIntakeCampaignRow(data as Record<string, unknown>);
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      const { count, error } = await supabase()
+        .from('member_intake_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+      if (error) fail(error, 'Erro ao contar respostas da campanha');
+      return count ?? 0;
     },
   },
 };

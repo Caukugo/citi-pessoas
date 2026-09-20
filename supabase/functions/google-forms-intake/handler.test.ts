@@ -22,7 +22,6 @@ import { handleRequest, type Env } from './handler.ts';
 const WEBHOOK_SECRET = 'segredo-de-teste-do-webhook';
 const MEMBER_ID = '11111111-1111-4111-8111-111111111111';
 const SUBMISSION_ID = '22222222-2222-4222-8222-222222222222';
-const GESTAO_ID = '33333333-3333-4333-8333-333333333333';
 const SUBAREA_ID = '44444444-4444-4444-8444-444444444444';
 const FORM_ID = 'form-fictício-123';
 
@@ -83,6 +82,8 @@ function fakeBackend(
     importOutcome?: Record<string, unknown>;
     cpfOutcome?: Record<string, unknown>;
     uploadFalha?: boolean;
+    /** `undefined` = nenhuma campanha ativa. Usado pelos testes do endpoint de status (GET). */
+    campanhaAtiva?: { response_deadline_at: string };
   } = {},
 ) {
   const {
@@ -96,6 +97,7 @@ function fakeBackend(
     },
     cpfOutcome = { outcome: 'criado', last4: '4725' },
     uploadFalha = false,
+    campanhaAtiva,
   } = options;
 
   const chamadas: Chamada[] = [];
@@ -117,12 +119,14 @@ function fakeBackend(
 
     if (url.includes('/rest/v1/google_forms_intake_config')) {
       if (configAusente) return new Response(JSON.stringify([]), { status: 200 });
-      return new Response(
-        JSON.stringify([
-          { enabled, gestao_id: GESTAO_ID, entry_date: '2026-09-01', form_id: FORM_ID },
-        ]),
-        { status: 200 },
-      );
+      // Gestão e data oficial de entrada NÃO vêm mais daqui (0026): a
+      // configuração permanente só tem `enabled` e `form_id`. Quem resolve
+      // gestão/data é a campanha ativa, dentro do RPC de importação.
+      return new Response(JSON.stringify([{ enabled, form_id: FORM_ID }]), { status: 200 });
+    }
+
+    if (url.includes('/rest/v1/member_intake_campaigns')) {
+      return new Response(JSON.stringify(campanhaAtiva ? [campanhaAtiva] : []), { status: 200 });
     }
 
     if (url.includes('rpc/citi_resolve_academic_course')) {
@@ -192,6 +196,15 @@ async function assinar(bodyText: string, timestamp = Date.now()): Promise<Header
   });
 }
 
+/** Assinatura do GET de status: corpo vazio, mesma fórmula `${timestamp}.${corpo}`. */
+async function requisicaoDeStatusAssinada(timestamp = Date.now()): Promise<Request> {
+  const headers = await assinar('', timestamp);
+  return new Request('https://projeto.supabase.co/functions/v1/google-forms-intake', {
+    method: 'GET',
+    headers,
+  });
+}
+
 async function requisicaoAssinada(payload: Record<string, unknown>, timestamp?: number): Promise<Request> {
   const bodyText = JSON.stringify(payload);
   const headers = await assinar(bodyText, timestamp);
@@ -203,9 +216,9 @@ async function requisicaoAssinada(payload: Record<string, unknown>, timestamp?: 
 }
 
 describe('google-forms-intake — segurança do webhook', () => {
-  it('recusa método diferente de POST', async () => {
+  it('recusa método não suportado (nem POST nem GET)', async () => {
     const { fetchImpl } = fakeBackend();
-    const request = new Request('https://x/functions/v1/google-forms-intake', { method: 'GET' });
+    const request = new Request('https://x/functions/v1/google-forms-intake', { method: 'PUT' });
     const response = await handleRequest(request, { env, fetchImpl });
     expect(response.status).toBe(405);
     expect((await response.json()).error).toBe('metodo_nao_suportado');
@@ -280,7 +293,7 @@ describe('google-forms-intake — configuração', () => {
     expect((await response.json()).error).toBe('integracao_desabilitada');
   });
 
-  it('recusa quando não existe configuração (gestão de entrada não configurada)', async () => {
+  it('recusa quando não existe configuração permanente (form_id nunca configurado)', async () => {
     const { fetchImpl } = fakeBackend({ configAusente: true });
     const request = await requisicaoAssinada(basePayload());
     const response = await handleRequest(request, { env, fetchImpl });
@@ -420,6 +433,204 @@ describe('google-forms-intake — caminho feliz e pendências', () => {
     const json = await response.json();
     expect(json.member_id).toBe(MEMBER_ID);
     expect(json.review_reasons).toContain('cpf_store_failed');
+  });
+});
+
+describe('google-forms-intake — campanha de entrada', () => {
+  it('sem campanha ativa: recusa criar membro e não toca CPF, foto ou pendência', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'sem_campanha_ativa', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.outcome).toBe('sem_campanha_ativa');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('/storage/v1/object/'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('citi_flag_intake_review'))).toBe(false);
+  });
+
+  it('prazo encerrado: recusa criar membro e não toca CPF, foto ou pendência (migration 0027)', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'prazo_encerrado', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.outcome).toBe('prazo_encerrado');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('/storage/v1/object/'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('citi_flag_intake_review'))).toBe(false);
+  });
+
+  it('fora da janela de campanha (migration 0030): recusa criar membro, mesmo mapeamento de sem_campanha_ativa/prazo_encerrado', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'fora_da_janela_de_campanha', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(json.outcome).toBe('fora_da_janela_de_campanha');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
+
+  it('respondedAt ausente: recusa ANTES de chamar citi_import_member_via_forms', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const payload = basePayload();
+    delete (payload as Record<string, unknown>).respondedAt;
+    const request = await requisicaoAssinada(payload);
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('failed');
+    expect(json.reason).toBe('timestamp_resposta_ausente');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_record_intake_failure'))).toBe(true);
+  });
+
+  it('respondedAt sem fuso explícito (formato inválido): recusa ANTES de chamar citi_import_member_via_forms', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const request = await requisicaoAssinada(basePayload({ respondedAt: '2026-09-18 12:00:00' }));
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('failed');
+    expect(json.reason).toBe('timestamp_resposta_invalido');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+  });
+
+  it('respondedAt com texto qualquer (não é data nenhuma): recusa antes da RPC', async () => {
+    const { fetchImpl, chamadas } = fakeBackend();
+    const request = await requisicaoAssinada(basePayload({ respondedAt: 'não é uma data' }));
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.reason).toBe('timestamp_resposta_invalido');
+    expect(chamadas.some((c) => c.url.includes('rpc/citi_import_member_via_forms'))).toBe(false);
+  });
+
+  it('timestamp_resposta_divergente (migration 0030): recusa sem tocar CPF/foto', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'timestamp_resposta_divergente', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(422);
+    expect(json.outcome).toBe('timestamp_resposta_divergente');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
+
+  it('falha_tecnica após capturar o snapshot (migration 0030): retryable, não toca CPF/foto', async () => {
+    const { fetchImpl, chamadas } = fakeBackend({
+      importOutcome: { outcome: 'falha_tecnica', submission_id: SUBMISSION_ID },
+    });
+    const request = await requisicaoAssinada(basePayload());
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json.outcome).toBe('falha_tecnica');
+    expect(json.submission_id).toBe(SUBMISSION_ID);
+    expect(chamadas.some((c) => c.url.includes('citi_set_member_cpf'))).toBe(false);
+  });
+});
+
+describe('google-forms-intake — sincronização de status (GET, Apps Script)', () => {
+  it('recusa GET sem assinatura', async () => {
+    const { fetchImpl } = fakeBackend();
+    const request = new Request('https://x/functions/v1/google-forms-intake', { method: 'GET' });
+    const response = await handleRequest(request, { env, fetchImpl });
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe('assinatura_ausente');
+  });
+
+  it('recusa GET com assinatura inválida', async () => {
+    const { fetchImpl } = fakeBackend();
+    const request = new Request('https://x/functions/v1/google-forms-intake', {
+      method: 'GET',
+      headers: { 'x-citi-timestamp': String(Date.now()), 'x-citi-signature': 'forjada' },
+    });
+    const response = await handleRequest(request, { env, fetchImpl });
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe('assinatura_invalida');
+  });
+
+  it('integração desabilitada: accepting é sempre false, mesmo com campanha ativa', async () => {
+    const { fetchImpl } = fakeBackend({
+      enabled: false,
+      campanhaAtiva: { response_deadline_at: new Date(Date.now() + 60_000).toISOString() },
+    });
+    const request = await requisicaoDeStatusAssinada();
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.enabled).toBe(false);
+    expect(json.accepting).toBe(false);
+  });
+
+  it('habilitada, sem campanha ativa: accepting false', async () => {
+    const { fetchImpl } = fakeBackend({ enabled: true });
+    const request = await requisicaoDeStatusAssinada();
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(json.enabled).toBe(true);
+    expect(json.campaign_active).toBe(false);
+    expect(json.accepting).toBe(false);
+  });
+
+  it('habilitada, campanha ativa, prazo no futuro: accepting true', async () => {
+    const deadline = new Date(Date.now() + 60_000).toISOString();
+    const { fetchImpl } = fakeBackend({ enabled: true, campanhaAtiva: { response_deadline_at: deadline } });
+    const request = await requisicaoDeStatusAssinada();
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(json.enabled).toBe(true);
+    expect(json.campaign_active).toBe(true);
+    expect(json.response_deadline_at).toBe(deadline);
+    expect(json.accepting).toBe(true);
+  });
+
+  it('habilitada, campanha ativa, prazo já passou: accepting false (backend manda, não o acionador do Google)', async () => {
+    const deadline = new Date(Date.now() - 60_000).toISOString();
+    const { fetchImpl } = fakeBackend({ enabled: true, campanhaAtiva: { response_deadline_at: deadline } });
+    const request = await requisicaoDeStatusAssinada();
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(json.campaign_active).toBe(true);
+    expect(json.accepting).toBe(false);
+  });
+
+  it('nunca devolve gestão, form_id ou qualquer coisa além de enabled/campaign_active/response_deadline_at/accepting', async () => {
+    const { fetchImpl } = fakeBackend({
+      enabled: true,
+      campanhaAtiva: { response_deadline_at: new Date(Date.now() + 60_000).toISOString() },
+    });
+    const request = await requisicaoDeStatusAssinada();
+    const response = await handleRequest(request, { env, fetchImpl });
+    const json = await response.json();
+
+    expect(Object.keys(json).sort()).toEqual(
+      ['accepting', 'campaign_active', 'enabled', 'request_id', 'response_deadline_at'].sort(),
+    );
   });
 });
 
