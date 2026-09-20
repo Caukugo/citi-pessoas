@@ -50,6 +50,8 @@ interface Opcoes {
   /** Já existe vínculo com evento? */
   comEvento?: boolean;
   jaEnfileirada?: boolean;
+  /** Quando a pessoa clicou "Atualizar" pela última vez. */
+  ultimaSyncManual?: string | null;
 }
 
 async function montarMundo(opcoes: Opcoes = {}) {
@@ -101,7 +103,7 @@ async function montarMundo(opcoes: Opcoes = {}) {
             sync_token: null,
             conectada_em: '2026-09-01T12:00:00Z',
             ultima_sync_em: null,
-            ultima_sync_manual_em: null,
+            ultima_sync_manual_em: opcoes.ultimaSyncManual ?? null,
           },
         ]),
         { status: 200 },
@@ -509,6 +511,50 @@ describe('serviço da agenda de X1', () => {
       fetchImpl: mundo.fetchImpl,
     });
     expect(bloqueada.status).toBe(403);
+  });
+
+  it('⚠️ a trava de 30s da atualização manual é do SERVIDOR, não do botão', async () => {
+    const mundo = await montarMundo();
+
+    // A conexão do mundo falso diz `ultima_sync_manual_em: null` — primeira
+    // atualização, então passa.
+    const primeira = await handleRequest(pedido('POST', '/sincronizar'), {
+      env: mundo.env,
+      fetchImpl: mundo.fetchImpl,
+      agora: () => new Date('2026-09-25T12:00:00.000Z'),
+    });
+    expect(primeira.status).toBe(200);
+
+    // A marca é gravada ANTES da leitura: um segundo clique durante uma
+    // varredura lenta encontra a trava fechada, que é quando ela serve para
+    // alguma coisa.
+    const marcou = mundo.chamadas.find(
+      (c) => c.method === 'PATCH' && c.url.includes('google_calendar_connections'),
+    );
+    expect(marcou?.body).toContain('ultima_sync_manual_em');
+
+    // E agora a recusa, que é a regra de verdade: dez segundos depois da
+    // última, o servidor diz não — mesmo que o botão estivesse habilitado.
+    const recente = await montarMundo({ ultimaSyncManual: '2026-09-25T12:00:00.000Z' });
+    const segunda = await handleRequest(pedido('POST', '/sincronizar'), {
+      env: recente.env,
+      fetchImpl: recente.fetchImpl,
+      agora: () => new Date('2026-09-25T12:00:10.000Z'),
+    });
+
+    expect(segunda.status).toBe(429);
+    expect(await segunda.json()).toEqual({ error: 'sincronizacao_muito_recente' });
+    // Nenhuma chamada ao Google: é exatamente a cota que a trava protege.
+    expect(corpoEnviadoAoGoogle(recente.chamadas)).toBe('');
+
+    // Passados os 30 segundos, volta a funcionar.
+    const depois = await montarMundo({ ultimaSyncManual: '2026-09-25T12:00:00.000Z' });
+    const terceira = await handleRequest(pedido('POST', '/sincronizar'), {
+      env: depois.env,
+      fetchImpl: depois.fetchImpl,
+      agora: () => new Date('2026-09-25T12:01:00.000Z'),
+    });
+    expect(terceira.status).toBe(200);
   });
 
   it('desconectar não cancela evento nenhum', async () => {

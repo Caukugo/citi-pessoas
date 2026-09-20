@@ -19,7 +19,7 @@
 | 7 · Gavetas e jornadas | ✅ concluída (sobre o mock) |
 | 8 · OAuth | ✅ concluída — falta homologar com credencial real |
 | 9 · Operações reais + idempotência | ✅ concluída — `google-calendar` criando, reagendando e cancelando; falta homologar com credencial real |
-| 10 · Sincronização | ⏳ |
+| 10 · Sincronização | ✅ concluída — `google-calendar-sync`, migration `0027` (**não aplicada**) e "Atualizar" com trava de 30s |
 | 11 · Documentação e fechamento | ⏳ |
 
 Legenda: ⏳ não começou · 🔄 em andamento · ✅ concluído · ⛔ bloqueado por

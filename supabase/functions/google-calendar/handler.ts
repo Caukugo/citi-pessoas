@@ -12,6 +12,7 @@ import {
   type FetchLike,
 } from '../_shared/supabase.ts';
 import { executarJob, type JobDaFila, type OutboxEnv, type TipoOperacao } from './outbox.ts';
+import { sincronizarPerfil } from '../_shared/google/sincronizacao.ts';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -127,6 +128,10 @@ export async function handleRequest(request: Request, deps: HandlerDeps): Promis
 
     if (rota[0] === 'respostas' && request.method === 'POST') {
       return await atualizarRespostas(request, deps, caller, origin, id);
+    }
+
+    if (rota[0] === 'sincronizar' && request.method === 'POST') {
+      return await sincronizarAgora(deps, caller, origin, id);
     }
 
     return jsonResponse({ error: 'metodo_nao_suportado' }, 405, origin);
@@ -730,6 +735,86 @@ async function atualizarRespostas(
   }
 
   return jsonResponse({ alterados }, 200, origin);
+}
+
+// ─── Atualizar agora ──────────────────────────────────────────────────────────
+
+/** Janela mínima entre duas atualizações manuais do MESMO perfil. */
+const TRAVA_MANUAL_MS = 30_000;
+
+/**
+ * `POST /sincronizar` — o botão "Atualizar".
+ *
+ * ⚠️ A TRAVA DE 30 SEGUNDOS É DO SERVIDOR, e não um `disabled` no botão.
+ * Desabilitar o botão é cortesia com quem clica; a trava aqui é o que protege
+ * a cota do Google de toda a organização quando alguém deixa a aba aberta com
+ * um script, ou simplesmente clica dez vezes achando que travou.
+ *
+ * ⚠️ E SÓ PARA O PRÓPRIO PERFIL. Não existe parâmetro para sincronizar a
+ * conexão de outra pessoa — nem faria sentido: o token é dela, e a leitura
+ * atravessa a agenda pessoal dela.
+ */
+async function sincronizarAgora(
+  deps: HandlerDeps,
+  caller: Caller,
+  origin: string | null,
+  id: string,
+): Promise<Response> {
+  const agora = deps.agora?.() ?? new Date();
+
+  const leitura = await deps.fetchImpl(
+    `${deps.env.supabaseUrl}/rest/v1/google_calendar_connections` +
+      `?profile_id=eq.${encodeURIComponent(caller.profileId)}&select=ultima_sync_manual_em`,
+    { headers: servico(deps.env) },
+  );
+
+  const conexao = leitura.ok
+    ? ((await leitura.json()) as { ultima_sync_manual_em: string | null }[])?.[0]
+    : undefined;
+
+  if (!conexao) return jsonResponse({ error: 'sem_conexao_google' }, 409, origin);
+
+  const ultima = conexao.ultima_sync_manual_em
+    ? Date.parse(conexao.ultima_sync_manual_em)
+    : 0;
+
+  if (Number.isFinite(ultima) && agora.getTime() - ultima < TRAVA_MANUAL_MS) {
+    // 429, não erro: a informação está fresca, e dizer isso é mais honesto do
+    // que fingir que sincronizou.
+    return jsonResponse({ error: 'sincronizacao_muito_recente' }, 429, origin);
+  }
+
+  // Marca ANTES de começar. Se a leitura demorar, um segundo clique nesse
+  // meio-tempo encontra a trava fechada — que é justamente o caso em que ela
+  // serve para alguma coisa.
+  await deps.fetchImpl(
+    `${deps.env.supabaseUrl}/rest/v1/google_calendar_connections` +
+      `?profile_id=eq.${encodeURIComponent(caller.profileId)}`,
+    {
+      method: 'PATCH',
+      headers: { ...servico(deps.env), Prefer: 'return=minimal' },
+      body: JSON.stringify({ ultima_sync_manual_em: agora.toISOString() }),
+    },
+  );
+
+  const resultado = await sincronizarPerfil(deps, caller.profileId, id);
+
+  if (resultado.erro) {
+    return jsonResponse({ error: resultado.erro }, resultado.erro === 'requer_reconexao' ? 401 : 502, origin);
+  }
+
+  return jsonResponse(
+    {
+      atualizados: resultado.atualizados,
+      // Quantos eventos da agenda pessoal foram IGNORADOS. Sai como número
+      // para a tela poder dizer "nada mais mudou" sem que um único detalhe
+      // desses eventos atravesse a fronteira.
+      descartados: resultado.descartados,
+      sync_em: resultado.syncEm,
+    },
+    200,
+    origin,
+  );
 }
 
 // ─── A ponte com a caixa de saída ─────────────────────────────────────────────

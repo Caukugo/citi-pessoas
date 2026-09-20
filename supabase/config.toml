@@ -474,3 +474,24 @@ verify_jwt = false
 # ─────────────────────────────────────────────────────────────────────────────
 [functions.google-calendar]
 verify_jwt = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar-sync` — o worker periódico da Agenda de X1 (X1-010).
+#
+# `verify_jwt = false` por um motivo diferente das outras: NÃO EXISTE USUÁRIO
+# nesta chamada. Quem chama é o próprio banco, pelo `pg_cron` + `pg_net`
+# (migration 0027). Não há sessão, não há navegador e não há JWT para verificar.
+#
+# A autenticação é HMAC de `timestamp + corpo`, com o segredo no Vault —
+# conferida DENTRO do handler, antes de o corpo ser sequer interpretado, e com
+# comparação em tempo constante. O timestamp entra na assinatura justamente
+# para que um pedido capturado expire em minutos em vez de valer para sempre.
+#
+# ⚠️ Sem `GOOGLE_CALENDAR_CRON_SECRET`, a função RECUSA TUDO. Aqui não vale o
+# estado degradado do `google-calendar`: um worker que aceitasse pedidos sem
+# assinatura seria um endpoint aberto que esvazia filas e varre calendários.
+#
+# Coberto por supabase/functions/google-calendar-sync/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar-sync]
+verify_jwt = false
