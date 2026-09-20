@@ -9,9 +9,9 @@
 
 | Etapa | Situação |
 | --- | --- |
-| 0 · Governança e branch | 🔄 em andamento |
-| 1 · Reprodução visual (5 gates) | ⏳ |
-| 2 · Migration `0026` + legado | ⏳ |
+| 0 · Governança e branch | ✅ concluída |
+| 1 · Reprodução visual (5 gates) | ⛔ **bloqueada** — a skill é reservada à invocação explícita: rode `/img-to-html` |
+| 2 · Migration `0026` + legado | 🔄 escrita; **não aplicada** (sem Docker/psql/projeto linkado aqui) |
 | 3 · Contrato de dados + regras puras | ⏳ |
 | 4 · Mock adapter + fixtures | ⏳ |
 | 5 · Supabase adapter + mappers | ⏳ |
