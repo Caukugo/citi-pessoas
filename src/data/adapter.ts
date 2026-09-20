@@ -9,6 +9,7 @@ import type {
   Gestao,
   FeedbackUpdateInput,
   ID,
+  ISODate,
   Member,
   MemberCreateInput,
   MemberEvent,
@@ -24,8 +25,20 @@ import type {
   OrgCatalog,
   Settings,
   X1,
+  X1Appointment,
+  X1AppointmentCancelInput,
+  X1AppointmentCreateInput,
+  X1AppointmentFilters,
+  X1AppointmentRecordInput,
+  X1AppointmentRecordResult,
+  X1AppointmentUpdateInput,
   X1CreateInput,
+  X1SyncOperation,
+  X1SyncRequestResult,
+  X1SyncState,
   X1UpdateInput,
+  GoogleCalendarConfig,
+  GoogleCalendarConnection,
 } from './types';
 
 /**
@@ -48,6 +61,10 @@ import type {
 export interface DataAdapter {
   members: MembersRepository;
   x1: X1Repository;
+  /** Agenda de X1: o COMPROMISSO, separado do registro da conversa (ADR-020). */
+  x1Appointments: X1AppointmentsRepository;
+  /** Conexão de quem está logado com o Google Calendar (ADR-021). */
+  googleCalendar: GoogleCalendarRepository;
   feedbacks: FeedbacksRepository;
   anonymousFeedbacks: AnonymousFeedbacksRepository;
   settings: SettingsRepository;
@@ -156,6 +173,152 @@ export interface X1Repository {
   getById(id: ID): Promise<X1 | null>;
   create(input: X1CreateInput): Promise<X1>;
   update(id: ID, input: X1UpdateInput): Promise<X1>;
+}
+
+/**
+ * A AGENDA DE X1 — o compromisso.
+ *
+ * ⚠️ Nenhum método aqui recebe "quem é o organizador". Ele vem SEMPRE da
+ * sessão, resolvido no servidor. Se fosse parâmetro, trocar um id no cliente
+ * usaria o token de outra pessoa para emitir convite. Ver ADR-021.
+ */
+export interface X1AppointmentsRepository {
+  /**
+   * A AGENDA: um intervalo, todo mundo, UMA consulta.
+   *
+   * POR QUE NÃO reaproveitar `listByMember` por pessoa: a agenda mostra o mês
+   * de 80 membros. Uma consulta por membro é o mesmo N+1 que
+   * `X1Repository.listLastCompletedByMember` existe para evitar.
+   *
+   * Ordenado por instante crescente. Os "horário a definir" do legado entram
+   * no começo do dia deles — nunca fora do dia.
+   */
+  listByRange(filters: X1AppointmentFilters): Promise<X1Appointment[]>;
+
+  /** Histórico de compromissos de UMA pessoa — a aba do Perfil. */
+  listByMember(memberId: ID): Promise<X1Appointment[]>;
+
+  /**
+   * O PRÓXIMO compromisso de cada membro, indexado por `memberId`.
+   *
+   * Mesma razão de `listLastCompletedByMember`: a listagem de membros e o
+   * bloco de pendências precisam disso para todo mundo de uma vez.
+   *
+   * ⚠️ Só `agendado` que ainda NÃO terminou. Cancelado, não realizado, já
+   * registrado e passado ficam de fora — senão a tela diria "próximo X1:
+   * março" em setembro.
+   */
+  listNextByMember(now?: ISODate): Promise<Record<ID, X1Appointment>>;
+
+  getById(id: ID): Promise<X1Appointment | null>;
+
+  /**
+   * Cria o compromisso. Com `sendInvite`, ENFILEIRA a criação do evento — não
+   * espera o Google responder. A tela acompanha por `getSyncState`.
+   *
+   * Só devolve `syncStatus: 'sincronizado'` quando o Google confirmou. Até lá
+   * a tela mostra "Enviando…", nunca um sucesso que não aconteceu.
+   */
+  create(input: X1AppointmentCreateInput): Promise<X1Appointment>;
+
+  /**
+   * Reagendar ou editar. Atualiza O MESMO evento no Google e mantém o
+   * vínculo — não cria outro.
+   *
+   * ⚠️ Só o organizador. Validado no servidor, não escondido na tela.
+   */
+  update(id: ID, input: X1AppointmentUpdateInput): Promise<X1Appointment>;
+
+  /**
+   * Cancela. ⚠️ `reason` é interno e NUNCA chega ao Google: o evento é
+   * removido sem justificativa, que é o comportamento certo para quem foi
+   * convidado. O histórico e qualquer conversa registrada são preservados.
+   */
+  cancel(id: ID, input?: X1AppointmentCancelInput): Promise<X1Appointment>;
+
+  /**
+   * "Não aconteceu." Não apaga nada, não cria conversa e NÃO é falta — não
+   * gera penalidade automática nenhuma.
+   */
+  markNotHeld(id: ID): Promise<X1Appointment>;
+
+  /**
+   * Registra a conversa e fecha o compromisso na MESMA transação.
+   *
+   * IDEMPOTENTE: repetir devolve o mesmo X1 com `alreadyRecorded: true`, sem
+   * criar uma segunda conversa.
+   *
+   * Em compromisso vindo do legado, PREENCHE o `x1s` que já existia em vez de
+   * criar um segundo — senão o antigo ficaria agendado para sempre.
+   */
+  record(id: ID, input: X1AppointmentRecordInput): Promise<X1AppointmentRecordResult>;
+
+  // ── Integração ──────────────────────────────────────────────────────────────
+
+  /**
+   * Pede (de novo) a sincronização deste compromisso.
+   *
+   * IDEMPOTENTE: repetir NÃO cria um segundo evento no Google. A defesa é a
+   * chave de idempotência no banco, não uma checagem otimista aqui.
+   */
+  requestSync(id: ID, operation?: X1SyncOperation): Promise<X1SyncRequestResult>;
+
+  /**
+   * Estado atual da integração de um compromisso — inclusive se o link do Meet
+   * já existe. A tela consulta isto em intervalo curto enquanto está pendente,
+   * e para assim que resolve.
+   */
+  getSyncState(id: ID): Promise<X1SyncState>;
+
+  /**
+   * Busca no Google as respostas aos convites do intervalo e grava o que
+   * mudou. Chamada ao abrir a agenda, não em laço.
+   *
+   * Devolve SÓ os que mudaram — assim a invalidação de cache é proporcional e
+   * abrir a agenda não vira um loop de refetch.
+   */
+  refreshInviteResponses(
+    filters: Pick<X1AppointmentFilters, 'from' | 'to'>,
+  ): Promise<X1Appointment[]>;
+}
+
+/**
+ * A conexão de QUEM ESTÁ LOGADO com o Google Calendar.
+ *
+ * ⚠️ Nenhum método recebe um id de profile. A conexão é sempre a de quem está
+ * na sessão — não existe "ver ou usar a conexão de outra pessoa".
+ */
+export interface GoogleCalendarRepository {
+  /**
+   * Situação da conexão. Devolve `indisponivel_por_configuracao` quando o
+   * servidor não tem os segredos — e nesse caso a tela NÃO deve pedir para a
+   * pessoa refazer o OAuth: o problema não é dela.
+   */
+  getConnection(): Promise<GoogleCalendarConnection>;
+
+  /**
+   * URL de consentimento do Google, montada pelo servidor com `state` de uso
+   * único. Quem completa o OAuth é a Edge Function — esta camada só leva a
+   * pessoa até lá.
+   *
+   * `returnTo` é um caminho relativo, validado na gravação e de novo na volta.
+   */
+  getAuthorizationUrl(returnTo?: string): Promise<{ url: string }>;
+
+  /**
+   * Revoga no Google e apaga a credencial.
+   *
+   * ⚠️ Os eventos já criados NÃO são removidos e o histórico não é apagado:
+   * desconectar não é desmarcar.
+   */
+  disconnect(): Promise<void>;
+
+  /** Dispara a sincronização manual do próprio perfil ("Atualizar"). */
+  sync(): Promise<{ updated: number; discarded: number; syncedAt: ISODate | null }>;
+
+  /** Configuração administrativa. ⚠️ Nunca devolve segredo. */
+  getConfig(): Promise<GoogleCalendarConfig>;
+  updateConfig(input: Partial<Omit<GoogleCalendarConfig, 'updatedAt'>>): Promise<GoogleCalendarConfig>;
 }
 
 export interface FeedbacksRepository {

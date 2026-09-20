@@ -392,8 +392,25 @@ create view x1_agenda with (security_invoker = true) as
 select
   a.*,
   coalesce(a.starts_at, (a.scheduled_date + time '00:00:00') at time zone a.time_zone) as sort_at,
-  coalesce(a.ends_at,   (a.scheduled_date + time '23:59:59') at time zone a.time_zone) as ends_at_efetivo
-from x1_appointments a;
+  coalesce(a.ends_at,   (a.scheduled_date + time '23:59:59') at time zone a.time_zone) as ends_at_efetivo,
+
+  -- O vínculo com o Google vem junto, achatado.
+  --
+  -- POR QUE ACHATADO E NÃO EMBED: o PostgREST só monta objeto aninhado quando
+  -- enxerga uma FK, e view não tem FK. Sem estas colunas, toda tela da agenda
+  -- faria uma segunda consulta só para descobrir o link do Meet.
+  e.calendar_id    as event_calendar_id,
+  e.event_id       as event_event_id,
+  e.etag           as event_etag,
+  e.html_link      as event_html_link,
+  e.hangout_link   as event_hangout_link,
+  e.meet_status    as event_meet_status,
+  e.invited_email  as event_invited_email,
+  e.ultima_sync_em as event_ultima_sync_em
+from x1_appointments a
+left join x1_appointment_events e
+  on e.appointment_id = a.id
+ and e.deleted_at is null;
 
 comment on view x1_agenda is
   'x1_appointments com a chave de ordenação e o fim efetivo já resolvidos. Agendamento sem horário (legado) ocupa o dia inteiro: começa às 00:00 e termina às 23:59:59 no fuso dele.';
@@ -875,7 +892,7 @@ create or replace function citi_registra_conversa_x1(
   p_actor_email      text default null,
   p_request_id       text default null
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
@@ -901,7 +918,10 @@ begin
     insert into x1_appointment_audit (actor_profile_id, actor_email, appointment_id, action, result, request_id, metadata)
     values (v_actor, p_actor_email, p_appointment_id, 'registrar', 'duplicate', p_request_id,
             jsonb_build_object('x1_id', v_ag.x1_id));
-    return v_ag.x1_id;
+
+    -- `ja_registrado` é o que deixa a tela dizer "abrir o registro existente"
+    -- em vez de anunciar um sucesso que não aconteceu agora.
+    return jsonb_build_object('x1_id', v_ag.x1_id, 'ja_registrado', true);
   end if;
 
   if v_ag.status = 'cancelado' then
@@ -969,7 +989,7 @@ begin
   values (v_actor, p_actor_email, p_appointment_id, 'registrar', 'ok', p_request_id,
           jsonb_build_object('x1_id', v_x1, 'origem', v_ag.origin));
 
-  return v_x1;
+  return jsonb_build_object('x1_id', v_x1, 'ja_registrado', false);
 end;
 $$;
 

@@ -107,7 +107,34 @@ describe('lastCompletedX1 / nextScheduledX1', () => {
       { ...base, id: 'a', status: 'agendado', scheduledFor: '2026-09-20' },
       { ...base, id: 'b', status: 'agendado', scheduledFor: '2026-08-25' },
     ];
-    expect(nextScheduledX1(x1s)?.id).toBe('b');
+    // O relógio precisa ser explícito: antes desta correção a função devolvia
+    // o agendado mais ANTIGO, e passar `now` era irrelevante.
+    expect(nextScheduledX1(x1s, NOW)?.id).toBe('b');
+  });
+
+  it('⚠️ ignora agendamento que já passou — o primeiro da lista não é o próximo', () => {
+    const base = { memberId: 'mbr-1', createdAt: '', updatedAt: '', occurredAt: null } as const;
+    const x1s: X1[] = [
+      // Marcado para março e nunca fechado: não pode aparecer como "próximo".
+      { ...base, id: 'esquecido', status: 'agendado', scheduledFor: '2026-03-10' },
+      { ...base, id: 'proximo', status: 'agendado', scheduledFor: '2026-09-20' },
+    ];
+    expect(nextScheduledX1(x1s, NOW)?.id).toBe('proximo');
+  });
+
+  it('inclui o agendamento de HOJE — às 18h ele ainda é o próximo', () => {
+    const base = { memberId: 'mbr-1', createdAt: '', updatedAt: '', occurredAt: null } as const;
+    const x1s: X1[] = [{ ...base, id: 'hoje', status: 'agendado', scheduledFor: '2026-08-17' }];
+    expect(nextScheduledX1(x1s, NOW)?.id).toBe('hoje');
+  });
+
+  it('devolve null quando todos os agendamentos já passaram', () => {
+    const base = { memberId: 'mbr-1', createdAt: '', updatedAt: '', occurredAt: null } as const;
+    const x1s: X1[] = [
+      { ...base, id: 'a', status: 'agendado', scheduledFor: '2026-03-10' },
+      { ...base, id: 'b', status: 'agendado', scheduledFor: '2026-07-01' },
+    ];
+    expect(nextScheduledX1(x1s, NOW)).toBeNull();
   });
 
   it('devolve null quando não há X1 realizado', () => {

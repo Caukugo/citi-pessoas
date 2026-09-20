@@ -14,8 +14,12 @@ import type {
   MemberRecordCorrection,
   MemberStatus,
   X1,
+  X1Appointment,
+  X1SyncState,
+  GoogleCalendarConnection,
 } from '../types';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/env';
+import { normalizeText } from '@/lib/format';
 import { safeFileName } from '../photoValidation';
 import { supabase } from './client';
 import {
@@ -30,7 +34,10 @@ import {
   fromOrgSubareaRow,
   fromProfileRow,
   fromSettingsRow,
+  fromX1AppointmentRow,
   fromX1Row,
+  fromGoogleCalendarConfigRow,
+  toGoogleCalendarConfigRow,
   toCorrectionPayload,
   toFeedbackRow,
   toMemberRow,
@@ -151,6 +158,144 @@ function cpfFailure(status: number, data: Record<string, unknown>): DataError {
     return new DataError('invalid', 'CPF inválido.');
   }
   return new DataError('unavailable', 'Não foi possível falar com o serviço de CPF.');
+}
+
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Chamada às funções da Agenda de X1.
+ *
+ * Mesmo desenho de `callCpfFunction`: o token da SESSÃO vai no cabeçalho e a
+ * função decide tudo do lado do servidor.
+ *
+ * ⚠️ POR QUE NÃO ESCREVER DIRETO NA TABELA: quem cria o evento no Google é a
+ * função, porque é ela que tem o token do organizador e a chave de
+ * idempotência. Um `insert` do navegador criaria um compromisso sem convite —
+ * e, pior, sem a trava que impede um segundo convite no duplo clique.
+ *
+ * A `service_role` não existe aqui e nunca vai existir (CLAUDE.md §13).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+async function callCalendarFunction(
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  options: {
+    path: string;
+    body?: Record<string, unknown>;
+    /** A função de OAuth é outra: só ela tem o segredo do cliente Google. */
+    fn?: 'google-calendar' | 'google-calendar-oauth';
+    pathOverride?: string;
+  },
+): Promise<{ status: number; data: Record<string, unknown> }> {
+  const { data: sessionData } = await supabase().auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    throw new DataError('unauthorized', 'Sessão expirada. Entre de novo para usar a agenda.');
+  }
+
+  const base = SUPABASE_URL.replace(/\/$/, '');
+  const fn = options.fn ?? 'google-calendar';
+  const path = options.pathOverride ?? options.path;
+  const url = `${base}/functions/v1/${fn}${path}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        // Correlaciona a tela com a trilha de auditoria, sem guardar conteúdo.
+        'x-request-id': crypto.randomUUID(),
+      },
+      cache: 'no-store',
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (cause) {
+    throw new DataError(
+      'unavailable',
+      'Não foi possível falar com o serviço da agenda. Confira a conexão e tente de novo.',
+      cause,
+    );
+  }
+
+  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  return { status: response.status, data };
+}
+
+/**
+ * Traduz o erro do serviço da agenda em algo que a tela possa mostrar.
+ *
+ * ⚠️ As três situações abaixo precisam de mensagens DIFERENTES, e confundi-las
+ * é o erro mais fácil de cometer aqui:
+ *
+ *   • servidor sem configuração  → não adianta reconectar, o problema não é seu
+ *   • conta desconectada         → conecte
+ *   • autorização revogada       → reconecte, e o que estava pendente volta
+ */
+function calendarFailure(status: number, data: Record<string, unknown>): DataError {
+  const code = String(data.error ?? '');
+
+  if (code === 'integracao_nao_configurada') {
+    return new DataError(
+      'unavailable',
+      'A integração com o Google não está configurada neste ambiente. Fale com a Gestão de Pessoas — não é preciso reconectar sua conta.',
+    );
+  }
+  if (code === 'requer_reconexao') {
+    return new DataError(
+      'unauthorized',
+      'Sua autorização do Google expirou. Reconecte para enviar as alterações pendentes.',
+    );
+  }
+  if (code === 'sem_conexao_google') {
+    return new DataError('unauthorized', 'Conecte sua conta do Google para continuar.');
+  }
+  if (code === 'nao_e_organizador') {
+    return new DataError(
+      'unauthorized',
+      'Só quem organizou este X1 pode reagendar ou cancelar.',
+    );
+  }
+  if (code === 'email_invalido') {
+    return new DataError(
+      'invalid',
+      'Este membro não tem e-mail institucional válido. Corrija o cadastro antes de agendar.',
+    );
+  }
+  if (code === 'conflito_de_versao') {
+    return new DataError(
+      'conflict',
+      'Este evento foi alterado no Google. Confira o que mudou antes de reenviar.',
+    );
+  }
+
+  if (status === 401) return new DataError('unauthorized', 'Sessão expirada. Entre de novo.');
+  if (status === 403) return new DataError('unauthorized', 'Seu perfil não tem acesso à agenda.');
+  if (status === 404) return new DataError('not_found', 'Agendamento não encontrado.');
+  if (status === 409) return new DataError('conflict', 'Esta operação já estava em andamento.');
+  if (status === 422) {
+    return new DataError('invalid', String(data.mensagem ?? 'Confira os dados do agendamento.'));
+  }
+
+  return new DataError('unavailable', 'Não foi possível falar com o serviço da agenda.');
+}
+
+/** Nomes dos membros citados, para a busca por nome na agenda. */
+async function memberNames(ids: ID[]): Promise<Map<ID, string>> {
+  const unicos = [...new Set(ids)];
+  if (unicos.length === 0) return new Map();
+
+  const { data, error } = await supabase()
+    .from('members')
+    .select('id, full_name, role')
+    .in('id', unicos);
+  if (error) fail(error, 'Erro ao buscar os membros da agenda');
+
+  return new Map(
+    (data ?? []).map((row) => [row.id as ID, `${row.full_name ?? ''} ${row.role ?? ''}`]),
+  );
 }
 
 export const supabaseAdapter: DataAdapter = {
@@ -432,6 +577,275 @@ export const supabaseAdapter: DataAdapter = {
         .single();
       if (error) fail(error, 'Erro ao atualizar X1');
       return fromX1Row(data);
+    },
+  },
+
+  x1Appointments: {
+    async listByRange(filters) {
+      let query = supabase()
+        .from('x1_agenda')
+        .select('*')
+        // `sort_at` vem da view: instante real, ou começo do dia para o legado
+        // sem horário. Ordenar por `starts_at` deixaria o legado sempre no fim.
+        .gte('sort_at', `${filters.from}T00:00:00`)
+        .lte('sort_at', `${filters.to}T23:59:59`)
+        .order('sort_at', { ascending: true });
+
+      if (filters.organizerProfileId) {
+        query = query.eq('organizer_profile_id', filters.organizerProfileId);
+      }
+      if (filters.memberId) query = query.eq('member_id', filters.memberId);
+      if (!filters.includeClosed) {
+        query = query.in('status', ['agendado', 'realizado']);
+      }
+
+      const { data, error } = await query;
+      if (error) fail(error, 'Erro ao carregar a agenda de X1');
+
+      const appointments = (data ?? []).map(fromX1AppointmentRow);
+
+      // A busca por NOME acontece aqui, e não no banco, porque o nome mora em
+      // `members`: filtrar por ele no PostgREST exigiria um embed obrigatório
+      // que estreitaria a consulta principal. Mesmo desenho dos filtros
+      // derivados de Membros (ARCHITECTURE.md §4.1).
+      const term = normalizeText(filters.search ?? '');
+      if (!term) return appointments;
+
+      const names = await memberNames(appointments.map((a) => a.memberId));
+      return appointments.filter((appointment) =>
+        normalizeText(names.get(appointment.memberId) ?? '').includes(term),
+      );
+    },
+
+    async listByMember(memberId) {
+      const { data, error } = await supabase()
+        .from('x1_agenda')
+        .select('*')
+        .eq('member_id', memberId)
+        .order('sort_at', { ascending: false });
+      if (error) fail(error, 'Erro ao listar os X1 agendados do membro');
+      return (data ?? []).map(fromX1AppointmentRow);
+    },
+
+    async listNextByMember(now) {
+      const instant = now ?? new Date().toISOString();
+
+      // ⚠️ `ends_at_efetivo > agora`: o que já terminou não é "o próximo".
+      // Sem conversa vinculada e ainda agendado — mesma regra de
+      // `nextAppointment()`, expressa aqui em SQL.
+      const { data, error } = await supabase()
+        .from('x1_agenda')
+        .select('*')
+        .eq('status', 'agendado')
+        .is('x1_id', null)
+        .gt('ends_at_efetivo', instant)
+        .order('sort_at', { ascending: true });
+      if (error) fail(error, 'Erro ao listar o próximo X1 de cada membro');
+
+      const next: Record<ID, X1Appointment> = {};
+      for (const row of data ?? []) {
+        const appointment = fromX1AppointmentRow(row);
+        // Ordenado do mais próximo para o mais distante: o primeiro de cada
+        // membro já é o próximo dele.
+        if (!next[appointment.memberId]) next[appointment.memberId] = appointment;
+      }
+      return next;
+    },
+
+    async getById(id) {
+      const { data, error } = await supabase()
+        .from('x1_agenda')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao buscar o agendamento');
+      return data ? fromX1AppointmentRow(data) : null;
+    },
+
+    async create(input) {
+      // Passa pela Edge Function: ela é quem resolve o organizador a partir da
+      // SESSÃO, cria o evento no Google e grava tudo com chave de
+      // idempotência. Inserir direto na tabela criaria um compromisso sem
+      // convite e sem a trava contra duplicação.
+      const { status, data } = await callCalendarFunction('POST', {
+        path: '/agendamentos',
+        body: input as unknown as Record<string, unknown>,
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return fromX1AppointmentRow(data.agendamento as Record<string, unknown>);
+    },
+
+    async update(id, input) {
+      const { status, data } = await callCalendarFunction('PATCH', {
+        path: `/agendamentos/${id}`,
+        body: input as unknown as Record<string, unknown>,
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return fromX1AppointmentRow(data.agendamento as Record<string, unknown>);
+    },
+
+    async cancel(id, input) {
+      const { status, data } = await callCalendarFunction('POST', {
+        path: `/agendamentos/${id}/cancelar`,
+        // ⚠️ O motivo viaja para o NOSSO backend e para no banco. A função
+        // nunca o repassa ao Google — ver `buildGoogleEventPayload`.
+        body: { motivo: input?.reason ?? null },
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return fromX1AppointmentRow(data.agendamento as Record<string, unknown>);
+    },
+
+    async markNotHeld(id) {
+      // Não envolve o Google: é uma decisão interna sobre o que aconteceu, e
+      // não gera penalidade automática nenhuma.
+      const { error } = await supabase()
+        .from('x1_appointments')
+        .update({ status: 'nao_realizado' })
+        .eq('id', id);
+      if (error) fail(error, 'Erro ao marcar o X1 como não realizado');
+
+      // Relê pela view: é ela que traz o vínculo com o evento já resolvido.
+      const appointment = await supabaseAdapter.x1Appointments.getById(id);
+      if (!appointment) throw new DataError('not_found', 'Agendamento não encontrado.');
+      return appointment;
+    },
+
+    async record(id, input) {
+      // A conversa e o vínculo são gravados na MESMA transação pela função do
+      // banco. Fazer isso em duas chamadas deixaria a janela em que a conversa
+      // existe e o compromisso continua aberto.
+      const { data, error } = await supabase().rpc('citi_registra_conversa_x1', {
+        p_appointment_id: id,
+        p_conducted_by_id: input.conductedById,
+        p_occurred_at: input.occurredAt,
+        p_summary: input.summary ?? null,
+        p_topics: input.topics ?? [],
+        p_follow_ups: input.followUps ?? null,
+        p_document_url: input.documentUrl ?? null,
+        p_hard_skills: input.hardSkills ?? [],
+        p_soft_skills: input.softSkills ?? [],
+        p_desired_skills: input.desiredSkills ?? [],
+        p_citi_values: input.citiValues ?? [],
+        p_comments: input.comments ?? null,
+      });
+      if (error) fail(error, 'Erro ao registrar a conversa');
+
+      const resultado = data as { x1_id: ID; ja_registrado: boolean };
+      const x1Id = resultado.x1_id;
+
+      const [x1, appointment] = await Promise.all([
+        supabaseAdapter.x1.getById(x1Id),
+        supabaseAdapter.x1Appointments.getById(id),
+      ]);
+
+      if (!x1 || !appointment) {
+        throw new DataError('unavailable', 'A conversa foi salva, mas não foi possível recarregá-la.');
+      }
+
+      return {
+        x1,
+        appointment,
+        // Quem sabe se já havia registro é a função, que fez a checagem dentro
+        // da transação. Deduzir isso aqui por timestamp seria um palpite.
+        alreadyRecorded: resultado.ja_registrado,
+      };
+    },
+
+    async requestSync(id, operation) {
+      const { status, data } = await callCalendarFunction('POST', {
+        path: `/agendamentos/${id}/sincronizar`,
+        body: { operacao: operation ?? null },
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return {
+        jobId: data.job_id as ID,
+        alreadyQueued: Boolean(data.ja_enfileirada),
+        state: data.estado as X1SyncState,
+      };
+    },
+
+    async getSyncState(id) {
+      const { status, data } = await callCalendarFunction('GET', {
+        path: `/agendamentos/${id}/sincronizacao`,
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return data.estado as X1SyncState;
+    },
+
+    async refreshInviteResponses(filters) {
+      const { status, data } = await callCalendarFunction('POST', {
+        path: '/respostas',
+        body: { de: filters.from, ate: filters.to },
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      // Devolve SÓ o que mudou: abrir a agenda não pode virar um refetch geral.
+      return ((data.alterados ?? []) as Record<string, unknown>[]).map(fromX1AppointmentRow);
+    },
+  },
+
+  googleCalendar: {
+    async getConnection() {
+      const { status, data } = await callCalendarFunction('GET', { path: '/estado' });
+
+      // ⚠️ Sem conexão a agenda continua legível. Um erro aqui NÃO pode
+      // derrubar a tela — ela degrada para "desconectada" e segue mostrando o
+      // que já está salvo.
+      if (status >= 500) {
+        return { status: 'indisponivel_por_configuracao', pendingOperations: 0 };
+      }
+      if (status >= 400) {
+        return { status: 'desconectada', pendingOperations: 0 };
+      }
+
+      return data.conexao as GoogleCalendarConnection;
+    },
+
+    async getAuthorizationUrl(returnTo) {
+      const { status, data } = await callCalendarFunction('POST', {
+        path: '/autorizacao',
+        body: { retorno: returnTo ?? '/x1' },
+        // O OAuth vive na própria função, que é a única que tem o segredo.
+        fn: 'google-calendar-oauth',
+        pathOverride: '/iniciar',
+      });
+      if (status >= 400) throw calendarFailure(status, data);
+      return { url: String(data.authorization_url) };
+    },
+
+    async disconnect() {
+      const { status, data } = await callCalendarFunction('DELETE', { path: '/conexao' });
+      if (status >= 400) throw calendarFailure(status, data);
+    },
+
+    async sync() {
+      const { status, data } = await callCalendarFunction('POST', { path: '/sincronizar' });
+      if (status >= 400) throw calendarFailure(status, data);
+      return {
+        updated: Number(data.atualizados ?? 0),
+        discarded: Number(data.descartados ?? 0),
+        syncedAt: (data.sync_em as string | null) ?? null,
+      };
+    },
+
+    async getConfig() {
+      const { data, error } = await supabase()
+        .from('google_calendar_config')
+        .select('*')
+        .eq('id', 1)
+        .single();
+      if (error) fail(error, 'Erro ao carregar a configuração do Google Calendar');
+      return fromGoogleCalendarConfigRow(data);
+    },
+
+    async updateConfig(input) {
+      const { data, error } = await supabase()
+        .from('google_calendar_config')
+        .update(toGoogleCalendarConfigRow(input))
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) fail(error, 'Erro ao salvar a configuração do Google Calendar');
+      return fromGoogleCalendarConfigRow(data);
     },
   },
 

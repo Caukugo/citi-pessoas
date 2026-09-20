@@ -67,6 +67,7 @@ declare
   v_sort      timestamptz;
   v_fim       timestamptz;
   v_status    x1_appointment_status;
+  v_resultado jsonb;
   v_inicio    timestamptz := date_trunc('hour', now()) + interval '1 day';
   v_passou    integer := 0;
 begin
@@ -210,12 +211,12 @@ begin
   v_passou := v_passou + 1;
 
   -- ═══ 8. Registrar a conversa cria o X1 e vincula ══════════════════════════
-  v_x1 := citi_registra_conversa_x1(
+  v_x1 := (citi_registra_conversa_x1(
     p_appointment_id  => v_ag,
     p_conducted_by_id => c_membro,
     p_occurred_at     => current_date,
     p_summary         => 'Conversa ficticia de teste.'
-  );
+  ) ->> 'x1_id')::uuid;
 
   select status, x1_id into v_status, v_x1_de_novo from x1_appointments where id = v_ag;
   if v_status <> 'realizado' or v_x1_de_novo <> v_x1 then
@@ -229,12 +230,17 @@ begin
   v_passou := v_passou + 1;
 
   -- ═══ 9. Registrar de novo devolve o MESMO X1 ══════════════════════════════
-  v_x1_de_novo := citi_registra_conversa_x1(
+  v_resultado := citi_registra_conversa_x1(
     p_appointment_id  => v_ag,
     p_conducted_by_id => c_membro,
     p_occurred_at     => current_date,
     p_summary         => 'Segunda tentativa, que nao pode criar outra conversa.'
   );
+  v_x1_de_novo := (v_resultado ->> 'x1_id')::uuid;
+
+  if (v_resultado ->> 'ja_registrado')::boolean is not true then
+    raise exception '% 9c: a segunda tentativa nao se declarou idempotente.', marcador;
+  end if;
 
   if v_x1_de_novo <> v_x1 then
     raise exception '% 9a: a segunda tentativa criou outra conversa (% vs %).', marcador, v_x1_de_novo, v_x1;
