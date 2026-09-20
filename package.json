@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"docs/**/*.md\"",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "check:auth-config": "node supabase/scripts/check-auth-config.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run check:auth-config && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

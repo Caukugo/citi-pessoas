@@ -172,7 +172,12 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+#
+# CITi Pessoas é plataforma por convite (CLAUDE.md §4): não existe
+# autorregistro público. `false` aqui bloqueia qualquer criação de conta nova
+# pela API do Auth (todos os métodos) — login de quem já tem profile continua
+# funcionando normalmente, porque login não passa por `enable_signup`.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -217,7 +222,12 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+#
+# Mesma regra de acesso por convite do `[auth].enable_signup` acima — este é
+# o toggle específico do provedor de e-mail. Recuperação de senha
+# (`/auth/v1/recover`) não passa por `enable_signup` e continua disponível
+# para quem já tem conta.
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -255,6 +265,11 @@ otp_expiry = 3600
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
+#
+# O produto não usa telefone para nada (CLAUDE.md — X1, feedback e cadastro
+# não têm campo de autenticação por SMS). Mantido `false` de propósito; a
+# verificação em scripts/check-auth-config.mjs falha o build se isto voltar a
+# `true`.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
@@ -285,6 +300,9 @@ max_frequency = "5s"
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+#
+# Mantido desligado — sem uso de telefone no produto. `scripts/check-auth-config.mjs`
+# falha o build se isto voltar a `true`.
 [auth.sms.twilio]
 enabled = false
 account_sid = ""
