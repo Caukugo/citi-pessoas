@@ -171,6 +171,20 @@ export interface MemberFilters {
   managerId?: ID;
 }
 
+/**
+ * Resultado de `bulkAssignGgResponsible` (migration 0031).
+ *
+ * Sempre `requested === updated`: a operação é tudo-ou-nada — se não desse
+ * para atualizar todo mundo, nada foi atualizado, e a chamada teria lançado
+ * erro em vez de devolver isto.
+ */
+export interface BulkAssignGgResponsibleResult {
+  requested: number;
+  updated: number;
+  ggResponsibleId: ID;
+  ggResponsibleName: string;
+}
+
 // ─── Estrutura organizacional ─────────────────────────────────────────────────
 
 /**

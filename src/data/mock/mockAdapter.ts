@@ -203,6 +203,87 @@ export const mockAdapter: DataAdapter = {
       return updated;
     },
 
+    async bulkAssignGgResponsible(memberIds, ggResponsibleId) {
+      await delay();
+
+      // Mesmas travas da RPC (migration 0031) — tudo ou nada, sem tocar o
+      // banco fictício até confirmar que a operação inteira é válida.
+      const LIMITE_LOTE = 200;
+
+      if (!memberIds || memberIds.length === 0) {
+        throw new DataError('invalid', 'lote_vazio: selecione ao menos um membro.');
+      }
+      if (memberIds.some((id) => !id)) {
+        throw new DataError('invalid', 'uuid_nulo_no_lote: a lista de membros não pode conter um id vazio.');
+      }
+      if (memberIds.length > LIMITE_LOTE) {
+        throw new DataError(
+          'invalid',
+          `lote_grande_demais: no máximo ${LIMITE_LOTE} membros por operação (recebido ${memberIds.length}).`,
+        );
+      }
+      if (new Set(memberIds).size !== memberIds.length) {
+        throw new DataError('invalid', 'uuid_duplicado_no_lote: a lista de membros não pode repetir o mesmo id.');
+      }
+      if (!ggResponsibleId) {
+        throw new DataError('invalid', 'responsavel_obrigatorio: escolha o responsável de GG.');
+      }
+
+      const db = mockDb();
+      const alvos = memberIds.map((id) => db.members.find((m) => m.id === id));
+
+      if (alvos.some((m) => !m)) {
+        throw new DataError('not_found', 'membro_inexistente: um ou mais membros da lista não foram encontrados.');
+      }
+      const membros = alvos as Member[];
+
+      if (membros.some((m) => m.status !== 'ativo')) {
+        throw new DataError('invalid', 'membro_inativo: todos os membros selecionados precisam estar ativos.');
+      }
+      // Só atribui quem está sem responsável — nunca sobrescreve. Reatribuir
+      // continua sendo feito individualmente, pela tela existente.
+      if (membros.some((m) => m.ggResponsibleId)) {
+        throw new DataError(
+          'conflict',
+          'membro_ja_atribuido: pelo menos um membro selecionado já tem responsável de GG — nenhum membro foi alterado.',
+        );
+      }
+
+      const ggAreaId = MOCK_ORG_CATALOG.areas.find((a) => a.slug === 'gente-e-gestao')?.id ?? null;
+      const responsavel = db.members.find((m) => m.id === ggResponsibleId);
+      if (!responsavel || responsavel.status !== 'ativo' || responsavel.areaId !== ggAreaId) {
+        throw new DataError(
+          'invalid',
+          'responsavel_invalido: o responsável precisa ser um membro ATIVO da área de Gente e Gestão.',
+        );
+      }
+
+      for (const membro of membros) {
+        const index = db.members.findIndex((m) => m.id === membro.id);
+        db.members[index] = { ...membro, ggResponsibleId, updatedAt: nowISO() };
+
+        db.memberEvents.push({
+          id: mockId('evt'),
+          memberId: membro.id,
+          type: 'mudanca_responsavel_gg',
+          occurredAt: nowISO().slice(0, 10),
+          title: 'Responsável de GG atribuído',
+          description: `De ninguém para ${responsavel.fullName} (atribuição em lote).`,
+          sourceId: null,
+          createdAt: nowISO(),
+        });
+      }
+
+      commit();
+
+      return {
+        requested: memberIds.length,
+        updated: membros.length,
+        ggResponsibleId,
+        ggResponsibleName: responsavel.fullName,
+      };
+    },
+
     async correctRecord(id, changes) {
       await delay();
       const db = mockDb();

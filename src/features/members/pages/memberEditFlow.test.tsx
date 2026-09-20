@@ -44,9 +44,10 @@ async function openProfile(user: ReturnType<typeof userEvent.setup>, name: strin
   const table = within(await screen.findByRole('table'));
   // O nome de quem é de GG aparece DUAS vezes na tabela: na linha da própria
   // pessoa e na coluna "GG responsável" de quem ela acompanha. A linha certa é
-  // a que tem o nome na primeira célula.
+  // a que tem o nome na célula de "Pessoa" — `cellIndex 1`, porque a coluna 0
+  // é o checkbox de seleção em lote (atribuição de GG em lote).
   const matches = await table.findAllByText(name);
-  const cell = matches.find((element) => element.closest('td')?.cellIndex === 0) ?? matches[0];
+  const cell = matches.find((element) => element.closest('td')?.cellIndex === 1) ?? matches[0];
   await user.click(cell);
   await screen.findByRole('heading', { level: 1, name });
 }

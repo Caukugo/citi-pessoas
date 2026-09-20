@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, SearchX, UserPlus } from 'lucide-react';
 import { Button, EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import type { ID } from '@/data';
 import { hasActiveFilters } from '../model/membersList';
+import { headerCheckboxState, pruneSelection, toggleSelectAll, toggleSelection } from '../model/memberSelection';
 import { useMemberDirectory, useMembersList } from '../hooks/useMembersList';
 import { useMembersFilters } from '../hooks/useMembersFilters';
 import { MembersHero } from '../components/MembersHero';
@@ -11,6 +13,8 @@ import { MembersFilterDrawer } from '../components/MembersFilterDrawer';
 import { MembersTable } from '../components/MembersTable';
 import { MemberCard } from '../components/MemberCard';
 import { CreateMemberDrawer } from '../components/CreateMemberDrawer';
+import { MembersBulkActionsBar } from '../components/MembersBulkActionsBar';
+import { BulkAssignGgDialog } from '../components/BulkAssignGgDialog';
 
 /**
  * EPIC 1 — MEMBROS (MEM-001 a MEM-005)
@@ -34,6 +38,31 @@ export function MembersPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const filtering = hasActiveFilters(filters);
+
+  // ── Seleção em lote ──────────────────────────────────────────────────────
+  // `items` é sempre o recorte ATUAL (busca + filtros já aplicados, lista
+  // inteira — não paginada). "Selecionar todos" e o checkbox de cabeçalho só
+  // enxergam ESTES ids, nunca um total maior que a tela não carregou.
+  const visibleIds = useMemo(() => items.map((item) => item.member.id), [items]);
+  const [selection, setSelection] = useState<ReadonlySet<ID>>(new Set());
+  // Filtro mudou (ou um membro selecionado saiu do recorte por qualquer
+  // motivo) → tira da seleção quem não está mais visível. Nunca ADICIONA.
+  const prunedSelection = useMemo(() => pruneSelection(selection, visibleIds), [selection, visibleIds]);
+  const [assignOpen, setAssignOpen] = useState(false);
+
+  const selectedMembers = useMemo(
+    () =>
+      [...prunedSelection]
+        .map((id) => directory.byId.get(id))
+        .filter((member): member is NonNullable<typeof member> => Boolean(member)),
+    [prunedSelection, directory.byId],
+  );
+  const hasAlreadyAssigned = selectedMembers.some((member) => member.ggResponsibleId);
+
+  const handleBulkAssignSuccess = () => {
+    setSelection(new Set());
+    setAssignOpen(false);
+  };
 
   return (
     <>
@@ -135,9 +164,23 @@ export function MembersPage() {
           ) : (
             <>
               {/* Tabela para varrer muita gente; cartões quando a largura não
-                comporta uma linha inteira sem rolar para o lado. */}
+                comporta uma linha inteira sem rolar para o lado.
+
+                Seleção em lote existe só na tabela (desktop) nesta primeira
+                versão: o cartão é um `<Link>` de bloco único, e dar-lhe uma
+                segunda área clicável (checkbox) sem quebrar navegação por
+                teclado é redesenho de componente — fora do escopo pedido. */}
               <div className="hidden px-[24px] md:block">
-                <MembersTable items={items} directory={directory.byId} />
+                <MembersTable
+                  items={items}
+                  directory={directory.byId}
+                  selection={prunedSelection}
+                  headerCheckboxState={headerCheckboxState(prunedSelection, visibleIds)}
+                  onToggle={(id) => setSelection((current) => toggleSelection(current, id))}
+                  onToggleAll={() =>
+                    setSelection((current) => toggleSelectAll(current, visibleIds))
+                  }
+                />
               </div>
               <div className="flex flex-col gap-[12px] px-[16px] pt-[18px] md:hidden">
                 {items.map((item) => (
@@ -148,6 +191,21 @@ export function MembersPage() {
           )}
         </div>
       </div>
+
+      <MembersBulkActionsBar
+        selectedCount={prunedSelection.size}
+        visibleCount={visibleIds.length}
+        hasAlreadyAssigned={hasAlreadyAssigned}
+        onAssign={() => setAssignOpen(true)}
+        onClear={() => setSelection(new Set())}
+      />
+
+      <BulkAssignGgDialog
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        selectedMembers={selectedMembers}
+        onSuccess={handleBulkAssignSuccess}
+      />
 
       <MembersFilterDrawer
         open={filtersOpen}

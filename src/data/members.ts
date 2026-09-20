@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from './db';
 import { queryKeys } from './queryKeys';
 import type {
+  BulkAssignGgResponsibleResult,
   ID,
   Member,
   MemberCpfStatus,
@@ -109,6 +110,31 @@ export function useUpdateMember() {
     onSuccess: (member) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.members.detail(member.id) });
+    },
+  });
+}
+
+/**
+ * Atribui UM responsável de GG a vários membros de uma vez (migration 0031).
+ * Só quem está sem responsável hoje — tudo ou nada.
+ */
+export function bulkAssignGgResponsible(
+  memberIds: ID[],
+  ggResponsibleId: ID,
+): Promise<BulkAssignGgResponsibleResult> {
+  return db.members.bulkAssignGgResponsible(memberIds, ggResponsibleId);
+}
+
+export function useBulkAssignGgResponsible() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberIds, ggResponsibleId }: { memberIds: ID[]; ggResponsibleId: ID }) =>
+      bulkAssignGgResponsible(memberIds, ggResponsibleId),
+    onSuccess: () => {
+      // Todo mundo do lote mudou de "Alocação pendente" para o novo
+      // responsável — a listagem inteira precisa refletir isso, não só um
+      // membro.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
     },
   });
 }

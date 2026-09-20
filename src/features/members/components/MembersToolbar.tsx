@@ -37,6 +37,7 @@ function drawerFilterCount(filters: MembersListFilters): number {
     filters.subareaSlug,
     filters.role,
     filters.ggResponsibleId,
+    filters.ggResponsibleAssigned,
     filters.x1Status,
   ].filter(Boolean).length;
 }

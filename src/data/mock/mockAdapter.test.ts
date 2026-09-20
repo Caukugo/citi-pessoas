@@ -642,6 +642,133 @@ describe('foto do membro e responsável de GG', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+describe('atribuição em lote de responsável de GG (modo mock)', () => {
+  async function ggAreaId() {
+    const catalog = await mockAdapter.org.getCatalog();
+    return catalog.areas.find((a) => a.slug === 'gente-e-gestao')!.id;
+  }
+
+  async function criarMembro(overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]>) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Lote',
+      email: `fixture.lote.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Gente e Gestão',
+      status: 'ativo',
+      joinedAt: '2026-01-01',
+      ggResponsibleId: null,
+      ...overrides,
+    });
+  }
+
+  it('atribui o mesmo responsável a vários membros sem responsável de uma vez', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Responsavel Lote', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo A' });
+    const b = await criarMembro({ fullName: 'Alvo B' });
+
+    const resultado = await mockAdapter.members.bulkAssignGgResponsible([a.id, b.id], gg.id);
+
+    expect(resultado).toEqual({
+      requested: 2,
+      updated: 2,
+      ggResponsibleId: gg.id,
+      ggResponsibleName: gg.fullName,
+    });
+    expect((await mockAdapter.members.getById(a.id))?.ggResponsibleId).toBe(gg.id);
+    expect((await mockAdapter.members.getById(b.id))?.ggResponsibleId).toBe(gg.id);
+  });
+
+  it('registra um evento mudanca_responsavel_gg para cada membro do lote', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Evento', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Evento A' });
+
+    await mockAdapter.members.bulkAssignGgResponsible([a.id], gg.id);
+
+    const eventos = (await mockAdapter.members.listEvents(a.id)).filter(
+      (e) => e.type === 'mudanca_responsavel_gg',
+    );
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0].title).toBe('Responsável de GG atribuído');
+  });
+
+  it('lista vazia é recusada, nada é alterado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Vazio', areaId, status: 'ativo' });
+    await expect(mockAdapter.members.bulkAssignGgResponsible([], gg.id)).rejects.toThrow(/lote_vazio/);
+  });
+
+  it('id duplicado na lista é recusado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Dup', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Dup' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([a.id, a.id], gg.id),
+    ).rejects.toThrow(/uuid_duplicado_no_lote/);
+  });
+
+  it('responsável inativo é recusado', async () => {
+    const areaId = await ggAreaId();
+    const ggInativo = await criarMembro({ fullName: 'GG Lote Inativo', areaId, status: 'inativo' });
+    const a = await criarMembro({ fullName: 'Alvo Resp Inativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([a.id], ggInativo.id),
+    ).rejects.toThrow(/responsavel_invalido/);
+  });
+
+  it('responsável fora da área de Gente e Gestão é recusado', async () => {
+    const gg = await criarMembro({ fullName: 'GG Lote Fora', area: 'Desenvolvimento', areaId: null, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Resp Fora' });
+
+    await expect(mockAdapter.members.bulkAssignGgResponsible([a.id], gg.id)).rejects.toThrow(
+      /responsavel_invalido/,
+    );
+  });
+
+  it('membro inativo no lote é recusado — e ninguém do lote é atualizado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Parcial', areaId, status: 'ativo' });
+    const ativo = await criarMembro({ fullName: 'Alvo Ativo Parcial' });
+    const inativo = await criarMembro({ fullName: 'Alvo Inativo Parcial', status: 'inativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([ativo.id, inativo.id], gg.id),
+    ).rejects.toThrow(/membro_inativo/);
+
+    // Tudo ou nada: o alvo válido do MESMO lote não foi tocado.
+    expect((await mockAdapter.members.getById(ativo.id))?.ggResponsibleId).toBeNull();
+  });
+
+  it('um membro já atribuído reprova o lote inteiro — nenhuma atualização parcial', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote JaAtrib', areaId, status: 'ativo' });
+    const outroGg = await criarMembro({ fullName: 'GG Lote JaAtrib Outro', areaId, status: 'ativo' });
+    const semResponsavel = await criarMembro({ fullName: 'Alvo Sem Responsavel' });
+    const jaAtribuido = await criarMembro({ fullName: 'Alvo Ja Atribuido', ggResponsibleId: outroGg.id });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([semResponsavel.id, jaAtribuido.id], gg.id),
+    ).rejects.toThrow(/membro_ja_atribuido/);
+
+    // Nem o alvo livre ganhou o novo responsável, nem o já atribuído foi sobrescrito.
+    expect((await mockAdapter.members.getById(semResponsavel.id))?.ggResponsibleId).toBeNull();
+    expect((await mockAdapter.members.getById(jaAtribuido.id))?.ggResponsibleId).toBe(outroGg.id);
+  });
+
+  it('membro inexistente na lista é recusado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Inexistente', areaId, status: 'ativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible(['mbr-nao-existe'], gg.id),
+    ).rejects.toThrow(/membro_inexistente/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 describe('CPF (modo mock)', () => {
   /** Fictícios, com dígitos verificadores corretos. */
   const CPF_A = '529.982.247-25';
