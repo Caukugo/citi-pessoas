@@ -69,7 +69,7 @@ export interface MembersListFilters {
   status: MemberStatus;
 }
 
-/** Padrão da tela: quem está ativo hoje. Desligado e arquivado ficam a um filtro. */
+/** Padrão da tela: quem está ativo hoje. Inativo e desligado ficam a um filtro. */
 export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
   search: '',
   areaSlug: '',

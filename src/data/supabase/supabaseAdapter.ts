@@ -256,6 +256,19 @@ export const supabaseAdapter: DataAdapter = {
       return fromMemberRow(data);
     },
 
+    async deactivate(id, input) {
+      // Uma RPC atômica: valida, fecha o ciclo, muda o status e registra o
+      // evento na mesma transação do Postgres (migration 0032).
+      const { data, error } = await supabase().rpc('citi_deactivate_member', {
+        p_member_id: id,
+        p_ended_on: input.endedOn,
+        p_reason: input.reason ?? null,
+      });
+      if (error) fail(error, 'Erro ao desligar membro');
+
+      return fromMemberRow(data as Record<string, unknown>);
+    },
+
     async getPhotoUrl(path, expiresInSeconds = PHOTO_URL_TTL_SECONDS) {
       if (!PHOTO_PATH_PATTERN.test(path)) {
         throw new DataError('invalid', 'Caminho de foto fora do padrão do bucket de membros.');

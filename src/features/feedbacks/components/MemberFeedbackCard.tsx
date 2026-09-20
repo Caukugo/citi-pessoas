@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Avatar, Badge, Surface } from '@/components/ui';
+import { Badge, Surface } from '@/components/ui';
 import {
   FEEDBACK_TYPE_LABEL,
   MEMBER_STATUS_LABEL,
@@ -9,6 +9,7 @@ import {
 } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
 import { ROUTES } from '@/app/routes';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   FEEDBACK_TYPES,
   FEEDBACK_TYPE_PLURAL,
@@ -38,9 +39,8 @@ export function MemberFeedbackCard({
   return (
     <Surface className="rounded-[20px] border-border bg-surface-card p-4">
       <div className="flex items-start gap-3">
-        <Avatar
-          name={member.fullName}
-          photoUrl={member.photoUrl}
+        <MemberAvatar
+          member={member}
           size="md"
           shape="circle"
           className="h-[34px] w-[34px] text-[11px]"

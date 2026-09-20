@@ -204,7 +204,8 @@ function DisplaySection() {
           <Badge tone="bad">X1 atrasado</Badge>
           <Badge tone="info">Agendado</Badge>
           <Badge tone="brand">Formal</Badge>
-          <Badge tone="neutral">Arquivado</Badge>
+          <Badge tone="neutral">Inativo</Badge>
+          <Badge tone="neutral">Desligado</Badge>
         </Row>
 
         <Row label="Avatares">
@@ -372,9 +373,9 @@ function OverlaysSection() {
         open={confirm}
         onClose={() => setConfirm(false)}
         onConfirm={() => setConfirm(false)}
-        title="Arquivar membro?"
-        description="O membro sai das listagens, mas o histórico é preservado. Nada é apagado."
-        confirmLabel="Arquivar"
+        title="Desligar membro?"
+        description="O ciclo é interrompido antes do fim previsto. O histórico é preservado — nada é apagado."
+        confirmLabel="Desligar"
         destructive
       />
     </Panel>
