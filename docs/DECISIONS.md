@@ -808,6 +808,91 @@ GG, porque o enum só tem `gg` e `gg_diretoria`; mas a garantia não existia.
 
 ---
 
+## ADR-018 — Produção recebe um Google Form próprio; o de teste nunca é reaproveitado
+
+- **Data:** 2026-09-20
+- **Status:** Aceita
+- **Nasce de:** a auditoria de rollout de produção (`docs/RUNBOOK_PRODUCAO.md`
+  §11), ao decidir como levar a integração de entrada via Google Forms
+  (migrations `0020`–`0030`) do projeto de teste (`ftghxffivergkmrcxzjm`) para
+  produção (`stpqnjtqtbjbbqxknjzi`).
+
+**Contexto.** O formulário do Google é, por desenho, **permanente**: `form_id`
+e `responder_url` vivem em `google_forms_intake_config` (linha única,
+configurada uma vez) e nunca mudam de gestão para gestão — só a **campanha**
+(`member_intake_campaigns`) muda a cada semestre, pela tela `/administracao`.
+Isso levanta a pergunta: produção precisa de um Google Form **novo**, ou pode
+reapontar o Apps Script do formulário de teste (trocando `WEBHOOK_URL` e o
+segredo) para produção?
+
+O formulário de teste já tem histórico real de uso: `resposta-teste-0001` e
+as respostas fictícias `.001`–`.010` (algumas processadas, uma removida por
+limpeza controlada nesta mesma sessão) vivem na planilha de respostas e nos
+arquivos de foto do Drive vinculados a ele.
+
+**Decisão.** Produção recebe um **Google Form novo, exclusivo, permanente**.
+O formulário de teste **nunca** é reapontado para produção — continua
+existindo, para sempre, só para testes futuros.
+
+Concretamente:
+
+1. Um Form novo é criado quando o rollout de produção chegar nesse ponto
+   (`docs/RUNBOOK_PRODUCAO.md` §11).
+2. O Apps Script (`google-apps-script/member-intake/`) é colado **uma única
+   vez** nesse Form, com Script Properties de produção (`WEBHOOK_URL`,
+   `GOOGLE_FORMS_WEBHOOK_SECRET` — exclusivos de produção, nunca os de teste).
+3. O gatilho de tempo (`installSyncTrigger()`) é instalado **uma única vez**
+   nesse Apps Script.
+4. **Nenhuma gestão futura exige repetir os passos 1–3.** Uma gestão nova é
+   só uma campanha nova (`citi_start_intake_campaign`, via `/administracao` →
+   "Entrada de membros") — o mesmo Form, o mesmo Apps Script, o mesmo gatilho,
+   para sempre.
+
+**Alternativas consideradas.**
+
+- **Reapontar o formulário de teste para produção** (trocar `WEBHOOK_URL` e o
+  segredo no mesmo Apps Script). Ganharia o trabalho de configurar um Form do
+  zero. Rejeitado: mistura permanentemente respostas fictícias com respostas
+  reais na mesma planilha/pasta do Drive — um erro de leitura futura ("essa
+  resposta é real ou de teste?") sem desfazer fácil — e cria um risco
+  operacional contínuo: se alguém precisar testar de novo depois do go-live
+  (ex.: validar uma correção do Apps Script), reaponta o **mesmo** Form de
+  volta para teste e agora uma resposta real de produção pode cair no banco
+  de teste, ou uma resposta de teste pode criar um "membro" fictício em
+  produção. Nenhuma das duas pontas tem como saber, só de olhar o Form, se
+  ele está "modo teste" ou "modo produção" no momento em que alguém responde.
+- **Um único Form com lógica para separar teste/produção** (ex.: campanha
+  fictícia sinalizada). Rejeitado: o isolamento por infraestrutura (dois
+  formulários, dois Apps Script, dois `WEBHOOK_URL`) é mais simples de garantir
+  do que qualquer lógica de sinalização — e o próprio desenho de
+  `google_forms_intake_config` (uma configuração permanente por ambiente) já
+  aponta para "um Form por ambiente", não "um Form para todos os ambientes".
+
+**Motivação.** Isolamento por infraestrutura é a garantia mais barata e mais
+difícil de violar por engano. Como o Form já é permanente por desenho (uma
+configuração, reaproveitada em toda gestão futura), o custo de ter **dois**
+formulários permanentes — um por ambiente — é pago uma única vez e nunca mais
+revisitado; o custo de misturar os dois é pago hoje, silenciosamente, toda vez
+que alguém futuramente precisar testar algo depois do go-live.
+
+**Consequências.**
+
+- ✅ Zero risco de resposta real cair no banco de teste, ou resposta de teste
+  criar membro em produção.
+- ✅ O formulário de teste continua disponível para testar mudanças futuras
+  no Apps Script/Edge Function sem qualquer risco a produção.
+- ✅ Consistente com o resto do desenho: `form_id`/`responder_url` configurados
+  uma vez, `enabled` controla liga/desliga, campanha muda por gestão — nada
+  disso muda; só existem duas instâncias independentes da mesma configuração.
+- ⚠️ Duplica o trabalho de configuração inicial (dois Forms, dois Apps
+  Script, dois gatilhos) — pago uma única vez, nunca por gestão.
+- ⚠️ Quem opera precisa saber, com clareza, qual link distribuir para qual
+  público (o `responder_url` de teste nunca deveria circular fora do time
+  técnico) — mitigado por nomear os dois Forms de forma inequívoca
+  ("CITi Pessoas — Entrada (PRODUÇÃO)" vs. "... (TESTE)").
+
+---
+
 ## Como registrar uma decisão nova
 
 Copie o formato acima. Uma decisão merece um ADR quando afeta mais de uma
