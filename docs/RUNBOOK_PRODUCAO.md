@@ -84,6 +84,53 @@ ALLOWED_ORIGINS=https://<dominio-da-plataforma>
 npx supabase functions deploy member-cpf
 ```
 
+### 3.1 Integração com o Google Calendar (opcional, mas com chaves PRÓPRIAS)
+
+Só se a Agenda de X1 for ativada em produção. O guia completo é
+`docs/google-calendar-setup.md`; aqui ficam as três regras que valem para o
+ambiente de produção especificamente.
+
+```
+GOOGLE_OAUTH_CLIENT_ID=<cliente OAuth de PRODUÇÃO>
+GOOGLE_OAUTH_CLIENT_SECRET=<idem>
+GOOGLE_OAUTH_REDIRECT_URI=https://<ref-prod>.supabase.co/functions/v1/google-calendar-oauth/callback
+GOOGLE_TOKEN_ENCRYPTION_KEY=<32 bytes em base64, NOVO>
+GOOGLE_TOKEN_KEY_VERSION=1
+GOOGLE_OAUTH_STATE_SECRET=<32 bytes em base64, NOVO>
+GOOGLE_CALENDAR_CRON_SECRET=<32 bytes em base64, NOVO>
+GOOGLE_CALENDAR_HD_ESPERADO=citi.org.br
+GOOGLE_CALENDAR_AMBIENTE=producao
+APP_BASE_URL=https://<dominio-da-plataforma>
+```
+
+- [ ] ⚠️ **`GOOGLE_CALENDAR_AMBIENTE=producao`, diferente do de teste.** É esta
+      marca que impede um ambiente de desenvolvimento apontado para o mesmo
+      calendário Google de **alterar** os eventos de produção achando que são
+      dele.
+- [ ] ⚠️ **Cliente OAuth próprio de produção.** Compartilhar o de teste faz uma
+      rotação de segredo lá derrubar a conexão de toda GG aqui.
+- [ ] ⚠️ **`GOOGLE_TOKEN_ENCRYPTION_KEY` não é `CPF_ENCRYPTION_KEY`.** Chave
+      compartilhada significa que rotacionar a do CPF derruba todas as conexões
+      Google de uma vez.
+
+```bash
+npx supabase functions deploy google-calendar-oauth
+npx supabase functions deploy google-calendar
+npx supabase functions deploy google-calendar-sync
+```
+
+Depois, os dois segredos do Vault e as tarefas do `pg_cron`
+(`docs/google-calendar-setup.md` §8). Sem eles a migration `0027` falha com
+mensagem explícita, em vez de disparar requisição sem assinatura.
+
+**Verificação de borda**, sem dado nenhum:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}
+" -X POST   "https://<ref>.supabase.co/functions/v1/google-calendar-sync"
+# espera 401 — sem assinatura HMAC, nem o corpo é interpretado
+```
+
 **Verificação:** `npx supabase secrets list` mostra os quatro nomes (só
 digests). E o teste de borda, sem dado nenhum:
 

@@ -414,12 +414,16 @@ A aba de X1 dentro do Perfil. **Combine com a Gabi antes de começar.**
 
 ### X1-009 — Agenda de X1
 
-- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **In Progress**
+- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Done**
 - **Dependências:** X1-003, X1-006 · **Branch:** `feat/agenda-x1-google-calendar`
 
 > Escopo antecipado da Fase 2 por decisão registrada — ver **ADR-019**. O
 > modelo de dados está no **ADR-020**. Especificação de execução:
 > `docs/agenda-x1-plan.md`.
+>
+> ✅ **Implementada e validada no modo mock.** A migration `0026` ainda **não
+> foi aplicada** em nenhum projeto — é o próximo passo de quem tiver acesso ao
+> Supabase de teste.
 
 **Objetivo.** A tela `/x1` deixa de ser `FeatureStub` e passa a ser a Agenda:
 calendário mensal, compromissos do dia e quem precisa de acompanhamento. O
@@ -455,11 +459,17 @@ conversa.
 
 ### X1-010 — Integração com Google Calendar
 
-- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **In Progress**
+- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Blocked**
 - **Dependências:** X1-009 · **Branch:** `feat/agenda-x1-google-calendar`
 
 > Conexão individual e proteção do token: **ADR-021**. Guia de configuração:
 > `docs/google-calendar-setup.md`.
+>
+> ⛔ **Implementada, bloqueada na homologação.** OAuth, operações de evento,
+> caixa de saída e sincronização estão escritos e cobertos por teste com `fetch`
+> falso — nenhuma chamada real ao Google aconteceu. Para destravar: projeto no
+> Google Cloud, cliente OAuth e segredos (`google-calendar-setup.md` §4–§8).
+> **Nada aqui foi validado contra o Google de verdade.**
 
 **Objetivo.** Cada integrante de GG conecta a própria conta CITi e o convite sai
 do Google dela, para o e-mail institucional do membro.

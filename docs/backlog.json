@@ -1010,7 +1010,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "tecnica",
       "priority": "Alta",
-      "status": "In Progress",
+      "status": "Done",
       "dependencies": [
         "X1-003",
         "X1-006"
@@ -1036,7 +1036,8 @@
         "area: x1",
         "difficulty: technical",
         "priority: high"
-      ]
+      ],
+      "notes": "Implementada e validada no modo mock. A migration 0026 ainda nao foi aplicada em nenhum projeto — ver docs/agenda-x1-plan.md."
     },
     {
       "id": "X1-010",
@@ -1047,7 +1048,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "tecnica",
       "priority": "Alta",
-      "status": "In Progress",
+      "status": "Blocked",
       "dependencies": [
         "X1-009"
       ],
@@ -1074,7 +1075,8 @@
         "area: x1",
         "difficulty: technical",
         "priority: high"
-      ]
+      ],
+      "notes": "Implementada e testada com fetch falso (OAuth, operacoes de evento, caixa de saida e sincronizacao). BLOQUEADA NA HOMOLOGACAO: depende do projeto no Google Cloud, do cliente OAuth e dos segredos. Ver docs/google-calendar-setup.md."
     },
     {
       "id": "FB-001",

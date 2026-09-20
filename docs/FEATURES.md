@@ -178,8 +178,8 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 | X1-006 | Status do X1 | ✅ Implementado |
 | X1-007 | Periodicidade | Parcial — já é respeitada e exibida; falta a tela de Administração (ADM-001) |
 | X1-008 | Integração com Perfil | ✅ Implementado |
-| X1-009 | Agenda de X1 | 🚧 Em andamento — escopo antecipado da Fase 2, ver ADR-019 |
-| X1-010 | Integração com Google Calendar | 🚧 Em andamento — conexão individual, ver ADR-021 |
+| X1-009 | Agenda de X1 | ✅ Implementado (validado em modo mock; migration `0026` ainda não aplicada) — ADR-019 |
+| X1-010 | Integração com Google Calendar | 🚧 Implementado, **não homologado** — falta credencial real do Google, ver `docs/google-calendar-setup.md` e ADR-021 |
 
 ### EPIC 4 — Feedbacks · Clara
 
