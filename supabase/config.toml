@@ -438,3 +438,20 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar-oauth` atende DOIS chamadores muito diferentes: o navegador
+# autenticado (que pede a URL de consentimento, com JWT e origem conferida) e o
+# GOOGLE, que devolve a pessoa por um redirecionamento de TOPO — sem `Origin`,
+# sem `Authorization` e sem cookie.
+#
+# Com `verify_jwt = true` o gateway recusaria o callback do Google ANTES de ele
+# chegar à função, e a autorização morreria num erro sem explicação.
+#
+# O que autentica o callback é o `state` de uso único, preso ao profile na etapa
+# `/iniciar` — que essa sim exige JWT. O consumo é atômico no banco, então dois
+# callbacks concorrentes não podem ganhar os dois.
+# Coberto por supabase/functions/google-calendar-oauth/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar-oauth]
+verify_jwt = false

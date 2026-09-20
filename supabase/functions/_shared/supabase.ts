@@ -24,13 +24,25 @@
 /** Papéis com acesso à plataforma. `gg` e `gg_diretoria` são equivalentes. */
 export const PAPEIS_AUTORIZADOS = ['gg', 'gg_diretoria'] as const;
 
-export interface ServerEnv {
+/**
+ * O que QUALQUER função precisa para autorizar e falar com o banco.
+ *
+ * Separado de `ServerEnv` porque as chaves de CPF não são de todo mundo: sem
+ * esta divisão, cada função nova teria que carregar chaves criptográficas
+ * falsas só para satisfazer o tipo — e chave falsa em ambiente é exatamente o
+ * tipo de coisa que um dia vira chave de verdade no lugar errado.
+ */
+export interface BaseEnv {
   supabaseUrl: string;
   anonKey: string;
   serviceKey: string;
+  allowedOrigins: string[];
+}
+
+/** O ambiente da função de CPF: base + as chaves criptográficas dela. */
+export interface ServerEnv extends BaseEnv {
   encryptionKey: string;
   hashKey: string;
-  allowedOrigins: string[];
   keyVersion: number;
 }
 
@@ -55,7 +67,7 @@ export type AuthResult =
  * isso é informação útil para quem está sondando a API.
  */
 export async function authorize(
-  env: ServerEnv,
+  env: BaseEnv,
   token: string,
   fetchImpl: FetchLike,
 ): Promise<AuthResult> {
@@ -102,7 +114,7 @@ export async function authorize(
  * schema, e o cliente só precisa saber que falhou.
  */
 export async function callRpc<T>(
-  env: ServerEnv,
+  env: BaseEnv,
   name: string,
   args: Record<string, unknown>,
   fetchImpl: FetchLike,

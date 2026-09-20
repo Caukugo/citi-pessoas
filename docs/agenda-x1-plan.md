@@ -17,7 +17,7 @@
 | 5 · Supabase adapter + mappers | ✅ concluída — as Edge Functions que ele chama chegam na etapa 8/9 |
 | 6 · Tela da agenda | ✅ concluída |
 | 7 · Gavetas e jornadas | ✅ concluída (sobre o mock) |
-| 8 · OAuth | ⏳ |
+| 8 · OAuth | ✅ concluída — falta homologar com credencial real |
 | 9 · Operações reais + idempotência | ⏳ |
 | 10 · Sincronização | ⏳ |
 | 11 · Documentação e fechamento | ⏳ |
