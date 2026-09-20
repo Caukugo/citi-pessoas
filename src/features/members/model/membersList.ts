@@ -40,6 +40,9 @@ export interface MemberListItem {
  * String vazia = "sem filtro". Guardado assim porque é o formato que vive na
  * URL — a lista filtrada precisa ser um link compartilhável.
  */
+/** "Tem alguém acompanhando?" — diferente de "é esta pessoa específica" (`ggResponsibleId`). */
+export type GgResponsibleAssignedFilter = '' | 'sem' | 'com';
+
 export interface MembersListFilters {
   search: string;
   /**
@@ -53,6 +56,15 @@ export interface MembersListFilters {
   subareaSlug: string;
   role: string;
   ggResponsibleId: string;
+  /**
+   * "Sem responsável" / "Com responsável" — para achar rapidamente quem ainda
+   * não foi alocado depois de uma importação grande. Diferente de
+   * `ggResponsibleId` (que filtra por UMA pessoa específica): este é sobre
+   * TER ou NÃO TER alguém, não sobre QUEM é. Aplicado na camada derivada
+   * (`applyDerivedFilters`), como `x1Status` — não existe coluna "tem
+   * responsável" no banco, só `gg_responsible_id is null`.
+   */
+  ggResponsibleAssigned: GgResponsibleAssignedFilter;
   x1Status: string;
   status: MemberStatus;
 }
@@ -64,6 +76,7 @@ export const DEFAULT_MEMBERS_FILTERS: MembersListFilters = {
   subareaSlug: '',
   role: '',
   ggResponsibleId: '',
+  ggResponsibleAssigned: '',
   x1Status: '',
   status: 'ativo',
 };
@@ -76,6 +89,7 @@ export function hasActiveFilters(filters: MembersListFilters): boolean {
     filters.subareaSlug !== '' ||
     filters.role !== '' ||
     filters.ggResponsibleId !== '' ||
+    filters.ggResponsibleAssigned !== '' ||
     filters.x1Status !== '' ||
     filters.status !== DEFAULT_MEMBERS_FILTERS.status
   );
@@ -124,6 +138,8 @@ export function applyDerivedFilters(
   return items.filter((item) => {
     if (filters.role && item.member.role !== filters.role) return false;
     if (filters.x1Status && item.x1Status !== filters.x1Status) return false;
+    if (filters.ggResponsibleAssigned === 'sem' && item.member.ggResponsibleId) return false;
+    if (filters.ggResponsibleAssigned === 'com' && !item.member.ggResponsibleId) return false;
     return true;
   });
 }
@@ -164,13 +180,53 @@ export interface MemberDirectoryOptions {
   ggPeople: Member[];
 }
 
-export function deriveDirectoryOptions(allMembers: Member[]): MemberDirectoryOptions {
+/**
+ * Slug ESTÁVEL da área de Gente e Gestão (`areas.slug`, migration 0003) — a
+ * chave real para achar quem pode ser responsável de GG. Compartilhado para
+ * não haver um segundo literal `'gente-e-gestao'` espalhado pelos componentes
+ * que precisam resolvê-lo contra o catálogo (`orgIdBySlug(catalog?.areas,
+ * GG_AREA_SLUG)`).
+ */
+export const GG_AREA_SLUG = 'gente-e-gestao';
+
+/**
+ * Quem pode ser escolhido como RESPONSÁVEL DE GG — a MESMA regra usada pela
+ * tela individual (`GgResponsibleField.tsx`), pelo cadastro manual
+ * (`deriveDirectoryOptions`, abaixo) e pela atribuição em lote
+ * (`BulkAssignGgDialog.tsx`). Uma definição só: nenhum desses lugares decide
+ * "quem é GG válido" por conta própria.
+ *
+ * Regra: membro ATIVO da área de Gente e Gestão (por `areaId`, normalizado —
+ * nunca pelo texto legado `area`, que pode divergir se o cadastro drift).
+ * `excludeId` tira a própria pessoa da lista, para quando o "membro" e o
+ * "candidato a responsável" são a mesma tela.
+ */
+export function isValidGgCandidate(
+  member: Member,
+  ggAreaId: ID | null | undefined,
+  excludeId?: ID,
+): boolean {
+  if (!ggAreaId) return false;
+  if (member.id === excludeId) return false;
+  return member.areaId === ggAreaId && member.status === 'ativo';
+}
+
+/**
+ * `ggAreaId` é OPCIONAL só para não quebrar quem ainda não tem o catálogo
+ * carregado (`orgIdBySlug` devolve `undefined` nesse instante) — sem ele,
+ * `isValidGgCandidate` já devolve `false` para todo mundo, então `ggPeople`
+ * sai vazio até o catálogo chegar, nunca com um candidato errado.
+ */
+export function deriveDirectoryOptions(
+  allMembers: Member[],
+  ggAreaId?: ID | null,
+): MemberDirectoryOptions {
   const roles = [...new Set(allMembers.map((m) => m.role).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt-BR'),
   );
 
   const ggPeople = allMembers
-    .filter((m) => m.area === 'Gente e Gestão' && m.status === 'ativo')
+    .filter((m) => isValidGgCandidate(m, ggAreaId))
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'));
 
   return { roles, ggPeople };

@@ -4,6 +4,7 @@ import type {
   AnonymousFeedbackModeration,
   AnonymousFeedbackStatus,
   AuthUser,
+  BulkAssignGgResponsibleResult,
   Feedback,
   FeedbackCreateInput,
   Gestao,
@@ -79,6 +80,21 @@ export interface MembersRepository {
    * que a correção eliminou — tudo na mesma transação.
    */
   correctRecord(id: ID, changes: MemberRecordCorrection): Promise<Member>;
+
+  /**
+   * Atribui UM responsável de GG a vários membros de uma vez — usada depois de
+   * uma importação grande, para não abrir perfil por perfil (migration 0031).
+   *
+   * Só atribui quem está HOJE sem responsável: nunca sobrescreve, nunca
+   * reatribui. Se qualquer membro da lista já tiver responsável, ou não for
+   * encontrado, ou não estiver ativo, ou o responsável não for um membro
+   * ativo de Gente e Gestão, a chamada inteira falha — TUDO ou NADA, nunca
+   * uma atualização parcial.
+   */
+  bulkAssignGgResponsible(
+    memberIds: ID[],
+    ggResponsibleId: ID,
+  ): Promise<BulkAssignGgResponsibleResult>;
 
   /** Não existe exclusão: arquivar preserva o histórico. */
   archive(id: ID): Promise<Member>;

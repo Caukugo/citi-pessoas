@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
+import { Checkbox, Table, TableWrapper, TBody, TD, TH, THead, TR } from '@/components/ui';
 import { useMemberOrgLabels, type ID, type Member } from '@/data';
 import { cn } from '@/lib/cn';
 import { relativeDays } from '@/lib/format';
@@ -7,6 +8,7 @@ import { ROUTES } from '@/app/routes';
 import { MemberAvatar } from './MemberAvatar';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
 import { memberNameById, type MemberListItem } from '../model/membersList';
+import type { HeaderCheckboxState, MemberSelection } from '../model/memberSelection';
 
 /**
  * Listagem em tabela — a visão de desktop.
@@ -50,12 +52,54 @@ const COLUMNS = [
   { label: 'Situação', width: 'w-[174px]' },
 ];
 
+/** Checkbox de seleção — nunca deixa o clique "vazar" para a linha (que navega). */
+function SelectionCheckbox({
+  checked,
+  indeterminate = false,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  label: string;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  // `indeterminate` não é um atributo HTML — só dá pra setar via DOM.
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate;
+  }, [indeterminate]);
+
+  return (
+    <div
+      className="flex items-center justify-center"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Checkbox
+        ref={ref}
+        checked={checked}
+        onChange={onChange}
+        label={<span className="sr-only">{label}</span>}
+      />
+    </div>
+  );
+}
+
 export function MembersTable({
   items,
   directory,
+  selection,
+  headerCheckboxState,
+  onToggle,
+  onToggleAll,
 }: {
   items: MemberListItem[];
   directory: Map<ID, Member>;
+  selection: MemberSelection;
+  headerCheckboxState: HeaderCheckboxState;
+  onToggle: (id: ID) => void;
+  onToggleAll: () => void;
 }) {
   const navigate = useNavigate();
   // "Área inteira" para quem tem cargo de área: nunca o texto legado.
@@ -68,12 +112,25 @@ export function MembersTable({
           nunca chega a acontecer. Com ele, as seis larguras são obedecidas.
 
           `min-w-[780px]` é a soma real das seis colunas (606 em proporção +
-          174 fixos da situação). Abaixo disso quem rola é o TableWrapper, não
-          a página: preferimos a tabela deslizar dentro do painel a espremer o
-          badge de situação até ele cortar. */}
-      <Table className="table-fixed min-w-[780px]">
+          174 fixos da situação), mais os 40px fixos da coluna de seleção.
+          Abaixo disso quem rola é o TableWrapper, não a página: preferimos a
+          tabela deslizar dentro do painel a espremer o badge de situação até
+          ele cortar. */}
+      <Table className="table-fixed min-w-[820px]">
         <THead className="border-b border-divider">
           <TR className="border-0">
+            <TH className={cn(CELL, 'w-[40px] pt-[24px] pb-[11px]')}>
+              <SelectionCheckbox
+                checked={headerCheckboxState === 'all'}
+                indeterminate={headerCheckboxState === 'some'}
+                label={
+                  headerCheckboxState === 'all'
+                    ? 'Desmarcar todos os membros deste recorte'
+                    : 'Selecionar todos os membros deste recorte'
+                }
+                onChange={onToggleAll}
+              />
+            </TH>
             {COLUMNS.map((column) => (
               <TH
                 key={column.label}
@@ -95,6 +152,13 @@ export function MembersTable({
               onClick={() => navigate(ROUTES.memberProfile(member.id))}
               className="group border-divider"
             >
+              <TD className={cn(CELL, ROW)}>
+                <SelectionCheckbox
+                  checked={selection.has(member.id)}
+                  label={`Selecionar ${member.fullName}`}
+                  onChange={() => onToggle(member.id)}
+                />
+              </TD>
               <TD className={cn(CELL, ROW)}>
                 <div className="flex items-center gap-[12px]">
                   <MemberAvatar

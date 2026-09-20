@@ -17,6 +17,11 @@ import type { MemberDirectoryOptions, MembersListFilters } from '../model/member
  * O estado continua na URL — a gaveta não guarda nada, só escreve.
  */
 
+const GG_RESPONSIBLE_ASSIGNED_OPTIONS = [
+  { value: 'sem', label: 'Sem responsável' },
+  { value: 'com', label: 'Com responsável' },
+];
+
 const X1_STATUS_OPTIONS = [
   { value: 'em_dia', label: MEMBER_X1_STATUS_LABEL.em_dia },
   { value: 'primeiro_pendente', label: MEMBER_X1_STATUS_LABEL.primeiro_pendente },
@@ -121,6 +126,26 @@ export function MembersFilterDrawer({
                 value: person.id,
                 label: person.fullName,
               }))}
+            />
+          )}
+        </FormField>
+
+        <FormField
+          label="Situação do responsável"
+          hint="Achar rapidamente quem ainda não foi alocado, depois de uma importação."
+        >
+          {(field) => (
+            <Select
+              {...field}
+              value={filters.ggResponsibleAssigned}
+              onChange={(e) =>
+                onChange(
+                  'ggResponsibleAssigned',
+                  e.target.value as typeof filters.ggResponsibleAssigned,
+                )
+              }
+              placeholder="Todos"
+              options={GG_RESPONSIBLE_ASSIGNED_OPTIONS}
             />
           )}
         </FormField>

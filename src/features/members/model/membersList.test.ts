@@ -6,6 +6,7 @@ import {
   DEFAULT_MEMBERS_FILTERS,
   deriveDirectoryOptions,
   hasActiveFilters,
+  isValidGgCandidate,
   memberNameById,
   summarizeMembers,
 } from './membersList';
@@ -146,6 +147,44 @@ describe('applyDerivedFilters', () => {
   it('sem filtro derivado, devolve todo mundo', () => {
     expect(applyDerivedFilters(items, DEFAULT_MEMBERS_FILTERS)).toHaveLength(2);
   });
+
+  it('filtra "sem responsável" — achar quem ainda não foi alocado depois de importar', () => {
+    const comEsem = buildMemberListItems(
+      [
+        member('mbr-sem', { ggResponsibleId: null }),
+        member('mbr-com', { ggResponsibleId: 'mbr-gg' }),
+      ],
+      {},
+      settings,
+      NOW,
+    );
+
+    const result = applyDerivedFilters(comEsem, {
+      ...DEFAULT_MEMBERS_FILTERS,
+      ggResponsibleAssigned: 'sem',
+    });
+
+    expect(result.map((i) => i.member.id)).toEqual(['mbr-sem']);
+  });
+
+  it('filtra "com responsável"', () => {
+    const comEsem = buildMemberListItems(
+      [
+        member('mbr-sem', { ggResponsibleId: null }),
+        member('mbr-com', { ggResponsibleId: 'mbr-gg' }),
+      ],
+      {},
+      settings,
+      NOW,
+    );
+
+    const result = applyDerivedFilters(comEsem, {
+      ...DEFAULT_MEMBERS_FILTERS,
+      ggResponsibleAssigned: 'com',
+    });
+
+    expect(result.map((i) => i.member.id)).toEqual(['mbr-com']);
+  });
 });
 
 describe('hasActiveFilters', () => {
@@ -156,6 +195,37 @@ describe('hasActiveFilters', () => {
   it('detecta busca e mudança de situação no CITi', () => {
     expect(hasActiveFilters({ ...DEFAULT_MEMBERS_FILTERS, search: 'iris' })).toBe(true);
     expect(hasActiveFilters({ ...DEFAULT_MEMBERS_FILTERS, status: 'arquivado' })).toBe(true);
+  });
+});
+
+describe('isValidGgCandidate', () => {
+  const GG_AREA = 'area-gg';
+
+  it('membro ativo da área de GG é candidato válido', () => {
+    const pessoa = member('mbr-gg', { areaId: GG_AREA, status: 'ativo' });
+    expect(isValidGgCandidate(pessoa, GG_AREA)).toBe(true);
+  });
+
+  it('membro inativo da área de GG NÃO é candidato', () => {
+    const pessoa = member('mbr-gg-inativo', { areaId: GG_AREA, status: 'inativo' });
+    expect(isValidGgCandidate(pessoa, GG_AREA)).toBe(false);
+  });
+
+  it('membro ativo fora da área de GG NÃO é candidato', () => {
+    const pessoa = member('mbr-fora', { areaId: 'area-dev', status: 'ativo' });
+    expect(isValidGgCandidate(pessoa, GG_AREA)).toBe(false);
+  });
+
+  it('sem ggAreaId resolvido (catálogo ainda carregando), ninguém é candidato', () => {
+    const pessoa = member('mbr-gg', { areaId: GG_AREA, status: 'ativo' });
+    expect(isValidGgCandidate(pessoa, null)).toBe(false);
+    expect(isValidGgCandidate(pessoa, undefined)).toBe(false);
+  });
+
+  it('excludeId tira a própria pessoa da lista — quem acompanha não se acompanha', () => {
+    const pessoa = member('mbr-gg', { areaId: GG_AREA, status: 'ativo' });
+    expect(isValidGgCandidate(pessoa, GG_AREA, 'mbr-gg')).toBe(false);
+    expect(isValidGgCandidate(pessoa, GG_AREA, 'outro-id')).toBe(true);
   });
 });
 
@@ -170,14 +240,49 @@ describe('deriveDirectoryOptions', () => {
     expect(options.roles).toEqual(['Analista', 'Gerente']);
   });
 
-  it('só oferece pessoas ativas de Gente e Gestão como GG responsável', () => {
-    const options = deriveDirectoryOptions([
-      member('1', { fullName: 'Marina', area: 'Gente e Gestão' }),
-      member('2', { fullName: 'Otávio', area: 'Gente e Gestão', status: 'desligado' }),
-      member('3', { fullName: 'Helena', area: 'Desenvolvimento' }),
-    ]);
+  it('só oferece pessoas ativas de Gente e Gestão como GG responsável — por areaId, não pelo texto legado', () => {
+    const GG_AREA = 'area-gg';
+    const options = deriveDirectoryOptions(
+      [
+        member('1', { fullName: 'Marina', area: 'Gente e Gestão', areaId: GG_AREA }),
+        member('2', { fullName: 'Otávio', area: 'Gente e Gestão', areaId: GG_AREA, status: 'desligado' }),
+        member('3', { fullName: 'Helena', area: 'Desenvolvimento', areaId: 'area-dev' }),
+      ],
+      GG_AREA,
+    );
 
     expect(options.ggPeople.map((p) => p.fullName)).toEqual(['Marina']);
+  });
+
+  it('regressão: texto legado "Gente e Gestão" sem areaId correspondente NÃO aparece como candidato', () => {
+    // Cadastro que drift (a coluna de texto legado ficou desatualizada em
+    // relação a `areaId`) não pode oferecer alguém que o banco recusaria —
+    // ver migration 0031, citi_valida_gg_responsavel().
+    const GG_AREA = 'area-gg';
+    const options = deriveDirectoryOptions(
+      [member('1', { fullName: 'Texto Divergente', area: 'Gente e Gestão', areaId: 'area-dev' })],
+      GG_AREA,
+    );
+
+    expect(options.ggPeople).toEqual([]);
+  });
+
+  it('candidato com areaId correto aparece mesmo que o texto legado esteja desatualizado', () => {
+    const GG_AREA = 'area-gg';
+    const options = deriveDirectoryOptions(
+      [member('1', { fullName: 'AreaId Correto', area: 'Nome Antigo Qualquer', areaId: GG_AREA })],
+      GG_AREA,
+    );
+
+    expect(options.ggPeople.map((p) => p.fullName)).toEqual(['AreaId Correto']);
+  });
+
+  it('sem ggAreaId (catálogo ainda carregando), nenhum candidato aparece — nunca um errado', () => {
+    const options = deriveDirectoryOptions([
+      member('1', { fullName: 'Marina', area: 'Gente e Gestão', areaId: 'area-gg' }),
+    ]);
+
+    expect(options.ggPeople).toEqual([]);
   });
 });
 

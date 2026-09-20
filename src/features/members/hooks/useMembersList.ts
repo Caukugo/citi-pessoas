@@ -12,6 +12,7 @@ import {
   applyDerivedFilters,
   buildMemberListItems,
   deriveDirectoryOptions,
+  GG_AREA_SLUG,
   summarizeMembers,
   type MemberDirectoryOptions,
   type MemberListItem,
@@ -115,16 +116,23 @@ export interface MemberDirectory {
  * Busca a base inteira uma vez (sem filtro) e fica em cache: serve tanto para
  * traduzir id → nome quanto para preencher os selects de cargo e GG
  * responsável, que não podem ser escritos à mão na UI.
+ *
+ * `ggPeople` (dentro de `options`) usa a MESMA regra de `isValidGgCandidate`
+ * — por isso o catálogo organizacional entra aqui também: sem `areaId`
+ * resolvido contra o catálogo, não dá para saber quem é de Gente e Gestão de
+ * verdade (o texto legado `area` pode ter divergido).
  */
 export function useMemberDirectory(): MemberDirectory {
   const { data, isLoading } = useMembers();
+  const catalogQuery = useOrgCatalog();
+  const ggAreaId = orgIdBySlug(catalogQuery.data?.areas, GG_AREA_SLUG);
 
   return useMemo(() => {
     const all = data ?? [];
     return {
       byId: new Map(all.map((member) => [member.id, member])),
-      options: deriveDirectoryOptions(all),
-      isLoading,
+      options: deriveDirectoryOptions(all, ggAreaId),
+      isLoading: isLoading || catalogQuery.isLoading,
     };
-  }, [data, isLoading]);
+  }, [data, isLoading, ggAreaId, catalogQuery.isLoading]);
 }

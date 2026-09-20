@@ -225,6 +225,25 @@ export const supabaseAdapter: DataAdapter = {
       return fromMemberRow(data as Record<string, unknown>);
     },
 
+    async bulkAssignGgResponsible(memberIds, ggResponsibleId) {
+      // Tudo numa RPC atômica: se qualquer membro já tiver responsável, não
+      // existir ou não estiver ativo, ou o responsável não for válido, o
+      // banco recusa a chamada inteira — nenhuma atualização parcial.
+      const { data, error } = await supabase().rpc('citi_bulk_assign_gg_responsible', {
+        p_member_ids: memberIds,
+        p_gg_responsible_id: ggResponsibleId,
+      });
+      if (error) fail(error, 'Erro ao atribuir responsável de GG em lote');
+
+      const row = (data ?? {}) as Record<string, unknown>;
+      return {
+        requested: Number(row.requested ?? 0),
+        updated: Number(row.updated ?? 0),
+        ggResponsibleId: String(row.gg_responsible_id ?? ggResponsibleId),
+        ggResponsibleName: String(row.gg_responsible_name ?? ''),
+      };
+    },
+
     async archive(id) {
       // Nunca DELETE: arquivar preserva o histórico.
       const { data, error } = await supabase()
