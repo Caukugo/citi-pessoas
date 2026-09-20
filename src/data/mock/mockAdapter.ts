@@ -784,8 +784,15 @@ export const mockAdapter: DataAdapter = {
             if (appointment.status !== 'realizado') return false;
           }
 
+          // ⚠️ O LEGADO ENTRA NOS DOIS RECORTES, de propósito.
+          //
+          // Compromisso migrado não tem organizador (ninguém emitiu convite
+          // por ele). Se o filtro o excluísse, ele só apareceria em "Toda GG"
+          // — e a visão padrão esconderia justamente o que precisa ser
+          // regularizado. Ele é de ninguém e é de todo mundo.
           if (
             filters.organizerProfileId &&
+            appointment.organizerProfileId !== null &&
             appointment.organizerProfileId !== filters.organizerProfileId
           ) {
             return false;

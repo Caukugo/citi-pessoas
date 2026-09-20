@@ -592,7 +592,12 @@ export const supabaseAdapter: DataAdapter = {
         .order('sort_at', { ascending: true });
 
       if (filters.organizerProfileId) {
-        query = query.eq('organizer_profile_id', filters.organizerProfileId);
+        // ⚠️ `is.null` junto: compromisso migrado do legado não tem
+        // organizador, e excluí-lo faria a visão padrão esconder justamente o
+        // que precisa ser regularizado.
+        query = query.or(
+          `organizer_profile_id.eq.${filters.organizerProfileId},organizer_profile_id.is.null`,
+        );
       }
       if (filters.memberId) query = query.eq('member_id', filters.memberId);
       if (!filters.includeClosed) {

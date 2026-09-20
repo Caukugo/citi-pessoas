@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Pencil, Plus, UserX } from 'lucide-react';
+import { CalendarPlus, Pencil, Plus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -156,6 +156,16 @@ export function MemberProfilePage() {
                 é registrar conversa, não consertar planilha. */}
             <Button icon={<Pencil size={15} />} onClick={() => setEditOpen(true)}>
               Editar cadastro
+            </Button>
+            {/* Leva para a Agenda de X1 com esta pessoa já escolhida.
+                A gaveta de agendamento mora lá porque depende da conexão com o
+                Google e da agenda inteira para avisar de conflito — montá-la
+                aqui duplicaria as duas coisas. */}
+            <Button
+              icon={<CalendarPlus size={15} />}
+              onClick={() => navigate(`${ROUTES.x1}?agendar=${member.id}`)}
+            >
+              Agendar X1
             </Button>
             <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
               {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
