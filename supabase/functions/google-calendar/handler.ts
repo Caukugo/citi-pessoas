@@ -718,6 +718,22 @@ async function atualizarRespostas(
     const fila = await enfileirar(deps, candidato.id, 'confirmar_evento', id);
     if (!fila) continue;
 
+    /*
+      ⚠️ AQUI `jaExistia` É IGNORADO DE PROPÓSITO, ao contrário de
+      `enfileirarEExecutar`. A assimetria é intencional e some se alguém
+      "uniformizar" as duas.
+
+      A diferença é o que a operação FAZ. Criar, alterar e cancelar ESCREVEM no
+      Google: repetir uma que já está a caminho é o duplo clique tentando furar
+      a trava, e a resposta certa é não fazer nada. `confirmar_evento` só LÊ —
+      é o "Atualizar". Pular a leitura porque a mesma pergunta já foi feita uma
+      vez deixaria a resposta ao convite congelada para sempre, que é
+      exatamente o que este endpoint existe para evitar.
+
+      A chave de idempotência reaproveita a linha do job, e isso é desejado: a
+      trilha de auditoria continua sendo uma por agendamento, não uma por
+      clique em Atualizar.
+    */
     await executar(deps, {
       id: fila.jobId,
       appointment_id: candidato.id,
