@@ -92,12 +92,72 @@ function syncFormAcceptingResponses() {
     PropertiesService.getScriptProperties().setProperty(LAST_VALID_DEADLINE_PROPERTY_, status.responseDeadlineAt);
   }
 
-  if (status.accepting) {
-    form.setAcceptingResponses(true);
-  } else {
-    form.setCustomClosedFormMessage(CLOSED_FORM_MESSAGE);
-    form.setAcceptingResponses(false);
+  applyDesiredFormState_(form, status.accepting);
+}
+
+/**
+ * Aplica o estado desejado (`aceitando`/`fechado`) num `Form` de verdade,
+ * lendo o estado atual antes de escrever — é isto que torna a sincronização
+ * IDEMPOTENTE. Só liga os fios reais (`FormApp`); a decisão em si é
+ * `applyDesiredFormStateCore_`.
+ *
+ * Existe porque `form.setAcceptingResponses(...)`/`setCustomClosedFormMessage(...)`
+ * chamados de novo com o MESMO valor que o Forms já tem lançam
+ * `Exception: Invalid data updating form` — descoberto porque o gatilho de
+ * tempo roda a cada minuto e, com o formulário já fechado, toda execução
+ * seguinte repetia essas duas chamadas sem necessidade.
+ */
+function applyDesiredFormState_(form, desiredAccepting) {
+  return applyDesiredFormStateCore_(desiredAccepting, {
+    isAccepting: function () {
+      return form.isAcceptingResponses();
+    },
+    getClosedMessage: function () {
+      return form.getCustomClosedFormMessage();
+    },
+    setAccepting: function (value) {
+      form.setAcceptingResponses(value);
+    },
+    setClosedMessage: function (message) {
+      form.setCustomClosedFormMessage(message);
+    },
+  });
+}
+
+/**
+ * Núcleo PURO da decisão de estado do formulário — sem `FormApp` de verdade,
+ * só o que `deps` injeta. É isto que Tests.gs consegue testar sem tocar
+ * nenhum serviço real do Apps Script.
+ *
+ * Regra: só escreve o que precisa mudar. Ao fechar, ajusta a mensagem (se for
+ * diferente) ANTES de mudar `accepting` — nunca depois. Ao abrir, a mensagem
+ * não importa (só é lida quando o formulário está fechado) e não é tocada.
+ *
+ * Devolve um código estável só para o teste conferir sem espionar chamadas:
+ * 'aberto_sem_mudanca', 'aberto_setAccepting', 'fechado_sem_mudanca',
+ * 'fechado_apenas_mensagem', 'fechado_apenas_accepting' ou
+ * 'fechado_mensagem_e_accepting'.
+ */
+function applyDesiredFormStateCore_(desiredAccepting, deps) {
+  var currentlyAccepting = deps.isAccepting();
+
+  if (desiredAccepting) {
+    if (currentlyAccepting) return 'aberto_sem_mudanca';
+    deps.setAccepting(true);
+    return 'aberto_setAccepting';
   }
+
+  var mensagemMudou = deps.getClosedMessage() !== CLOSED_FORM_MESSAGE;
+  if (mensagemMudou) {
+    deps.setClosedMessage(CLOSED_FORM_MESSAGE);
+  }
+
+  if (!currentlyAccepting) {
+    return mensagemMudou ? 'fechado_apenas_mensagem' : 'fechado_sem_mudanca';
+  }
+
+  deps.setAccepting(false);
+  return mensagemMudou ? 'fechado_mensagem_e_accepting' : 'fechado_apenas_accepting';
 }
 
 /**
@@ -106,6 +166,8 @@ function syncFormAcceptingResponses() {
  * BEM-SUCEDIDA já tinha confirmado. Nunca abre o formulário aqui: na pior
  * hipótese, mantém o que já estava. Só liga os fios reais (PropertiesService,
  * form, Logger) — a decisão em si é `applyFallbackOnFetchFailureCore_`.
+ * `setAccepting` reaproveita `applyDesiredFormState_` para herdar a mesma
+ * idempotência (nunca reescreve o Form com o valor que ele já tem).
  */
 function applyFallbackOnFetchFailure_(form) {
   applyFallbackOnFetchFailureCore_({
@@ -116,8 +178,7 @@ function applyFallbackOnFetchFailure_(form) {
       return Date.now();
     },
     setAccepting: function (value) {
-      if (!value) form.setCustomClosedFormMessage(CLOSED_FORM_MESSAGE);
-      form.setAcceptingResponses(value);
+      applyDesiredFormState_(form, value);
     },
     log: function (message) {
       Logger.log(message);

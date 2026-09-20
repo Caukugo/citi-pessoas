@@ -573,6 +573,155 @@ function test_pontosDeEntradaPublicos_semUnderscoreSemParametro() {
   );
 }
 
+// ─── applyDesiredFormStateCore_ — sincronização idempotente (Sync.gs) ───────
+//
+// Motivo: `syncFormAcceptingResponses` rodava a cada minuto e, com o Forms já
+// fechado, repetia `setCustomClosedFormMessage`/`setAcceptingResponses` com o
+// MESMO valor toda vez — e o Forms lança `Invalid data updating form` para
+// essa escrita redundante. Estes testes fabricam o estado atual do Form
+// (`isAccepting`/`getClosedMessage`) e contam quantas vezes cada setter seria
+// chamado — nenhum toca `FormApp` de verdade.
+
+function fakeFormState_(isAccepting, closedMessage) {
+  var chamadasSetAccepting = [];
+  var chamadasSetClosedMessage = [];
+  var deps = {
+    isAccepting: function () { return isAccepting; },
+    getClosedMessage: function () { return closedMessage; },
+    setAccepting: function (value) { chamadasSetAccepting.push(value); },
+    setClosedMessage: function (message) { chamadasSetClosedMessage.push(message); },
+  };
+  return { deps: deps, chamadasSetAccepting: chamadasSetAccepting, chamadasSetClosedMessage: chamadasSetClosedMessage };
+}
+
+function test_applyDesiredFormState_abertoParaAberto_nenhumSetter() {
+  var fake = fakeFormState_(true, 'mensagem qualquer, não importa quando está aberto');
+  var resultado = applyDesiredFormStateCore_(true, fake.deps);
+
+  if (resultado !== 'aberto_sem_mudanca' || fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: aberto→aberto não deveria chamar nenhum setter (evita "Invalid data updating form").');
+  }
+  Logger.log('OK: aberto→aberto não chama nenhum setter.');
+}
+
+function test_applyDesiredFormState_fechadoParaFechadoMensagemIgual_nenhumSetter() {
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_sem_mudanca' || fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: fechado→fechado com a mesma mensagem não deveria chamar nenhum setter — este é o bug real (Sync:98).');
+  }
+  Logger.log('OK: fechado→fechado com mensagem igual não chama nenhum setter.');
+}
+
+function test_applyDesiredFormState_abertoParaFechado_mensagemAntesDeAccepting() {
+  var fake = fakeFormState_(true, 'mensagem antiga, diferente');
+  var ordem = [];
+  fake.deps.setClosedMessage = function (message) { ordem.push('mensagem'); fake.chamadasSetClosedMessage.push(message); };
+  fake.deps.setAccepting = function (value) { ordem.push('accepting'); fake.chamadasSetAccepting.push(value); };
+
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_mensagem_e_accepting') {
+    throw new Error('FALHOU: aberto→fechado deveria mudar mensagem e accepting (veio "' + resultado + '").');
+  }
+  if (ordem.length !== 2 || ordem[0] !== 'mensagem' || ordem[1] !== 'accepting') {
+    throw new Error('FALHOU: ao fechar, a mensagem deveria ser ajustada ANTES do accepting=false (ordem: ' + ordem.join(',') + ').');
+  }
+  if (fake.chamadasSetClosedMessage[0] !== CLOSED_FORM_MESSAGE || fake.chamadasSetAccepting[0] !== false) {
+    throw new Error('FALHOU: aberto→fechado deveria gravar CLOSED_FORM_MESSAGE e accepting=false.');
+  }
+  Logger.log('OK: aberto→fechado ajusta a mensagem antes de mudar accepting.');
+}
+
+function test_applyDesiredFormState_fechadoParaAberto_somenteAccepting() {
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+  var resultado = applyDesiredFormStateCore_(true, fake.deps);
+
+  if (resultado !== 'aberto_setAccepting' || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error('FALHOU: fechado→aberto não deveria tocar a mensagem, só accepting.');
+  }
+  if (fake.chamadasSetAccepting.length !== 1 || fake.chamadasSetAccepting[0] !== true) {
+    throw new Error('FALHOU: fechado→aberto deveria chamar setAccepting(true) exatamente uma vez.');
+  }
+  Logger.log('OK: fechado→aberto chama somente setAccepting(true).');
+}
+
+function test_applyDesiredFormState_fechadoComMensagemDiferente_somenteMensagem() {
+  var fake = fakeFormState_(false, 'mensagem antiga, diferente');
+  var resultado = applyDesiredFormStateCore_(false, fake.deps);
+
+  if (resultado !== 'fechado_apenas_mensagem' || fake.chamadasSetAccepting.length !== 0) {
+    throw new Error('FALHOU: fechado com mensagem diferente→fechado não deveria tocar accepting, só a mensagem.');
+  }
+  if (fake.chamadasSetClosedMessage.length !== 1 || fake.chamadasSetClosedMessage[0] !== CLOSED_FORM_MESSAGE) {
+    throw new Error('FALHOU: fechado com mensagem diferente→fechado deveria atualizar para CLOSED_FORM_MESSAGE.');
+  }
+  Logger.log('OK: fechado com mensagem diferente→fechado só atualiza a mensagem.');
+}
+
+function test_applyDesiredFormState_duasSincronizacoesFechadasConsecutivas_semErro() {
+  // Simula exatamente o cenário do bug: o Form já está fechado com a mensagem
+  // certa, e DUAS sincronizações seguidas rodam sobre esse mesmo estado — a
+  // segunda não pode repetir nenhum setter (é a repetição que quebrava com
+  // "Invalid data updating form" de verdade).
+  var isAccepting = false;
+  var closedMessage = null; // primeira sincronização: Form nunca foi fechado antes
+  var totalSetAccepting = 0;
+  var totalSetClosedMessage = 0;
+  var deps = {
+    isAccepting: function () { return isAccepting; },
+    getClosedMessage: function () { return closedMessage; },
+    setAccepting: function (value) { totalSetAccepting += 1; isAccepting = value; },
+    setClosedMessage: function (message) { totalSetClosedMessage += 1; closedMessage = message; },
+  };
+
+  var primeiro = applyDesiredFormStateCore_(false, deps);
+  var segundo = applyDesiredFormStateCore_(false, deps);
+
+  if (primeiro !== 'fechado_apenas_mensagem') {
+    throw new Error('FALHOU: primeira sincronização deveria só gravar a mensagem (Form já estava fechado).');
+  }
+  if (segundo !== 'fechado_sem_mudanca') {
+    throw new Error('FALHOU: segunda sincronização consecutiva deveria detectar que nada mudou.');
+  }
+  if (totalSetClosedMessage !== 1 || totalSetAccepting !== 0) {
+    throw new Error(
+      'FALHOU: duas sincronizações fechadas consecutivas deveriam gravar a mensagem só UMA vez e nunca ' +
+      'tocar accepting (veio setClosedMessage=' + totalSetClosedMessage + ', setAccepting=' + totalSetAccepting + ').',
+    );
+  }
+  Logger.log('OK: duas sincronizações fechadas consecutivas terminam sem repetir nenhum setter.');
+}
+
+function test_applyDesiredFormState_fallbackAposDeadlineComFormularioJaFechado_semMutacaoSemErro() {
+  // `applyFallbackOnFetchFailureCore_` decide 'fechado' (prazo vencido) e
+  // chama deps.setAccepting(false); `applyFallbackOnFetchFailure_` real
+  // encaminha isso para `applyDesiredFormState_`. Aqui simulamos exatamente
+  // essa ponte, com o Form já fechado e com a mensagem certa.
+  var fake = fakeFormState_(false, CLOSED_FORM_MESSAGE);
+
+  var resultadoFallback = applyFallbackOnFetchFailureCore_({
+    getLastValidDeadline: function () { return '2030-06-15T12:00:00Z'; },
+    now: function () { return Date.parse('2030-06-15T12:00:01Z'); }, // 1s DEPOIS do prazo
+    setAccepting: function (value) {
+      applyDesiredFormStateCore_(value, fake.deps);
+    },
+    log: function () {},
+  });
+
+  if (resultadoFallback !== 'fechado_prazo_vencido') {
+    throw new Error('FALHOU: fallback com prazo vencido deveria decidir fechar.');
+  }
+  if (fake.chamadasSetAccepting.length !== 0 || fake.chamadasSetClosedMessage.length !== 0) {
+    throw new Error(
+      'FALHOU: com o Form já fechado e a mensagem certa, o fallback pós-deadline não deveria mutar nada ' +
+      '— é este exato caminho que lançava "Invalid data updating form".',
+    );
+  }
+  Logger.log('OK: fallback após deadline com formulário já fechado não muta nada e não lança erro.');
+}
+
 // ─── applyFallbackOnFetchFailure_ — falha de rede antes/depois do prazo ─────
 // (Sync.gs) — usa applyFallbackOnFetchFailureCore_ (sem PropertiesService,
 // FormApp nem Date.now() de verdade).
@@ -670,6 +819,14 @@ function runAllTests() {
   test_installSyncTrigger_zeroGatilhos_cria();
   test_installSyncTrigger_umGatilho_naoMexe();
   test_installSyncTrigger_variosGatilhos_mantemUmSoRemoveExcedentes();
+
+  test_applyDesiredFormState_abertoParaAberto_nenhumSetter();
+  test_applyDesiredFormState_fechadoParaFechadoMensagemIgual_nenhumSetter();
+  test_applyDesiredFormState_abertoParaFechado_mensagemAntesDeAccepting();
+  test_applyDesiredFormState_fechadoParaAberto_somenteAccepting();
+  test_applyDesiredFormState_fechadoComMensagemDiferente_somenteMensagem();
+  test_applyDesiredFormState_duasSincronizacoesFechadasConsecutivas_semErro();
+  test_applyDesiredFormState_fallbackAposDeadlineComFormularioJaFechado_semMutacaoSemErro();
 
   test_fallback_semSincronizacaoAnterior_fecha();
   test_fallback_prazoConhecidoJaVenceu_fecha();

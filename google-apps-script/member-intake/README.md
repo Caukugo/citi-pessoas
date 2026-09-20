@@ -17,6 +17,18 @@ abaixo são para você fazer manualmente.
 > Nada disto foi implantado nem executado contra o Apps Script real — só os
 > arquivos deste repositório foram alterados, como pedido.
 
+> ⚠️ **Correção de bug em `Sync.gs`**: a sincronização repetia
+> `setCustomClosedFormMessage`/`setAcceptingResponses` a cada execução do
+> gatilho de tempo, mesmo quando o Forms já estava exatamente no estado
+> desejado — o Forms rejeita essa escrita redundante com
+> `Exception: Invalid data updating form`, e é isso que travava toda
+> sincronização depois que o formulário fechava pela primeira vez. A
+> sincronização agora lê o estado atual (`isAcceptingResponses()`,
+> `getCustomClosedFormMessage()`) antes de escrever e só chama os setters
+> quando algo realmente precisa mudar. Se o Apps Script real já estiver
+> colado, **substitua `Sync.gs` e `Tests.gs`** por esta versão; os demais
+> arquivos não mudaram nesta correção.
+
 ## O que esta pasta contém
 
 | Arquivo | Papel |
@@ -179,7 +191,12 @@ nunca recriado a cada gestão.
 O que ele faz a cada execução: pergunta ao backend (GET autenticado por HMAC,
 mesmo esquema do envio) se há campanha ativa dentro do prazo; se sim, chama
 `form.setAcceptingResponses(true)`; se não, define a mensagem de formulário
-fechado e chama `form.setAcceptingResponses(false)`. Se a consulta ao backend
+fechado e chama `form.setAcceptingResponses(false)`. Em ambos os casos, a
+sincronização é **idempotente**: antes de escrever, lê o estado atual do Form
+(`isAcceptingResponses()`, `getCustomClosedFormMessage()`) e só chama um
+setter quando o valor desejado é diferente do que já está lá — rodar duas
+sincronizações seguidas com o mesmo resultado nunca repete uma escrita. Se a
+consulta ao backend
 falhar (rede, HTTP não-2xx), decide com base no último prazo válido que uma
 sincronização anterior confirmou (salvo em Script Properties): se esse prazo
 já passou, fecha; se nunca houve uma sincronização válida, mantém fechado; se
