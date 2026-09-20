@@ -178,6 +178,8 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 | X1-006 | Status do X1 | ✅ Implementado |
 | X1-007 | Periodicidade | Parcial — já é respeitada e exibida; falta a tela de Administração (ADM-001) |
 | X1-008 | Integração com Perfil | ✅ Implementado |
+| X1-009 | Agenda de X1 | 🚧 Em andamento — escopo antecipado da Fase 2, ver ADR-019 |
+| X1-010 | Integração com Google Calendar | 🚧 Em andamento — conexão individual, ver ADR-021 |
 
 ### EPIC 4 — Feedbacks · Clara
 
@@ -239,10 +241,14 @@ QA-001 a QA-010. Começam quando as features correspondentes estiverem prontas.
 - Sinais de atenção **e sinais positivos**
 - Reconhecimento (sugerido, nunca automático)
 - Evolução do engajamento ao longo do tempo
-- Calendário X1 com visão mensal e integração com Google Calendar
 
 > Regra já definida para a Fase 2: **falta justificada não reduz engajamento**, e
 > todos os eventos têm o mesmo peso de presença na visão atual.
+
+> ⚠️ **O Calendário X1 saiu desta lista.** A Agenda de X1 e a integração
+> individual com Google Calendar foram **antecipadas para a Fase 1** — issues
+> X1-009 e X1-010. A decisão está em **ADR-019**; o modelo de dados em
+> **ADR-020**; a conexão e a proteção do token em **ADR-021**.
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-09-17",
+  "updatedAt": "2026-09-19",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -998,6 +998,81 @@
       "labels": [
         "area: x1",
         "difficulty: assisted",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-009",
+      "epic": "EPIC-3",
+      "title": "Agenda de X1",
+      "description": "A tela /x1 vira a Agenda: calendario mensal, compromissos do dia e quem precisa de acompanhamento. O compromisso e uma entidade nova, separada do registro da conversa.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "tecnica",
+      "priority": "Alta",
+      "status": "In Progress",
+      "dependencies": [
+        "X1-003",
+        "X1-006"
+      ],
+      "branch": "feat/agenda-x1-google-calendar",
+      "acceptanceCriteria": [
+        "Calendario mensal com navegacao e Hoje usando o tempo real no fuso America/Recife",
+        "Selecionar um dia atualiza a lista, em ordem cronologica, com membro, organizador, inicio/fim e modalidade",
+        "Segmentado Meus x1 / Toda GG, busca e filtro por organizador, todos na URL via useSearchParams",
+        "Meus x1 na agenda e quem organiza; Meus x1 nas pendencias e a carteira de GG, e a diferenca aparece no rotulo",
+        "Bloco Precisam de acompanhamento: primeiro X1 pendente, atrasado e sem proximo agendamento",
+        "Gavetas de agendar, revisar, detalhes e reagendar; dialogo de confirmacao para cancelar; revisar e voltar preserva os campos",
+        "Registrar conversa reaproveita o formulario real de X1-001, com schemas, valores do CITi e validacoes intactos",
+        "Vinculo agendamento-conversa e unico e atomico; registro sem agendamento continua funcionando",
+        "Agendar pelo Perfil abre o formulario com o membro preenchido",
+        "Os quatro estados tratados; filtro sem resultado nao e ausencia de dados",
+        "getMemberX1Status nao muda ao agendar, aceitar convite ou ver o horario passar, com teste de nao-regressao",
+        "Periodicidade vem de x1PeriodicityFor, nunca 30 dias fixos",
+        "Funciona em desktop e em viewport estreito, sem rolagem lateral"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: agendar nao e conversar. Criar compromisso, aceitar convite ou ver o horario passar NAO mudam a situacao de X1 do membro; so registrar a conversa muda. Nada derivado e gravado: aguardando registro e calculado do fim do compromisso mais a ausencia de conversa vinculada (ARCHITECTURE.md 4.1). Nao estenda x1s: o agendamento e a tabela x1_appointments (ADR-020). Escopo antecipado da Fase 2 por ADR-019. Especificacao de execucao em docs/agenda-x1-plan.md.",
+      "labels": [
+        "area: x1",
+        "difficulty: technical",
+        "priority: high"
+      ]
+    },
+    {
+      "id": "X1-010",
+      "epic": "EPIC-3",
+      "title": "Integracao com Google Calendar",
+      "description": "Cada integrante de GG conecta a propria conta CITi e o convite sai do Google dela, para o e-mail institucional do membro.",
+      "owner": "Bia",
+      "reviewer": "Cauan/Sofia",
+      "difficulty": "tecnica",
+      "priority": "Alta",
+      "status": "In Progress",
+      "dependencies": [
+        "X1-009"
+      ],
+      "branch": "feat/agenda-x1-google-calendar",
+      "acceptanceCriteria": [
+        "Conectar, reconectar e desconectar, com a conta conectada visivel; a conexao e individual, sem conta central compartilhada",
+        "Cinco estados distintos: indisponivel por configuracao, desconectada, conectando, conectada e requer reconexao",
+        "Servidor sem segredo nunca manda a pessoa refazer o OAuth",
+        "Consultar agendamentos salvos funciona sem conexao nenhuma",
+        "Voltar do OAuth devolve ao contexto com o preenchimento preservado",
+        "Criar evento real com o convidado certo; Abrir no Calendar aponta para o evento existente, nunca action=TEMPLATE",
+        "Presencial exige local; online gera Meet; Meet pendente ou indisponivel tem estado honesto",
+        "Reagendar atualiza o mesmo evento; cancelar notifica e preserva o historico; o motivo interno nao vai para o Google",
+        "Outro GG nao altera nem cancela: 403 na API, nao so escondido na tela",
+        "Repetir operacao nao duplica evento, registro nem convite",
+        "Sincronizacao periodica e manual para horario, local, Meet, resposta e cancelamento; erro de acesso nao vira cancelamento",
+        "Nunca importar a agenda pessoal; evento alheio e descartado sem persistir",
+        "Token, chave, nota interna e resumo de X1 nao aparecem no cliente, no convite nem em log",
+        "Falha nunca vira toast de sucesso nem perde o preenchimento",
+        "Escopos minimos openid, email e calendar.events.owned; sem freebusy a tela diz Disponibilidade nao verificada"
+      ],
+      "aiInstructions": "REGRA DE PRODUTO: a conexao com o Google e individual e pertence ao usuario autenticado (ADR-021). O backend deriva a identidade organizadora da sessao, nunca de id ou e-mail vindos do cliente. So o organizador reagenda ou cancela, validado no servidor; toda GG consulta e toda GG registra conversa. O refresh token fica cifrado em tabela com RLS ligada e nenhuma policy, com chave so na Edge Function; nunca reaproveite CPF_ENCRYPTION_KEY. Nada interno vai ao Google: resumo, avaliacao de valores, comentarios e motivo interno de cancelamento ficam na plataforma. Nao adicione dependencia ao package.json: o cliente Google e fetch cru, como member-cpf e google-forms-intake.",
+      "labels": [
+        "area: x1",
+        "difficulty: technical",
         "priority: high"
       ]
     },
