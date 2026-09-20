@@ -18,7 +18,7 @@
 | 6 · Tela da agenda | ✅ concluída |
 | 7 · Gavetas e jornadas | ✅ concluída (sobre o mock) |
 | 8 · OAuth | ✅ concluída — falta homologar com credencial real |
-| 9 · Operações reais + idempotência | ⏳ |
+| 9 · Operações reais + idempotência | 🔄 cliente Google pronto e testado; falta a função `google-calendar` |
 | 10 · Sincronização | ⏳ |
 | 11 · Documentação e fechamento | ⏳ |
 
