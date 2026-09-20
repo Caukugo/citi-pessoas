@@ -10,7 +10,7 @@
 | Etapa | Situação |
 | --- | --- |
 | 0 · Governança e branch | ✅ concluída |
-| 1 · Reprodução visual (5 gates) | ⛔ **bloqueada** — a skill é reservada à invocação explícita: rode `/img-to-html` |
+| 1 · Reprodução visual (5 gates) | ✅ concluída — `mocks/agenda-x1/`, 5 gates aprovados |
 | 2 · Migration `0026` + legado | 🔄 escrita; **não aplicada** (sem Docker/psql/projeto linkado aqui) |
 | 3 · Contrato de dados + regras puras | ✅ concluída |
 | 4 · Mock adapter + fixtures | ✅ concluída |

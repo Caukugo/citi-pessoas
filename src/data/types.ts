@@ -639,7 +639,9 @@ export const X1_APPOINTMENT_STATUS_LABEL: Record<X1AppointmentStatus, string> = 
 export type X1InviteResponse = 'pendente' | 'aceito' | 'talvez' | 'recusado';
 
 export const X1_INVITE_RESPONSE_LABEL: Record<X1InviteResponse, string> = {
-  pendente: 'Aguardando resposta',
+  // Curto de propósito: ao lado de "Aceito" e "Recusado", o rótulo longo
+  // ocupava quase três vezes a largura dos outros e desequilibrava o cartão.
+  pendente: 'Aguardando',
   aceito: 'Aceito',
   talvez: 'Talvez',
   recusado: 'Recusado',

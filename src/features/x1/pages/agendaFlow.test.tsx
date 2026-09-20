@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -82,6 +82,26 @@ async function selectDay(user: ReturnType<typeof userEvent.setup>, day: string) 
 beforeEach(() => {
   localStorage.clear();
   resetMockData();
+
+  /*
+    ⚠️ O RELÓGIO É CONGELADO às 08:00 de hoje, e isso não é zelo excessivo.
+
+    As fixtures põem dois X1 hoje, às 14:00 e às 16:00. Sem congelar, a suíte
+    passava de manhã e falhava depois das 16:45 — quando os dois compromissos
+    já terminaram e ninguém mais tem "próximo X1". Um teste que depende da hora
+    em que roda é pior do que nenhum: ele ensina o time a ignorar o vermelho.
+
+    `shouldAdvanceTime` mantém os `setTimeout` funcionando, que é o que a
+    latência simulada do adapter mock usa.
+  */
+  const hoje08h = new Date();
+  hoje08h.setHours(8, 0, 0, 0);
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(hoje08h);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('Agenda de X1', () => {
