@@ -580,10 +580,10 @@ const SEED_X1S: SeedX1[] = [
     softSkills: ['Comunicação', 'Organização'],
     desiredSkills: ['Liderança técnica', 'Arquitetura de frontend'],
     citiValues: [
-      { value: 'Eu sou o CITi', rating: 5, note: 'Muito presente na cultura da squad.' },
+      { value: 'Eu sou o CITi', rating: 4, note: 'Muito presente na cultura da squad.' },
       {
         value: 'Obcecados por aprender',
-        rating: 5,
+        rating: 4,
         note: 'Estudou TypeScript avançado por conta própria.',
       },
       { value: 'Obcecados por vencer', rating: 4, note: null },

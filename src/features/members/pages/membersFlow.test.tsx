@@ -142,17 +142,50 @@ describe('fluxo Membros → Perfil → X1', () => {
     // lento do teste e não é o que está sendo verificado aqui.
     await user.click(within(drawer).getByLabelText(/^Resumo/));
     await user.paste('Primeira conversa. Boa adaptação ao squad.');
+
+    // Escala "Valores do CITi" (fix/valores-citi-escala-1-4): exatamente
+    // quatro opções por valor, nunca uma quinta.
+    const citiValueGroup = within(
+      within(drawer).getByRole('radiogroup', {
+        name: /Eu sou o CITi: o quanto apareceu na conversa/i,
+      }),
+    );
+    expect(citiValueGroup.getAllByRole('radio')).toHaveLength(4);
+    expect(
+      citiValueGroup.queryByRole('radio', { name: /Eu sou o CITi: muito presente na conversa/i }),
+    ).toBeNull();
+
+    // Marca o nível 4 (o mais alto que existe agora) para "Eu sou o CITi".
+    await user.click(
+      citiValueGroup.getByRole('radio', { name: /Eu sou o CITi: apareceu bastante/i }),
+    );
+
     await user.click(within(drawer).getByRole('button', { name: /^Registrar X1$/ }));
 
     // A gaveta fecha e o aviso de sucesso aparece.
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-    // O histórico passou a existir…
+    // O histórico passou a existir… (a Visão Geral mostra a atividade recente,
+    // sem o detalhe por valor — isso é a aba X1, checada abaixo).
     expect(await screen.findByText('Primeira conversa. Boa adaptação ao squad.')).toBeVisible();
 
     // …e a situação derivou junto, sem ninguém gravar "em dia" em lugar nenhum.
     await waitFor(() => expect(screen.getAllByText(/em dia/i).length).toBeGreaterThan(0));
     expect(screen.queryByText(/nenhum x1 registrado ainda/i)).toBeNull();
+
+    // Aba X1: o registro detalhado, com a nota por valor do CITi.
+    await user.click(screen.getByRole('tab', { name: /^X1/ }));
+    const newHistoryItem = (
+      await screen.findByText('Primeira conversa. Boa adaptação ao squad.')
+    ).closest('li')!;
+    const toggle = within(newHistoryItem).getByRole('button');
+    if (toggle.getAttribute('aria-expanded') !== 'true') {
+      await user.click(toggle);
+    }
+    // …com a nota sobre a escala nova (1 a 4), nunca sobre 5.
+    expect(
+      await within(newHistoryItem).findByText(/apareceu 4\/4 nesta conversa/i),
+    ).toBeVisible();
   }, 30_000);
 
   it('id inexistente mostra "membro não encontrado", não tela quebrada', async () => {

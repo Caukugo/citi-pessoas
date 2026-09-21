@@ -199,7 +199,7 @@ export function X1HistoryItem({
                   <li key={entry.value} className="flex flex-wrap items-center gap-2">
                     <Badge tone="neutral">{entry.value}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      apareceu {entry.rating}/5 nesta conversa
+                      apareceu {entry.rating}/4 nesta conversa
                     </span>
                     {entry.note && (
                       <span className="text-xs break-words text-foreground-secondary">

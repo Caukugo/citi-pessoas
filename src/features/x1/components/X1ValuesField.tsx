@@ -22,7 +22,6 @@ const LEVELS = [
   { value: '2', short: '2', label: 'apareceu em alguns momentos' },
   { value: '3', short: '3', label: 'apareceu' },
   { value: '4', short: '4', label: 'apareceu bastante' },
-  { value: '5', short: '5', label: 'muito presente na conversa' },
 ];
 
 export function X1ValuesField({
