@@ -389,7 +389,7 @@ export function fromX1AppointmentRow(row: Row): X1Appointment {
  * ⚠️ NÃO existe caminho aqui para `sync_status`, `x1_id`, `origin`,
  * `invite_response` nem `versao`, e a ausência é deliberada: são campos do
  * SERVIÇO. Um trigger no banco recusa o cliente que tentar escrevê-los
- * (migration 0026), e este mapper é a primeira das duas travas — a intenção
+ * (migration 0034), e este mapper é a primeira das duas travas — a intenção
  * não chega nem a virar requisição.
  *
  * `organizer_profile_id` também não está aqui: ele vem da SESSÃO, via

@@ -2,7 +2,7 @@
 
 > Agenda de X1 (**X1-009**) e integração individual com o Google Calendar
 > (**X1-010**). Decisões em ADR-019, ADR-020 e ADR-021.
-> Schema: migrations `0026` e `0027`.
+> Schema: migrations `0034` e `0035`.
 
 Este guia é para quem tem acesso ao Google Cloud da organização e ao projeto
 Supabase. Ele **não pede segredo nenhum por chat** — ensina onde cada valor é
@@ -181,7 +181,7 @@ npx supabase projects list
 npx supabase db push --linked
 ```
 
-`0026` cria o schema da agenda. `0027` liga `pg_cron`/`pg_net` e agenda as
+`0034` cria o schema da agenda. `0035` liga `pg_cron`/`pg_net` e agenda as
 tarefas — ela **depende** dos segredos do Vault da seção 8, e falha com uma
 mensagem explícita se eles não estiverem lá.
 
@@ -345,8 +345,8 @@ agendamento que já tem conversa registrada — isso é histórico, não configu
 
 | Parte | Arquivo |
 | --- | --- |
-| Schema, RLS e funções | `supabase/migrations/0026_agenda_de_x1_e_google_calendar.sql` |
-| Agendador (`pg_cron`, Vault) | `supabase/migrations/0027_agendador_google_calendar.sql` |
+| Schema, RLS e funções | `supabase/migrations/0034_agenda_de_x1_e_google_calendar.sql` |
+| Agendador (`pg_cron`, Vault) | `supabase/migrations/0035_agendador_google_calendar.sql` |
 | OAuth | `supabase/functions/google-calendar-oauth/` |
 | Operações de evento | `supabase/functions/google-calendar/` |
 | Worker periódico | `supabase/functions/google-calendar-sync/` |

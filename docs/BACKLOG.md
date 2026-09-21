@@ -421,7 +421,7 @@ A aba de X1 dentro do Perfil. **Combine com a Gabi antes de começar.**
 > modelo de dados está no **ADR-020**. Especificação de execução:
 > `docs/agenda-x1-plan.md`.
 >
-> ✅ **Implementada e validada no modo mock.** A migration `0026` ainda **não
+> ✅ **Implementada e validada no modo mock.** A migration `0034` ainda **não
 > foi aplicada** em nenhum projeto — é o próximo passo de quem tiver acesso ao
 > Supabase de teste.
 

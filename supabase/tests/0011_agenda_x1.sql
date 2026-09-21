@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DA AGENDA DE X1 E DA INTEGRAÇÃO COM GOOGLE CALENDAR (migration 0026)
+-- TESTES DA AGENDA DE X1 E DA INTEGRAÇÃO COM GOOGLE CALENDAR (migration 0034)
 --
 -- Como rodar:
 --   npx supabase db query --linked -f supabase/tests/0011_agenda_x1.sql

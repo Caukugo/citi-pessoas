@@ -1592,7 +1592,7 @@ const SEED_X1_APPOINTMENTS: SeedAppointment[] = [
 
   // ⚠️ LEGADO: os dois X1 com `status = 'agendado'` e só data viram
   // compromissos "horário a definir". `syncStatus: null` = fora da integração,
-  // que é DIFERENTE de falha. Espelha exatamente o que a migration 0026 faz.
+  // que é DIFERENTE de falha. Espelha exatamente o que a migration 0034 faz.
   {
     id: 'apt-legado-x1-003',
     memberId: 'mbr-005',

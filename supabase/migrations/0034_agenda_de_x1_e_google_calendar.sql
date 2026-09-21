@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 0026 — Agenda de X1 (X1-009) e integração com Google Calendar (X1-010)
+-- 0034 — Agenda de X1 (X1-009) e integração com Google Calendar (X1-010)
 --
 -- POR QUÊ: a Fase 1 entregou metade do X1. Dá para registrar uma conversa que
 -- já aconteceu, mas não dá para marcar a próxima. Na prática GG marca os X1 no
@@ -1531,7 +1531,7 @@ on conflict do nothing;
 insert into x1_appointment_audit (action, result, metadata)
 select 'migrar', 'ok',
        jsonb_build_object(
-         'origem', 'migracao_legado_0026',
+         'origem', 'migracao_legado_0034',
          'linhas', (select count(*) from x1_appointments where origin = 'legado_x1'));
 
 -- ─── Como reverter ───────────────────────────────────────────────────────────

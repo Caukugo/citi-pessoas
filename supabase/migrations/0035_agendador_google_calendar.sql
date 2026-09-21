@@ -1,10 +1,10 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- 0027 — O agendador da integração com o Google Calendar (X1-010)
+-- 0035 — O agendador da integração com o Google Calendar (X1-010)
 --
--- POR QUÊ SEPARADA DA 0026: esta migration LIGA EXTENSÕES (`pg_cron`, `pg_net`,
--- `pgcrypto`) e cria tarefas periódicas. A 0026 é schema puro: aplica, reverte
+-- POR QUÊ SEPARADA DA 0034: esta migration LIGA EXTENSÕES (`pg_cron`, `pg_net`,
+-- `pgcrypto`) e cria tarefas periódicas. A 0034 é schema puro: aplica, reverte
 -- e roda em qualquer Postgres. Esta depende de recursos que só existem no
--- projeto hospedado, e misturar as duas faria a 0026 — que é a parte
+-- projeto hospedado, e misturar as duas faria a 0034 — que é a parte
 -- importante — parar de ser aplicável em um banco local.
 --
 -- ══ O QUE PRECISA RODAR SOZINHO ══════════════════════════════════════════════

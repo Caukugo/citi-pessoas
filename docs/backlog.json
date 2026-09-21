@@ -1037,7 +1037,7 @@
         "difficulty: technical",
         "priority: high"
       ],
-      "notes": "Implementada e validada no modo mock. A migration 0026 ainda nao foi aplicada em nenhum projeto — ver docs/agenda-x1-plan.md."
+      "notes": "Implementada e validada no modo mock. A migration 0034 ainda nao foi aplicada em nenhum projeto — ver docs/agenda-x1-plan.md."
     },
     {
       "id": "X1-010",

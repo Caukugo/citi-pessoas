@@ -11,7 +11,7 @@
 | --- | --- |
 | 0 · Governança e branch | ✅ concluída |
 | 1 · Reprodução visual (5 gates) | ✅ concluída — `mocks/agenda-x1/`, 5 gates aprovados |
-| 2 · Migration `0026` + legado | 🔄 escrita; **não aplicada** (sem Docker/psql/projeto linkado aqui) |
+| 2 · Migration `0034` + legado | 🔄 escrita; **não aplicada** (sem Docker/psql/projeto linkado aqui) |
 | 3 · Contrato de dados + regras puras | ✅ concluída |
 | 4 · Mock adapter + fixtures | ✅ concluída |
 | 5 · Supabase adapter + mappers | ✅ concluída — as Edge Functions que ele chama chegam na etapa 8/9 |
@@ -19,7 +19,7 @@
 | 7 · Gavetas e jornadas | ✅ concluída (sobre o mock) |
 | 8 · OAuth | ✅ concluída — falta homologar com credencial real |
 | 9 · Operações reais + idempotência | ✅ concluída — `google-calendar` criando, reagendando e cancelando; falta homologar com credencial real |
-| 10 · Sincronização | ✅ concluída — `google-calendar-sync`, migration `0027` (**não aplicada**) e "Atualizar" com trava de 30s |
+| 10 · Sincronização | ✅ concluída — `google-calendar-sync`, migration `0035` (**não aplicada**) e "Atualizar" com trava de 30s |
 | 11 · Documentação e fechamento | ✅ concluída — `google-calendar-setup.md`, `.env.example`, runbook §3.1 e backlog |
 
 Legenda: ⏳ não começou · 🔄 em andamento · ✅ concluído · ⛔ bloqueado por
@@ -58,7 +58,7 @@ O que a inspeção confirmou (e onde o diagnóstico anterior estava desatualizad
 | `Member` | `email` (institucional, `not null`, único por `lower(email)`) e `personalEmail` são campos distintos, confirmado. |
 | Cadeia de identidade | `auth.users.id` = `profiles.id`; `profiles.member_id` é FK **nullable** para `members`. Não são intercambiáveis. |
 | Autorização | `citi_is_gg()` confere o papel (`gg`/`gg_diretoria`) explicitamente. Política padrão: `for all using (is_gg()) with check (is_gg())`. |
-| Migrations | Última é `0025_resolucao_curso_rotulo_curto.sql` → a nova é **`0026`**. |
+| Migrations | Última é `0025_resolucao_curso_rotulo_curto.sql` → a nova é **`0034`**. |
 | Edge Functions | `member-cpf` e `google-forms-intake` + `_shared/`. **Zero import externo**, zero `deno.json`. `google-forms-intake` é webhook HMAC — **não** é OAuth. |
 | Segredos em repouso | Não há `vault`/`pgsodium`. O precedente é `member_private_data` (`0019`): AES-256-GCM, RLS ligada **sem nenhuma policy**, `revoke all from anon, authenticated`. |
 | Rotas e navegação | **`ROUTES.x1 = '/x1'` já está registrada** em `router.tsx` e o item "X1" já está em `navigation.ts`. **Nada em `src/app/` precisa mudar.** |
@@ -145,7 +145,7 @@ migrations, funções testáveis, documentação — é construído sem isso.
 
 ## 4. Modelo de dados e migração
 
-Arquivo novo: **`supabase/migrations/0026_agenda_de_x1_e_google_calendar.sql`**, no estilo da
+Arquivo novo: **`supabase/migrations/0034_agenda_de_x1_e_google_calendar.sql`**, no estilo da
 casa (cabeçalho `─────` em português com "POR QUÊ", nomes de constraint em português,
 `comment on` em tudo, `revoke` antes de todo `grant`).
 
@@ -202,7 +202,7 @@ um segundo) · `citi_enfileira_sincronizacao_x1` · `citi_conclui_sincronizacao_
 (consumo de uso único **no `update … where usado_em is null`**, para que dois callbacks
 concorrentes não ganhem os dois) · `citi_google_aplicar_sync` · `citi_google_invalidar_sync_token`.
 
-### Migração do legado (roda no fim da 0026)
+### Migração do legado (roda no fim da 0034)
 
 Insere em `x1_appointments` cada `x1s` com `status='agendado'` e `scheduled_for not null`:
 `origin='legado_x1'`, `origin_x1_id = x.id`, `scheduled_date = x.scheduled_for`,
@@ -460,7 +460,7 @@ Cada grupo de arquivo compartilhado sai em **commit próprio**, listado no relat
 | --- | --- | --- | --- |
 | **0** | Governança e branch | `docs/BACKLOG.md` + `docs/backlog.json` (**X1-009** Agenda de X1, **X1-010** Integração Google Calendar — EPIC-3, owner Bia, reviewer Cauan/Sofia, no formato verbatim existente) · `docs/FEATURES.md` (move o item de "Fase 2" para Fase 1 com a decisão registrada) · `docs/DECISIONS.md` (**ADR-019** antecipar o escopo · **ADR-020** agendamento é entidade separada de `x1s` · **ADR-021** conexão Google individual e proteção do refresh token) | Issues existem nos dois arquivos, sincronizados; ADRs no formato Contexto/Decisão/Alternativas/Motivação/Consequências |
 | **1** | Reprodução visual (5 gates) | `mocks/agenda-x1/**` | Etapa 5 da skill aprovada por você |
-| **2** | Migration + legado | `supabase/migrations/0026_agenda_de_x1_e_google_calendar.sql` · `supabase/tests/0011_agenda_x1.sql` · `supabase/scripts/google_calendar_cleanup.sql` (termina em `rollback`) | Aplica e reverte limpo no projeto de **teste**; RLS validada com sessão de outro papel |
+| **2** | Migration + legado | `supabase/migrations/0034_agenda_de_x1_e_google_calendar.sql` · `supabase/tests/0011_agenda_x1.sql` · `supabase/scripts/google_calendar_cleanup.sql` (termina em `rollback`) | Aplica e reverte limpo no projeto de **teste**; RLS validada com sessão de outro papel |
 | **3** | Contrato + regras puras | `src/data/types.ts` · `adapter.ts` · `queryKeys.ts` · `x1Appointments.ts` (novo) · `x1.ts` (correção de `nextScheduledX1`) · **`src/features/x1/model/`** (`appointmentState.ts`, `agenda.ts`, `scheduling.ts`, `googlePayload.ts`) + 4 arquivos de teste | Os 38 testes da §10 passam; `model/` não importa React nem `db` |
 | **4** | Mock | `src/data/mock/{mockAdapter,fixtures,store}.ts` | Agenda completa navegável em `VITE_DATA_SOURCE=mock`, com sucesso/falha/Meet pendente/token revogado simulados **sem rede** |
 | **5** | Supabase adapter | `src/data/supabase/{mappers,supabaseAdapter}.ts` | Paridade de contrato com o mock; chamadas de integração via `fetch` no padrão `callCpfFunction` |
@@ -468,7 +468,7 @@ Cada grupo de arquivo compartilhado sai em **commit próprio**, listado no relat
 | **7** | Gavetas e jornadas | `components/{ScheduleX1Drawer,ReviewInviteStep,AppointmentDetailsDrawer,RescheduleX1Drawer,CancelX1Dialog,RecordConversationDrawer}.tsx` · `schemas/appointmentSchema.ts` · entrada pelo perfil em `src/features/members/pages/MemberProfilePage.tsx` | Todos os caminhos da §7 funcionam no mock, inclusive vínculo com o registro |
 | **8** | OAuth | `supabase/functions/_shared/google/**` · `supabase/functions/google-calendar-oauth/**` · `_shared/{http,supabase}.ts` (CORS com POST/PATCH; `BaseEnv` separada de `ServerEnv`) · `supabase/config.toml` | Testes de handler passam; conectar/reconectar/desconectar e as 8 falhas da matriz cobertas |
 | **9** | Operações reais + idempotência | `supabase/functions/google-calendar/**` | Criar/reagendar/cancelar reais; duplo clique não duplica; consultar-antes-de-reenviar testado |
-| **10** | Sincronização | `supabase/functions/google-calendar-sync/**` · migration `0027_agendador_google_calendar.sql` (pg_cron/pg_net/Vault, separada de propósito) · botão "Atualizar" | Sync manual e periódico funcionam; 410 recupera; agenda pessoal alheia é descartada |
+| **10** | Sincronização | `supabase/functions/google-calendar-sync/**` · migration `0035_agendador_google_calendar.sql` (pg_cron/pg_net/Vault, separada de propósito) · botão "Atualizar" | Sync manual e periódico funcionam; 410 recupera; agenda pessoal alheia é descartada |
 | **11** | Documentação e fechamento | `docs/google-calendar-setup.md` (novo, 12 seções no formato do `google-forms-intake-setup.md`) · `.env.example` · `docs/RUNBOOK_PRODUCAO.md` §3 · atualização final dos docs da etapa 0 | `npm run check` limpo; relatório final separando implementado / validado localmente / homologado |
 
 **Ordem de dependência:** 0 → 1 → 2 → 3 → (4, 5) → 6 → 7 → 8 → 9 → 10 → 11.

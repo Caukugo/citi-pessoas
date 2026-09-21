@@ -120,7 +120,7 @@ npx supabase functions deploy google-calendar-sync
 ```
 
 Depois, os dois segredos do Vault e as tarefas do `pg_cron`
-(`docs/google-calendar-setup.md` §8). Sem eles a migration `0027` falha com
+(`docs/google-calendar-setup.md` §8). Sem eles a migration `0035` falha com
 mensagem explícita, em vez de disparar requisição sem assinatura.
 
 **Verificação de borda**, sem dado nenhum:

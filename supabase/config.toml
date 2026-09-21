@@ -480,7 +480,7 @@ verify_jwt = false
 #
 # `verify_jwt = false` por um motivo diferente das outras: NÃO EXISTE USUÁRIO
 # nesta chamada. Quem chama é o próprio banco, pelo `pg_cron` + `pg_net`
-# (migration 0027). Não há sessão, não há navegador e não há JWT para verificar.
+# (migration 0035). Não há sessão, não há navegador e não há JWT para verificar.
 #
 # A autenticação é HMAC de `timestamp + corpo`, com o segredo no Vault —
 # conferida DENTRO do handler, antes de o corpo ser sequer interpretado, e com
