@@ -159,8 +159,10 @@ async function montarMundo(opcoes: Opcoes) {
       );
     }
 
-    // RPC: devolve o que a função espera e registra o que recebeu.
-    return new Response('null', { status: 200 });
+    // RPC: a maioria das que este teste toca é `returns void` — corpo
+    // vazio de verdade (204), não `'null'`. Ver comentário em
+    // `_shared/supabase.ts` `callRpc`.
+    return new Response(null, { status: 204 });
   };
 
   const env: OutboxEnv = {

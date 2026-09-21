@@ -208,8 +208,12 @@ async function montarMundo(opcoes: Opcoes = {}) {
       );
     }
 
-    if (url.includes('citi_conclui_sincronizacao_x1')) return new Response('null', { status: 200 });
-    if (url.includes('citi_desconecta_google')) return new Response('null', { status: 200 });
+    // ⚠️ Corpo VAZIO, não 'null': é como o PostgREST responde para uma
+    // função `returns void` de verdade (204 sem corpo). Um `'null'` aqui
+    // escondeu, até este arquivo, um bug real em `callRpc` que só quebrava
+    // fora do teste — contra o Postgres de verdade.
+    if (url.includes('citi_conclui_sincronizacao_x1')) return new Response(null, { status: 204 });
+    if (url.includes('citi_desconecta_google')) return new Response(null, { status: 204 });
     if (url.includes('citi_google_aplicar_sync')) return new Response('1', { status: 200 });
 
     if (url.includes('oauth2.googleapis.com/token')) {
@@ -232,7 +236,7 @@ async function montarMundo(opcoes: Opcoes = {}) {
       return new Response(JSON.stringify(resposta.body), { status: resposta.status });
     }
 
-    return new Response('null', { status: 200 });
+    return new Response(null, { status: 204 });
   };
 
   const env: CalendarEnv = {

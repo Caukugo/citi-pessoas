@@ -64,8 +64,12 @@ function fakeMundo(
       );
     }
 
+    // ⚠️ Corpo VAZIO, não 'null': é como o PostgREST responde para uma
+    // função `returns void` de verdade (204 sem corpo). Um `'null'` aqui
+    // escondeu, até este arquivo, um bug real em `callRpc` que só quebrava
+    // fora do teste — contra o Postgres de verdade.
     if (url.includes('citi_google_oauth_abrir_state')) {
-      return new Response('null', { status: 200 });
+      return new Response(null, { status: 204 });
     }
 
     if (url.includes('citi_google_oauth_consumir_state')) {
@@ -86,7 +90,7 @@ function fakeMundo(
     }
 
     if (url.includes('citi_salva_conexao_google')) {
-      return new Response('null', { status: 200 });
+      return new Response(null, { status: 204 });
     }
 
     // Google: troca de código.

@@ -133,8 +133,12 @@ async function montarMundo(opcoes: Opcoes = {}) {
       return new Response(String(corpo.p_mudancas?.length ?? 0), { status: 200 });
     }
 
+    // ⚠️ Corpo VAZIO, não 'null': é como o PostgREST responde para uma
+    // função `returns void` de verdade (204 sem corpo). Um `'null'` aqui
+    // escondeu, até este arquivo, um bug real em `callRpc` que só quebrava
+    // fora do teste — contra o Postgres de verdade.
     if (url.includes('citi_google_invalidar_sync_token')) {
-      return new Response('null', { status: 200 });
+      return new Response(null, { status: 204 });
     }
 
     if (url.includes('oauth2.googleapis.com/token')) {
@@ -160,7 +164,7 @@ async function montarMundo(opcoes: Opcoes = {}) {
       );
     }
 
-    return new Response('null', { status: 200 });
+    return new Response(null, { status: 204 });
   };
 
   const env: SyncWorkerEnv = {

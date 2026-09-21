@@ -131,5 +131,18 @@ export async function callRpc<T>(
 
   if (!response.ok) return { ok: false, status: 502 };
 
-  return { ok: true, data: (await response.json()) as T };
+  // ⚠️ FUNÇÃO `returns void` VEM COM O CORPO VAZIO (o PostgREST responde 204
+  // sem nada, e às vezes 200 sem nada). `.json()` numa resposta vazia lança
+  // `SyntaxError: Unexpected end of JSON input` — e como isto está FORA do
+  // `if (!response.ok)`, virava uma exceção não tratada em vez de um retorno
+  // de erro, derrubando com 500 qualquer chamador de uma RPC void
+  // (`citi_google_oauth_abrir_state`, `citi_desconecta_google`,
+  // `citi_conclui_sincronizacao_x1`, `citi_google_invalidar_sync_token`,
+  // `citi_salva_conexao_google`). Nenhum teste em Vitest pegou isto porque o
+  // `fetch` falso sempre devolvia o texto `'null'` — que É um JSON válido —
+  // em vez de um corpo genuinamente vazio.
+  const texto = await response.text();
+  if (!texto) return { ok: true, data: undefined as T };
+
+  return { ok: true, data: JSON.parse(texto) as T };
 }
