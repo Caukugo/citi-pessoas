@@ -3,13 +3,13 @@ import { DataError } from '../errors';
 import { normalizeText } from '@/lib/format';
 import { FEEDBACK_TYPE_LABEL } from '../types';
 import type {
-  AnonymousFeedback,
   AnonymousFeedbackStatus,
   AuthUser,
   Feedback,
   ID,
   Member,
   MemberCreateInput,
+  MemberDeactivateInput,
   MemberImportResult,
   MemberIntakeReviewReason,
   X1,
@@ -19,8 +19,21 @@ import type {
 import { MOCK_USERS } from './fixtures';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
 import { cycleBoundsFor } from '../cycleBounds';
-import { currentCycleAfterRoster, planRosterContinuation } from '../import/currentRoster';
+import {
+  addDaysISO,
+  addMonthsISO,
+  currentCycleAfterRoster,
+  planRosterContinuation,
+} from '../import/currentRoster';
 import { checkCpf, cpfLast4 } from '../cpf';
+import {
+  computeGestaoPeriod,
+  isDeadlineBeforeEntryDate,
+  isDeadlineInFuture,
+  isValidGestaoLabel,
+  isWithinHorizon,
+  recifeTodayISO,
+} from '../gestaoLabel';
 import {
   CPF_REVIEW_REASONS,
   mockCpf,
@@ -39,6 +52,25 @@ import type { MockSyncJob } from './store';
  */
 
 const authListeners = new Set<(user: AuthUser | null) => void>();
+
+/**
+ * Ciclo ATUAL aproximado de um membro, só para o modo mock validar
+ * `deactivate` (migration 0032).
+ *
+ * ⚠️ SIMPLIFICAÇÃO CONHECIDA: o mock não modela `member_cycles` (não existe
+ * array de ciclos no `MockDatabase` — ver `store.ts`). No banco real, a fonte
+ * é `member_cycles.expected_end_on`, calculada a partir da gestão de entrada e
+ * de eventuais continuações (0005/0015). Aqui, sem gestão nem cargo
+ * normalizados para a maioria dos membros fictícios, o ciclo é só "12 meses a
+ * partir de `joinedAt`", sem continuação nenhuma. Suficiente para testar o
+ * FLUXO da tela; não é a regra de produto — essa mora no Postgres.
+ */
+function mockCurrentCycle(member: Member): { startedOn: string; expectedEndOn: string } {
+  return {
+    startedOn: member.joinedAt,
+    expectedEndOn: addDaysISO(addMonthsISO(member.joinedAt, 12), -1),
+  };
+}
 
 function notifyAuth(user: AuthUser | null) {
   authListeners.forEach((listener) => listener(user));
@@ -340,6 +372,87 @@ export const mockAdapter: DataAdapter = {
       return updated;
     },
 
+    async bulkAssignGgResponsible(memberIds, ggResponsibleId) {
+      await delay();
+
+      // Mesmas travas da RPC (migration 0031) — tudo ou nada, sem tocar o
+      // banco fictício até confirmar que a operação inteira é válida.
+      const LIMITE_LOTE = 200;
+
+      if (!memberIds || memberIds.length === 0) {
+        throw new DataError('invalid', 'lote_vazio: selecione ao menos um membro.');
+      }
+      if (memberIds.some((id) => !id)) {
+        throw new DataError('invalid', 'uuid_nulo_no_lote: a lista de membros não pode conter um id vazio.');
+      }
+      if (memberIds.length > LIMITE_LOTE) {
+        throw new DataError(
+          'invalid',
+          `lote_grande_demais: no máximo ${LIMITE_LOTE} membros por operação (recebido ${memberIds.length}).`,
+        );
+      }
+      if (new Set(memberIds).size !== memberIds.length) {
+        throw new DataError('invalid', 'uuid_duplicado_no_lote: a lista de membros não pode repetir o mesmo id.');
+      }
+      if (!ggResponsibleId) {
+        throw new DataError('invalid', 'responsavel_obrigatorio: escolha o responsável de GG.');
+      }
+
+      const db = mockDb();
+      const alvos = memberIds.map((id) => db.members.find((m) => m.id === id));
+
+      if (alvos.some((m) => !m)) {
+        throw new DataError('not_found', 'membro_inexistente: um ou mais membros da lista não foram encontrados.');
+      }
+      const membros = alvos as Member[];
+
+      if (membros.some((m) => m.status !== 'ativo')) {
+        throw new DataError('invalid', 'membro_inativo: todos os membros selecionados precisam estar ativos.');
+      }
+      // Só atribui quem está sem responsável — nunca sobrescreve. Reatribuir
+      // continua sendo feito individualmente, pela tela existente.
+      if (membros.some((m) => m.ggResponsibleId)) {
+        throw new DataError(
+          'conflict',
+          'membro_ja_atribuido: pelo menos um membro selecionado já tem responsável de GG — nenhum membro foi alterado.',
+        );
+      }
+
+      const ggAreaId = MOCK_ORG_CATALOG.areas.find((a) => a.slug === 'gente-e-gestao')?.id ?? null;
+      const responsavel = db.members.find((m) => m.id === ggResponsibleId);
+      if (!responsavel || responsavel.status !== 'ativo' || responsavel.areaId !== ggAreaId) {
+        throw new DataError(
+          'invalid',
+          'responsavel_invalido: o responsável precisa ser um membro ATIVO da área de Gente e Gestão.',
+        );
+      }
+
+      for (const membro of membros) {
+        const index = db.members.findIndex((m) => m.id === membro.id);
+        db.members[index] = { ...membro, ggResponsibleId, updatedAt: nowISO() };
+
+        db.memberEvents.push({
+          id: mockId('evt'),
+          memberId: membro.id,
+          type: 'mudanca_responsavel_gg',
+          occurredAt: nowISO().slice(0, 10),
+          title: 'Responsável de GG atribuído',
+          description: `De ninguém para ${responsavel.fullName} (atribuição em lote).`,
+          sourceId: null,
+          createdAt: nowISO(),
+        });
+      }
+
+      commit();
+
+      return {
+        requested: memberIds.length,
+        updated: membros.length,
+        ggResponsibleId,
+        ggResponsibleName: responsavel.fullName,
+      };
+    },
+
     async correctRecord(id, changes) {
       await delay();
       const db = mockDb();
@@ -524,6 +637,89 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = { ...db.members[index], status: 'arquivado', updatedAt: nowISO() };
       commit();
       return db.members[index];
+    },
+
+    async deactivate(id, input: MemberDeactivateInput) {
+      await delay();
+      const db = mockDb();
+      const index = db.members.findIndex((m) => m.id === id);
+      if (index < 0) {
+        throw new DataError('not_found', `membro_inexistente: membro ${id} não encontrado.`);
+      }
+
+      const member = db.members[index];
+      if (member.status !== 'ativo') {
+        throw new DataError(
+          'invalid',
+          `membro_nao_ativo: só é possível desligar quem está ativo. Situação atual: ${member.status}.`,
+        );
+      }
+
+      const endedOn = input.endedOn;
+      if (!endedOn) {
+        throw new DataError('invalid', 'data_obrigatoria: informe a data efetiva do desligamento.');
+      }
+
+      const REASON_MAX_CHARS = 500;
+      const reason = input.reason?.trim() || null;
+      if (reason && reason.length > REASON_MAX_CHARS) {
+        throw new DataError(
+          'invalid',
+          `motivo_muito_longo: o motivo aceita no máximo ${REASON_MAX_CHARS} caracteres (recebido ${reason.length}).`,
+        );
+      }
+
+      const cycle = mockCurrentCycle(member);
+      const hoje = recifeTodayISO();
+
+      if (endedOn > hoje) {
+        throw new DataError(
+          'invalid',
+          `data_futura: a data de desligamento não pode ser no futuro (hoje em Recife: ${hoje}).`,
+        );
+      }
+      if (endedOn < cycle.startedOn) {
+        throw new DataError(
+          'invalid',
+          `data_anterior_ao_ciclo: a data não pode ser anterior ao início do ciclo atual (${cycle.startedOn}).`,
+        );
+      }
+      if (endedOn >= cycle.expectedEndOn) {
+        throw new DataError(
+          'invalid',
+          `data_nao_e_interrupcao_antecipada: ${endedOn} não é anterior ao fim previsto do ciclo (${cycle.expectedEndOn}) — isto é conclusão natural, não desligamento. Use o fluxo de inativação por conclusão de ciclo.`,
+        );
+      }
+
+      const gerenciados = db.members.filter((m) => m.managerId === id && m.status === 'ativo').length;
+      const responsaveis = db.members.filter(
+        (m) => m.ggResponsibleId === id && m.status === 'ativo',
+      ).length;
+      if (gerenciados > 0 || responsaveis > 0) {
+        throw new DataError(
+          'conflict',
+          `membro_com_dependentes: ${gerenciados} pessoa(s) ativa(s) têm este membro como gerente e ${responsaveis} como responsável de GG — redistribua antes de desligar.`,
+        );
+      }
+
+      const desligado: Member = { ...member, status: 'desligado', exitedAt: endedOn, updatedAt: nowISO() };
+      db.members[index] = desligado;
+
+      db.memberEvents.push({
+        id: mockId('evt'),
+        memberId: id,
+        type: 'desligamento',
+        occurredAt: endedOn,
+        title: 'Desligamento do CITi',
+        description: reason
+          ? `Ciclo interrompido antes do fim previsto. Motivo: ${reason}.`
+          : 'Ciclo interrompido antes do fim previsto.',
+        sourceId: null,
+        createdAt: nowISO(),
+      });
+
+      commit();
+      return desligado;
     },
 
     async getPhotoUrl(path) {
@@ -1336,28 +1532,9 @@ export const mockAdapter: DataAdapter = {
       return mockDb().anonymousFeedbacks.find((f) => f.id === id) ?? null;
     },
 
-    async submit(input) {
-      await delay();
-      const db = mockDb();
-      // Nenhum dado de quem enviou é criado aqui. Anonimato é por construção.
-      const feedback: AnonymousFeedback = {
-        id: mockId('anon'),
-        content: input.content,
-        targetType: input.targetType,
-        targetMemberId: input.targetMemberId ?? null,
-        targetLabel: input.targetLabel ?? null,
-        submittedAt: nowISO(),
-        status: 'pendente',
-        resolution: null,
-        directedMemberId: null,
-        moderatedById: null,
-        moderatedAt: null,
-        moderationNote: null,
-      };
-      db.anonymousFeedbacks.push(feedback);
-      commit();
-      return feedback;
-    },
+    // ⚠️ Migration 0033: NÃO existe mais `submit()` aqui — o modo mock espelha
+    // o real, que perdeu o INSERT direto de anon/authenticated. A única porta
+    // de escrita é a Edge Function `anonymous-feedback-intake`.
 
     async moderate(id, decision) {
       await delay();
@@ -1520,6 +1697,10 @@ export const mockAdapter: DataAdapter = {
           payload: input.payload,
           errorMessage: null,
           reviewReasons: [],
+          // CSV não tem campanha — snapshot é exclusivo de google_forms.
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         };
         db.intakeSubmissions.push(submission);
         return submission.id;
@@ -1710,6 +1891,9 @@ export const mockAdapter: DataAdapter = {
           payload,
           errorMessage: error,
           reviewReasons: [],
+          campaignId: null,
+          gestaoId: null,
+          entryDate: null,
         });
       }
       commit();
@@ -1751,6 +1935,182 @@ export const mockAdapter: DataAdapter = {
       db.members[index] = { ...db.members[index], photoPath: path, updatedAt: nowISO() };
       commit();
       return path;
+    },
+  },
+
+  googleFormsIntake: {
+    async getConfig() {
+      await delay();
+      return mockDb().googleFormsIntakeConfig;
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.googleFormsIntakeConfig = {
+        ...db.googleFormsIntakeConfig,
+        ...input,
+        updatedAt: nowISO(),
+      };
+      commit();
+      return db.googleFormsIntakeConfig;
+    },
+
+    async getActiveCampaign() {
+      await delay();
+      return mockDb().intakeCampaigns.find((c) => c.status === 'ativa') ?? null;
+    },
+
+    async listCampaigns() {
+      await delay();
+      return [...mockDb().intakeCampaigns].sort((a, b) =>
+        b.activatedAt.localeCompare(a.activatedAt),
+      );
+    },
+
+    async startCampaign(input) {
+      await delay();
+      const db = mockDb();
+
+      const label = input.gestaoLabel.trim();
+      if (!isValidGestaoLabel(label)) {
+        throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
+      }
+
+      const hoje = recifeTodayISO();
+      const existente = db.gestoes.find((g) => g.name === label);
+
+      // A gestão nova só é EMPURRADA para `db.gestoes` depois de TODAS as
+      // validações abaixo passarem (perto do fim da função) — nunca aqui.
+      // Isso é o que garante a mesma atomicidade da RPC real: uma falha em
+      // QUALQUER validação posterior não deixa uma gestão "planejada" órfã,
+      // nem em memória, nem persistida.
+      let gestao = existente;
+      let gestaoNovaPendente: (typeof db.gestoes)[number] | null = null;
+
+      if (!gestao) {
+        const periodo = computeGestaoPeriod(label);
+        if (!periodo) {
+          throw new DataError('invalid', `Gestão "${label}" fora do formato esperado (AAAA.1 ou AAAA.2).`);
+        }
+        if (!isWithinHorizon(periodo.startDate, hoje)) {
+          throw new DataError(
+            'invalid',
+            `Gestão "${label}" está além do horizonte permitido (5 anos). Confira o ano digitado.`,
+          );
+        }
+        if (periodo.startDate <= hoje) {
+          throw new DataError('invalid', `Gestão "${label}" não está no futuro — não pode ser criada como campanha nova.`);
+        }
+
+        gestaoNovaPendente = {
+          id: mockId('gst'),
+          name: label,
+          startDate: periodo.startDate,
+          endDate: periodo.endDate,
+          status: 'planejada',
+        };
+        gestao = gestaoNovaPendente;
+      }
+
+      // Nunca presuma "diferente de ativa" = "finalizada": os três estados
+      // são conferidos pelo nome.
+      if (gestao.status !== 'planejada') {
+        throw new DataError(
+          'invalid',
+          `Gestão "${gestao.name}" está com status ${gestao.status} — só gestão planejada pode receber campanha.`,
+        );
+      }
+      if (gestao.startDate <= hoje) {
+        throw new DataError('invalid', `Gestão "${gestao.name}" já começou (em ${gestao.startDate}) — não pode receber uma nova campanha.`);
+      }
+      if (input.entryDate < gestao.startDate || input.entryDate > gestao.endDate) {
+        throw new DataError(
+          'invalid',
+          `Data oficial de entrada precisa estar dentro do período da gestão "${gestao.name}" (${gestao.startDate} a ${gestao.endDate}).`,
+        );
+      }
+      if (!input.responseDeadlineAt || !isDeadlineInFuture(input.responseDeadlineAt)) {
+        throw new DataError('invalid', 'prazo_no_passado: o prazo de resposta precisa estar no futuro.');
+      }
+      if (!isDeadlineBeforeEntryDate(input.responseDeadlineAt, input.entryDate)) {
+        throw new DataError(
+          'invalid',
+          `prazo_apos_entrada: o prazo de resposta precisa ser anterior à data oficial de entrada (meia-noite de ${input.entryDate}, América/Recife).`,
+        );
+      }
+      // 0029: uma campanha por gestão, para sempre — mesmo encerrada.
+      if (db.intakeCampaigns.some((c) => c.gestaoId === gestao.id)) {
+        throw new DataError(
+          'conflict',
+          `gestao_ja_possui_campanha: a gestão "${gestao.name}" já teve uma campanha de entrada.`,
+        );
+      }
+      // Mesma trava do banco (índice único parcial): no máximo uma campanha
+      // `ativa` por vez.
+      if (db.intakeCampaigns.some((c) => c.status === 'ativa')) {
+        throw new DataError('conflict', 'campanha_ativa_ja_existe: já existe uma campanha de entrada ativa.');
+      }
+
+      // Só agora — depois de TODAS as validações — a gestão nova (se houver)
+      // entra de fato no banco de mentira, junto com a campanha.
+      if (gestaoNovaPendente) {
+        db.gestoes.push(gestaoNovaPendente);
+      }
+
+      const campaign = {
+        id: mockId('campaign'),
+        gestaoId: gestao.id,
+        entryDate: input.entryDate,
+        responseDeadlineAt: input.responseDeadlineAt,
+        status: 'ativa' as const,
+        activatedAt: nowISO(),
+        activatedById: db.currentUser?.id ?? null,
+        closedAt: null,
+        closedById: null,
+      };
+      db.intakeCampaigns.push(campaign);
+      commit();
+      return campaign;
+    },
+
+    async closeCampaign(campaignId) {
+      await delay();
+      const db = mockDb();
+      const campaign = db.intakeCampaigns.find((c) => c.id === campaignId && c.status === 'ativa');
+      if (!campaign) {
+        throw new DataError('not_found', 'Campanha não encontrada ou já encerrada.');
+      }
+
+      campaign.status = 'encerrada';
+      campaign.closedAt = nowISO();
+      campaign.closedById = db.currentUser?.id ?? null;
+      commit();
+      return campaign;
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      await delay();
+      return mockDb().intakeSubmissions.filter((s) => s.campaignId === campaignId).length;
+    },
+  },
+
+  anonymousFeedbackIntake: {
+    async getConfig() {
+      await delay();
+      return mockDb().anonymousFeedbackIntakeConfig;
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.anonymousFeedbackIntakeConfig = {
+        ...db.anonymousFeedbackIntakeConfig,
+        ...input,
+        updatedAt: nowISO(),
+      };
+      commit();
+      return db.anonymousFeedbackIntakeConfig;
     },
   },
 };

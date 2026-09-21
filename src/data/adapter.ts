@@ -1,18 +1,24 @@
 import type {
   AnonymousFeedback,
-  AnonymousFeedbackCreateInput,
+  AnonymousFeedbackIntakeConfig,
+  AnonymousFeedbackIntakeConfigInput,
   AnonymousFeedbackModeration,
   AnonymousFeedbackStatus,
   AuthUser,
+  BulkAssignGgResponsibleResult,
   Feedback,
   FeedbackCreateInput,
   Gestao,
   FeedbackUpdateInput,
+  GoogleFormsIntakeConfig,
+  GoogleFormsIntakeConfigInput,
   ID,
   ISODate,
+  IntakeCampaign,
   Member,
   MemberCreateInput,
   MemberEvent,
+  MemberDeactivateInput,
   MemberFilters,
   MemberImportInput,
   MemberImportResult,
@@ -24,6 +30,7 @@ import type {
   MemberUpdateInput,
   OrgCatalog,
   Settings,
+  StartIntakeCampaignInput,
   X1,
   X1Appointment,
   X1AppointmentCancelInput,
@@ -74,6 +81,10 @@ export interface DataAdapter {
   org: OrgRepository;
   /** Importação da base CITi Pessoas por planilha (EPIC 7). */
   membersImport: MembersImportRepository;
+  /** Formulário permanente de entrada (Google Forms) e suas campanhas. */
+  googleFormsIntake: GoogleFormsIntakeRepository;
+  /** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). */
+  anonymousFeedbackIntake: AnonymousFeedbackIntakeRepository;
 }
 
 export interface MembersRepository {
@@ -91,8 +102,37 @@ export interface MembersRepository {
    */
   correctRecord(id: ID, changes: MemberRecordCorrection): Promise<Member>;
 
+  /**
+   * Atribui UM responsável de GG a vários membros de uma vez — usada depois de
+   * uma importação grande, para não abrir perfil por perfil (migration 0031).
+   *
+   * Só atribui quem está HOJE sem responsável: nunca sobrescreve, nunca
+   * reatribui. Se qualquer membro da lista já tiver responsável, ou não for
+   * encontrado, ou não estiver ativo, ou o responsável não for um membro
+   * ativo de Gente e Gestão, a chamada inteira falha — TUDO ou NADA, nunca
+   * uma atualização parcial.
+   */
+  bulkAssignGgResponsible(
+    memberIds: ID[],
+    ggResponsibleId: ID,
+  ): Promise<BulkAssignGgResponsibleResult>;
+
   /** Não existe exclusão: arquivar preserva o histórico. */
   archive(id: ID): Promise<Member>;
+
+  /**
+   * Desliga um membro ATIVO — interrompe o ciclo em andamento ANTES do fim
+   * previsto (migration 0032). Nunca produz `inativo`: essa continua sendo a
+   * conclusão natural, automática (`citi_deactivate_finished_cycles`).
+   *
+   * O banco recusa (entre outras coisas): membro não ativo, sem ciclo em
+   * andamento, data no futuro, data anterior ao início do ciclo, data que não
+   * representa interrupção antecipada (igual ou depois do fim previsto — isso
+   * é conclusão natural), ou dependente ativo apontando para este membro como
+   * `managerId`/`ggResponsibleId` (redistribuir é passo manual, fora desta
+   * chamada). Atômica: tudo ou nada.
+   */
+  deactivate(id: ID, input: MemberDeactivateInput): Promise<Member>;
 
   /**
    * URL ASSINADA e temporária da foto, a partir do `photoPath`.
@@ -330,13 +370,29 @@ export interface FeedbacksRepository {
   update(id: ID, input: FeedbackUpdateInput): Promise<Feedback>;
 }
 
+/**
+ * ⚠️ Migration 0033: NÃO existe mais `submit()` aqui. O canal de envio é o
+ * Google Form permanente → Edge Function `anonymous-feedback-intake` (com
+ * `service_role`) → INSERT. `anon`/`authenticated` perderam o INSERT direto na
+ * tabela (RLS + revoke), então este cliente nunca teria como escrever de
+ * qualquer forma — remover o método evita a falsa promessa de que a
+ * plataforma ainda oferece um caminho de envio.
+ */
 export interface AnonymousFeedbacksRepository {
   list(status?: AnonymousFeedbackStatus): Promise<AnonymousFeedback[]>;
   getById(id: ID): Promise<AnonymousFeedback | null>;
-  /** Chamado pelo formulário público externo — sem autenticação. */
-  submit(input: AnonymousFeedbackCreateInput): Promise<AnonymousFeedback>;
   /** Decisão humana da GG. Nunca converte em Feedback de acompanhamento. */
   moderate(id: ID, decision: AnonymousFeedbackModeration): Promise<AnonymousFeedback>;
+}
+
+/**
+ * Configuração permanente do canal de Feedback Anônimo via Google Forms
+ * (migration 0033). Mesmo padrão de `GoogleFormsIntakeRepository`, sem
+ * campanha: o canal é permanente, sem período.
+ */
+export interface AnonymousFeedbackIntakeRepository {
+  getConfig(): Promise<AnonymousFeedbackIntakeConfig>;
+  updateConfig(input: AnonymousFeedbackIntakeConfigInput): Promise<AnonymousFeedbackIntakeConfig>;
 }
 
 export interface SettingsRepository {
@@ -407,6 +463,40 @@ export interface MembersImportRepository {
    * ⚠️ Não existe URL pública: o bucket é privado e a exibição usa URL assinada.
    */
   uploadPhoto(memberId: ID, photo: MemberPhotoUpload): Promise<string>;
+}
+
+export interface GoogleFormsIntakeRepository {
+  /** Configuração permanente: form_id, link público, liga/desliga. */
+  getConfig(): Promise<GoogleFormsIntakeConfig>;
+  /** Configurada uma única vez (e corrigida raramente, se o link mudar). */
+  updateConfig(input: GoogleFormsIntakeConfigInput): Promise<GoogleFormsIntakeConfig>;
+
+  /** A campanha `ativa` agora, ou `null` se nenhuma estiver. */
+  getActiveCampaign(): Promise<IntakeCampaign | null>;
+  /** Histórico completo, mais recente primeiro. */
+  listCampaigns(): Promise<IntakeCampaign[]>;
+
+  /**
+   * Localiza a gestão pelo RÓTULO (`gestaoLabel`, ex.: `'2029.2'`) ou cria
+   * como `planejada` se ainda não existir — dentro de um horizonte móvel de
+   * 5 anos (0029). Recusa se: já existir campanha `ativa`; a gestão não
+   * estiver `planejada` ou já tiver começado; a gestão já tiver tido uma
+   * campanha (uma por gestão, para sempre); `entryDate` estiver fora do
+   * período da gestão; ou `responseDeadlineAt` não estiver no futuro e
+   * antes de `entryDate`. Atômica e serializada (advisory lock) — nenhuma
+   * gestão fica "planejada" órfã se alguma validação posterior falhar.
+   */
+  startCampaign(input: StartIntakeCampaignInput): Promise<IntakeCampaign>;
+
+  /**
+   * Encerra a campanha ativa. Ela continua existindo como histórico — nunca
+   * é apagada. Novas respostas do Forms passam a ser recusadas até a
+   * próxima campanha ser ativada.
+   */
+  closeCampaign(campaignId: ID): Promise<IntakeCampaign>;
+
+  /** Quantas respostas do Forms já chegaram para esta campanha (qualquer status). */
+  countCampaignSubmissions(campaignId: ID): Promise<number>;
 }
 
 export interface AuthRepository {

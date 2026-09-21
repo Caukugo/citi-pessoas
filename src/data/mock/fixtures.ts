@@ -1,8 +1,10 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
+  GoogleFormsIntakeConfig,
   Member,
   MemberEvent,
   Settings,
@@ -61,6 +63,39 @@ export const GESTOES: Gestao[] = [
     startDate: '2025-07-01',
     endDate: '2025-12-31',
     status: 'finalizada',
+  },
+  // ─── Futuras, PLANEJADAS — podem receber campanha de entrada via Google
+  // Forms (0028/0029: status planejada, não "diferente de ativa" =
+  // "finalizada"). Preenchidas por importação manual quando a gestão chegar
+  // de verdade — o Forms serve só para o processo seletivo de quem entra
+  // antes disso.
+  {
+    id: 'gst-2027-1',
+    name: '2027.1',
+    startDate: '2027-01-01',
+    endDate: '2027-06-30',
+    status: 'planejada',
+  },
+  {
+    id: 'gst-2027-2',
+    name: '2027.2',
+    startDate: '2027-07-01',
+    endDate: '2027-12-31',
+    status: 'planejada',
+  },
+  {
+    id: 'gst-2028-1',
+    name: '2028.1',
+    startDate: '2028-01-01',
+    endDate: '2028-06-30',
+    status: 'planejada',
+  },
+  {
+    id: 'gst-2028-2',
+    name: '2028.2',
+    startDate: '2028-07-01',
+    endDate: '2028-12-31',
+    status: 'planejada',
   },
 ];
 
@@ -546,10 +581,10 @@ const SEED_X1S: SeedX1[] = [
     softSkills: ['Comunicação', 'Organização'],
     desiredSkills: ['Liderança técnica', 'Arquitetura de frontend'],
     citiValues: [
-      { value: 'Eu sou o CITi', rating: 5, note: 'Muito presente na cultura da squad.' },
+      { value: 'Eu sou o CITi', rating: 4, note: 'Muito presente na cultura da squad.' },
       {
         value: 'Obcecados por aprender',
-        rating: 5,
+        rating: 4,
         note: 'Estudou TypeScript avançado por conta própria.',
       },
       { value: 'Obcecados por vencer', rating: 4, note: null },
@@ -1235,6 +1270,26 @@ export const SETTINGS: Settings = {
   // Exceção por membro (ADM-002): Edmundo está de saída e é acompanhado a cada 60 dias.
   x1PeriodicityByMember: { 'mbr-009': 60 },
   currentGestaoId: CURRENT_GESTAO_ID,
+  updatedAt: NOW,
+};
+
+// ─── Entrada de membros via Google Forms (modo mock) ─────────────────────────
+//
+// Desabilitada e sem formulário configurado, como o padrão da migration 0021
+// — configurar é uma decisão explícita da GG, feita pela Administração.
+
+export const GOOGLE_FORMS_INTAKE_CONFIG: GoogleFormsIntakeConfig = {
+  enabled: false,
+  formId: null,
+  responderUrl: null,
+  updatedAt: NOW,
+};
+
+/** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). Nasce desabilitado. */
+export const ANONYMOUS_FEEDBACK_INTAKE_CONFIG: AnonymousFeedbackIntakeConfig = {
+  enabled: false,
+  formId: null,
+  responderUrl: null,
   updatedAt: NOW,
 };
 

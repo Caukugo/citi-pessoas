@@ -11,7 +11,12 @@ import {
   type Member,
   type X1Appointment,
 } from '@/data';
-import { emptyX1Form, x1FormSchema, type X1FormValues } from '../schemas/x1Schema';
+import {
+  emptyX1Form,
+  toCitiValues,
+  x1FormSchema,
+  type X1FormValues,
+} from '../schemas/x1Schema';
 import { X1Form } from './X1Form';
 import { hasUndefinedTime, isAwaitingRecord } from '../model/appointmentState';
 import { timeInZone } from '../model/timeZone';
@@ -104,9 +109,7 @@ export function RecordConversationDrawer({
           hardSkills: values.hardSkills,
           softSkills: values.softSkills,
           desiredSkills: values.desiredSkills,
-          citiValues: Object.entries(values.citiValues)
-            .filter(([, nota]) => Boolean(nota))
-            .map(([valor, nota]) => ({ value: valor, rating: Number(nota) })),
+          citiValues: toCitiValues(values.citiValues),
           comments: values.comments.trim() || null,
         },
       });

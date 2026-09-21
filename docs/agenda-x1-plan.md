@@ -17,9 +17,9 @@
 | 5 · Supabase adapter + mappers | ✅ concluída — as Edge Functions que ele chama chegam na etapa 8/9 |
 | 6 · Tela da agenda | ✅ concluída |
 | 7 · Gavetas e jornadas | ✅ concluída (sobre o mock) |
-| 8 · OAuth | ✅ implementada e **deployada em teste**; falta o handshake real de navegador com conta `@citi.org.br` |
-| 9 · Operações reais + idempotência | ✅ implementada e **deployada em teste**; falta criar um X1 de verdade e ver o convite chegar |
-| 10 · Sincronização | ✅ implementada — worker testado **ponta a ponta em teste** (HMAC, os 2 jobs do cron, resposta 200 só-números); falta homologar com evento real do Google |
+| 8 · OAuth | ✅ **homologada** — conexão real feita no navegador com conta `@citi.org.br` |
+| 9 · Operações reais + idempotência | ✅ **homologada** — 4 eventos criados com convite e Meet, 4 cancelados, todos os jobs sem retentativa. Reagendar ainda não exercitado |
+| 10 · Sincronização | ✅ **homologada** — worker ponta a ponta (HMAC, os 2 jobs do cron) e a resposta ao convite voltando do Google, com cursor incremental ativo |
 | 11 · Documentação e fechamento | ✅ concluída — `google-calendar-setup.md`, `.env.example`, runbook §3.1 e backlog |
 
 Legenda: ⏳ não começou · 🔄 em andamento · ✅ concluído · ⛔ bloqueado por
@@ -460,7 +460,7 @@ Cada grupo de arquivo compartilhado sai em **commit próprio**, listado no relat
 | --- | --- | --- | --- |
 | **0** | Governança e branch | `docs/BACKLOG.md` + `docs/backlog.json` (**X1-009** Agenda de X1, **X1-010** Integração Google Calendar — EPIC-3, owner Bia, reviewer Cauan/Sofia, no formato verbatim existente) · `docs/FEATURES.md` (move o item de "Fase 2" para Fase 1 com a decisão registrada) · `docs/DECISIONS.md` (**ADR-019** antecipar o escopo · **ADR-020** agendamento é entidade separada de `x1s` · **ADR-021** conexão Google individual e proteção do refresh token) | Issues existem nos dois arquivos, sincronizados; ADRs no formato Contexto/Decisão/Alternativas/Motivação/Consequências |
 | **1** | Reprodução visual (5 gates) | `mocks/agenda-x1/**` | Etapa 5 da skill aprovada por você |
-| **2** | Migration + legado | `supabase/migrations/0034_agenda_de_x1_e_google_calendar.sql` · `supabase/tests/0011_agenda_x1.sql` · `supabase/scripts/google_calendar_cleanup.sql` (termina em `rollback`) | Aplica e reverte limpo no projeto de **teste**; RLS validada com sessão de outro papel |
+| **2** | Migration + legado | `supabase/migrations/0034_agenda_de_x1_e_google_calendar.sql` · `supabase/tests/0017_agenda_x1.sql` · `supabase/scripts/google_calendar_cleanup.sql` (termina em `rollback`) | Aplica e reverte limpo no projeto de **teste**; RLS validada com sessão de outro papel |
 | **3** | Contrato + regras puras | `src/data/types.ts` · `adapter.ts` · `queryKeys.ts` · `x1Appointments.ts` (novo) · `x1.ts` (correção de `nextScheduledX1`) · **`src/features/x1/model/`** (`appointmentState.ts`, `agenda.ts`, `scheduling.ts`, `googlePayload.ts`) + 4 arquivos de teste | Os 38 testes da §10 passam; `model/` não importa React nem `db` |
 | **4** | Mock | `src/data/mock/{mockAdapter,fixtures,store}.ts` | Agenda completa navegável em `VITE_DATA_SOURCE=mock`, com sucesso/falha/Meet pendente/token revogado simulados **sem rede** |
 | **5** | Supabase adapter | `src/data/supabase/{mappers,supabaseAdapter}.ts` | Paridade de contrato com o mock; chamadas de integração via `fetch` no padrão `callCpfFunction` |

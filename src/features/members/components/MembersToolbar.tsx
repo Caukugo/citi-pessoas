@@ -21,13 +21,21 @@ import type { MembersListFilters } from '../model/membersList';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
+/**
+ * Só as TRÊS situações que a interface oferece como ação/recorte hoje.
+ *
+ * `'arquivado'` continua existindo no tipo `MemberStatus` e no banco (dado
+ * legado, histórico preservado — CLAUDE.md §4/§13), mas NÃO tem mais opção
+ * aqui: não existe (e nunca existiu) ação de arquivar na interface, e mostrar
+ * o filtro sugeria o contrário. Ver `useMembersFilters.ts` — uma URL antiga
+ * com `situacao=arquivado` volta para o padrão, em vez de reoferecer a opção.
+ */
 const MEMBER_STATUS_OPTIONS: { value: MemberStatus; label: string }[] = [
   { value: 'ativo', label: 'Ativos' },
   // Quem concluiu o ciclo naturalmente. Separado de 'Desligados' porque é o
   // recorte de quem pode ser reativado numa continuação.
   { value: 'inativo', label: 'Inativos' },
   { value: 'desligado', label: 'Desligados' },
-  { value: 'arquivado', label: 'Arquivados' },
 ];
 
 /** Os filtros que moram na gaveta — os que o botão redondo precisa anunciar. */
@@ -37,6 +45,7 @@ function drawerFilterCount(filters: MembersListFilters): number {
     filters.subareaSlug,
     filters.role,
     filters.ggResponsibleId,
+    filters.ggResponsibleAssigned,
     filters.x1Status,
   ].filter(Boolean).length;
 }

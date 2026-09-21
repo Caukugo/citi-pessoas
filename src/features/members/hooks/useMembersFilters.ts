@@ -20,11 +20,20 @@ const PARAM = {
   subareaSlug: 'subarea',
   role: 'cargo',
   ggResponsibleId: 'gg',
+  ggResponsibleAssigned: 'responsavel',
   x1Status: 'x1',
   status: 'situacao',
 } as const;
 
-const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'inativo', 'desligado', 'arquivado'];
+const GG_RESPONSIBLE_ASSIGNED_VALUES: MembersListFilters['ggResponsibleAssigned'][] = ['sem', 'com'];
+
+/**
+ * Valores aceitos vindos da URL. `'arquivado'` fica de fora de propósito: não
+ * existe opção dele na interface (`MembersToolbar.tsx`), e um link antigo com
+ * `?situacao=arquivado` não pode reintroduzir esse filtro por trás — ele volta
+ * para o padrão (`ativo`), como qualquer outro valor inválido.
+ */
+const MEMBER_STATUSES: MemberStatus[] = ['ativo', 'inativo', 'desligado'];
 
 export interface MembersFiltersControl {
   filters: MembersListFilters;
@@ -39,6 +48,7 @@ export function useMembersFilters(): MembersFiltersControl {
   const filters = useMemo<MembersListFilters>(() => {
     const params = new URLSearchParams(serialized);
     const rawStatus = params.get(PARAM.status) as MemberStatus | null;
+    const rawGgAssigned = params.get(PARAM.ggResponsibleAssigned);
 
     return {
       search: params.get(PARAM.search) ?? '',
@@ -46,8 +56,13 @@ export function useMembersFilters(): MembersFiltersControl {
       subareaSlug: params.get(PARAM.subareaSlug) ?? '',
       role: params.get(PARAM.role) ?? '',
       ggResponsibleId: params.get(PARAM.ggResponsibleId) ?? '',
-      x1Status: params.get(PARAM.x1Status) ?? '',
       // Valor inventado na URL não pode quebrar a tela: volta para o padrão.
+      ggResponsibleAssigned: GG_RESPONSIBLE_ASSIGNED_VALUES.includes(
+        rawGgAssigned as MembersListFilters['ggResponsibleAssigned'],
+      )
+        ? (rawGgAssigned as MembersListFilters['ggResponsibleAssigned'])
+        : DEFAULT_MEMBERS_FILTERS.ggResponsibleAssigned,
+      x1Status: params.get(PARAM.x1Status) ?? '',
       status:
         rawStatus && MEMBER_STATUSES.includes(rawStatus)
           ? rawStatus

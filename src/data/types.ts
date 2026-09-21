@@ -171,6 +171,33 @@ export interface MemberFilters {
   managerId?: ID;
 }
 
+/**
+ * Resultado de `bulkAssignGgResponsible` (migration 0031).
+ *
+ * Sempre `requested === updated`: a operação é tudo-ou-nada — se não desse
+ * para atualizar todo mundo, nada foi atualizado, e a chamada teria lançado
+ * erro em vez de devolver isto.
+ */
+export interface BulkAssignGgResponsibleResult {
+  requested: number;
+  updated: number;
+  ggResponsibleId: ID;
+  ggResponsibleName: string;
+}
+
+/**
+ * O que a tela de Perfil manda para `citi_deactivate_member` (migration 0032).
+ *
+ * `endedOn` é a data EFETIVA do desligamento — precisa ser anterior ao fim
+ * previsto do ciclo em andamento (interrupção antecipada). Igual ou depois
+ * disso é conclusão natural, não desligamento, e o banco recusa.
+ */
+export interface MemberDeactivateInput {
+  endedOn: ISODate;
+  /** Opcional; o banco recusa acima do limite de caracteres. */
+  reason?: string | null;
+}
+
 // ─── Estrutura organizacional ─────────────────────────────────────────────────
 
 /**
@@ -494,13 +521,97 @@ export interface MemberRecordCorrection {
  * registros e preservar contexto. O módulo completo (metas, indicadores,
  * passagem de gestão) é evolução futura — não implemente agora.
  */
+/**
+ * Situação da gestão.
+ *
+ *   ativa      a gestão corrente da empresa — só uma por vez.
+ *   finalizada já aconteceu.
+ *   planejada  tem nome e período definidos, mas ainda não começou — nunca
+ *              presuma que "diferente de ativa" significa "finalizada": uma
+ *              gestão planejada não é nem uma coisa nem a outra (migration 0028).
+ *
+ * Só gestão `planejada` pode receber uma campanha de entrada via Google Forms
+ * (migration 0029) — nasce assim ao ser criada pelo combobox da Administração,
+ * e abrir a campanha NUNCA promove `planejada` para `ativa`.
+ */
+export type GestaoStatus = 'ativa' | 'finalizada' | 'planejada';
+
 export interface Gestao {
   id: ID;
   /** Rótulo da gestão, no formato usado pelo CITi: '2026.1'. */
   name: string;
   startDate: ISODate;
   endDate: ISODate;
-  status: 'ativa' | 'finalizada';
+  status: GestaoStatus;
+}
+
+// ─── Entrada de membros via Google Forms ─────────────────────────────────────
+//
+// Migration 0026. O Google Form é PERMANENTE — configurado uma única vez
+// (`GoogleFormsIntakeConfig`). A cada gestão, a GG abre uma `IntakeCampaign`
+// nova pela Administração: só isso muda, nunca o formulário em si.
+
+/**
+ * Configuração PERMANENTE do formulário — o que NUNCA muda de gestão para
+ * gestão. `formId`/`responderUrl` são configurados uma única vez, ao ligar a
+ * integração pela primeira vez (Apps Script, gatilho e segredo continuam
+ * fora da plataforma).
+ *
+ * ⚠️ `responderUrl` não é segredo: é o link público que a GG copia e
+ * distribui. O que NUNCA aparece aqui é `GOOGLE_FORMS_WEBHOOK_SECRET` — esse
+ * vive só nos secrets da Edge Function.
+ */
+export interface GoogleFormsIntakeConfig {
+  enabled: boolean;
+  formId: string | null;
+  responderUrl: string | null;
+  updatedAt: ISODate;
+}
+
+/** O que a GG informa ao ligar a integração pela primeira vez (ou corrigir o link/form_id). */
+export type GoogleFormsIntakeConfigInput = Partial<
+  Pick<GoogleFormsIntakeConfig, 'enabled' | 'formId' | 'responderUrl'>
+>;
+
+export type IntakeCampaignStatus = 'ativa' | 'encerrada';
+
+/**
+ * Uma campanha de entrada: a janela em que o formulário permanente aceita
+ * respostas para UMA gestão, com UMA data oficial de entrada e UM prazo.
+ *
+ * REGRA DE PRODUTO (0026 + 0027):
+ *   • `gestaoId`/`entryDate`/`responseDeadlineAt` são imutáveis depois de
+ *     criada — corrigir um engano é encerrar e abrir outra, nunca editar;
+ *   • no máximo uma `ativa` por vez;
+ *   • cada gestão tem NO MÁXIMO UMA campanha, para sempre — mesmo depois de
+ *     encerrada, a mesma gestão nunca recebe uma segunda;
+ *   • depois de `responseDeadlineAt`, nenhuma resposta nova cria membro —
+ *     mesmo que ninguém tenha clicado em "Encerrar entrada";
+ *   • encerrada não é apagada: é histórico.
+ */
+export interface IntakeCampaign {
+  id: ID;
+  gestaoId: ID;
+  entryDate: ISODate;
+  /** Data e hora limite para respostas (com fuso). Imutável após a criação. */
+  responseDeadlineAt: ISODate;
+  status: IntakeCampaignStatus;
+  activatedAt: ISODate;
+  activatedById?: ID | null;
+  closedAt?: ISODate | null;
+  closedById?: ID | null;
+}
+
+/**
+ * `gestaoLabel`, não `gestaoId` (0029): a campanha é criada a partir do
+ * RÓTULO da gestão (`'2029.2'`) — existente ou novo. O backend localiza a
+ * gestão pelo nome e, se não existir, cria como `planejada`, tudo na mesma
+ * transação. Nunca crie a gestão separadamente antes de chamar isto.
+ */
+export interface StartIntakeCampaignInput {
+  gestaoLabel: string;
+  entryDate: ISODate;
+  responseDeadlineAt: ISODate;
 }
 
 // ─── Cultura ──────────────────────────────────────────────────────────────────
@@ -524,7 +635,7 @@ export type CITiValue = (typeof CITI_VALUES)[number];
 /** Avaliação de um valor do CITi dentro de um X1. */
 export interface X1ValueRating {
   value: string;
-  /** Nota de 1 a 5. Opcional: nem todo X1 avalia valores. */
+  /** Nota de 1 a 4. Opcional: nem todo X1 avalia valores. */
   rating?: number | null;
   note?: string | null;
 }
@@ -1068,10 +1179,25 @@ export interface AnonymousFeedback {
   moderationNote?: string | null;
 }
 
-/** O que o formulário externo envia. Repare: nenhum campo de identificação. */
-export type AnonymousFeedbackCreateInput = Pick<
-  AnonymousFeedback,
-  'content' | 'targetType' | 'targetMemberId' | 'targetLabel'
+/**
+ * Configuração PERMANENTE do canal de Feedback Anônimo via Google Forms
+ * (migration 0033). Mesmo padrão de `GoogleFormsIntakeConfig`, sem gestão nem
+ * campanha: o canal nunca tem período — é permanente por decisão de produto.
+ *
+ * ⚠️ `responderUrl` não é segredo: é o link público que a GG copia, distribui
+ * e transforma em QR na Administração. O que NUNCA aparece aqui é
+ * `ANONYMOUS_FEEDBACK_WEBHOOK_SECRET` — esse vive só nos secrets da Edge
+ * Function `anonymous-feedback-intake`.
+ */
+export interface AnonymousFeedbackIntakeConfig {
+  enabled: boolean;
+  formId: string | null;
+  responderUrl: string | null;
+  updatedAt: ISODate;
+}
+
+export type AnonymousFeedbackIntakeConfigInput = Partial<
+  Pick<AnonymousFeedbackIntakeConfig, 'enabled' | 'formId' | 'responderUrl'>
 >;
 
 /**

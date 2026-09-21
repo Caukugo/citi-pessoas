@@ -421,9 +421,9 @@ A aba de X1 dentro do Perfil. **Combine com a Gabi antes de começar.**
 > modelo de dados está no **ADR-020**. Especificação de execução:
 > `docs/agenda-x1-plan.md`.
 >
-> ✅ **Implementada e validada no modo mock.** A migration `0034` ainda **não
-> foi aplicada** em nenhum projeto — é o próximo passo de quem tiver acesso ao
-> Supabase de teste.
+> ✅ **Implementada e validada.** As migrations `0034`–`0037` estão aplicadas em
+> `citi-pessoas-test`, com as 42 checagens de `supabase/tests/0017_agenda_x1.sql`
+> passando. Produção ainda não as tem.
 
 **Objetivo.** A tela `/x1` deixa de ser `FeatureStub` e passa a ser a Agenda:
 calendário mensal, compromissos do dia e quem precisa de acompanhamento. O
@@ -459,19 +459,22 @@ conversa.
 
 ### X1-010 — Integração com Google Calendar
 
-- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Blocked**
+- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Done**
 - **Dependências:** X1-009 · **Branch:** `feat/agenda-x1-google-calendar`
 
 > Conexão individual e proteção do token: **ADR-021**. Guia de configuração:
 > `docs/google-calendar-setup.md`.
 >
-> ⛔ **Deployada em `citi-pessoas-test`, ainda bloqueada na homologação.**
-> Migrations, secrets, Vault e as 3 Edge Functions estão aplicados no projeto
-> de teste. O worker (`google-calendar-sync`) foi disparado de verdade contra
-> a função publicada — HMAC bateu, os 2 jobs do cron rodaram, resposta 200
-> só com números. **Falta o handshake de OAuth num navegador de verdade**, com
-> conta `@citi.org.br`: nenhum convite de calendário foi criado ainda. Ver
-> `google-calendar-setup.md` §10.
+> ✅ **Homologada contra o Google de verdade**, em `citi-pessoas-test`.
+> Evidência no banco: conexão OAuth ativa, 4 eventos criados com convite, 4 com
+> link do Meet, 4 cancelados, resposta ao convite voltando pela sincronização e
+> cursor incremental ativo. Os 8 jobs da caixa de saída concluíram **sem
+> nenhuma retentativa**.
+>
+> ⚠️ **Não exercitados contra o Google:** reagendar (nenhum job
+> `atualizar_evento`) e registrar a conversa a partir do agendamento (nenhum
+> agendamento com `x1_id`). O código trata os dois e tem teste com `fetch`
+> falso. Ver `google-calendar-setup.md` §10.
 
 **Objetivo.** Cada integrante de GG conecta a própria conta CITi e o convite sai
 do Google dela, para o e-mail institucional do membro.

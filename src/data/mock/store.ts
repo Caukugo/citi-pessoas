@@ -1,8 +1,12 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
+  GoogleFormsIntakeConfig,
+  ID,
+  IntakeCampaign,
   Member,
   MemberEvent,
   MemberIntakeReviewReason,
@@ -15,9 +19,11 @@ import type {
 } from '../types';
 import { resetMockPrivateData } from './privateStore';
 import {
+  ANONYMOUS_FEEDBACK_INTAKE_CONFIG,
   ANONYMOUS_FEEDBACKS,
   FEEDBACKS,
   GESTOES,
+  GOOGLE_FORMS_INTAKE_CONFIG,
   MEMBERS,
   MEMBER_EVENTS,
   SETTINGS,
@@ -62,6 +68,12 @@ export interface MockDatabase {
    * idempotente: reenviar o mesmo CSV não cria ninguém de novo.
    */
   intakeSubmissions: MockIntakeSubmission[];
+  /** Configuração PERMANENTE do formulário do Google Forms (migration 0026). */
+  googleFormsIntakeConfig: GoogleFormsIntakeConfig;
+  /** Histórico de campanhas de entrada — no máximo uma com status `ativa`. */
+  intakeCampaigns: IntakeCampaign[];
+  /** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). */
+  anonymousFeedbackIntakeConfig: AnonymousFeedbackIntakeConfig;
   /** Sessão do modo mock. No Supabase quem cuida disso é a própria lib. */
   currentUser: AuthUser | null;
 }
@@ -102,6 +114,15 @@ export interface MockIntakeSubmission {
    * `needs_review`, e não ter motivo é não estar.
    */
   reviewReasons: MemberIntakeReviewReason[];
+  /**
+   * Snapshot imutável da campanha que produziu esta entrada (só
+   * `google_forms` — migration 0026). `null` para `csv`/`manual`, e também
+   * para uma resposta do Forms que ainda não foi processada nem falhou por
+   * falta de campanha ativa.
+   */
+  campaignId: ID | null;
+  gestaoId: ID | null;
+  entryDate: string | null;
 }
 
 function seed(): MockDatabase {
@@ -135,6 +156,9 @@ function seed(): MockDatabase {
     gestoes: structuredClone(GESTOES),
     settings: structuredClone(SETTINGS),
     intakeSubmissions: [],
+    googleFormsIntakeConfig: structuredClone(GOOGLE_FORMS_INTAKE_CONFIG),
+    intakeCampaigns: [],
+    anonymousFeedbackIntakeConfig: structuredClone(ANONYMOUS_FEEDBACK_INTAKE_CONFIG),
     currentUser: null,
   };
 }

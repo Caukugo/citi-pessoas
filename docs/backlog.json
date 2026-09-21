@@ -1037,7 +1037,7 @@
         "difficulty: technical",
         "priority: high"
       ],
-      "notes": "Implementada e validada no modo mock. A migration 0034 ainda nao foi aplicada em nenhum projeto — ver docs/agenda-x1-plan.md."
+      "notes": "Implementada e validada. Migrations 0034-0037 aplicadas em citi-pessoas-test, com as 42 checagens de supabase/tests/0017_agenda_x1.sql passando. Producao ainda nao as tem."
     },
     {
       "id": "X1-010",
@@ -1048,7 +1048,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "tecnica",
       "priority": "Alta",
-      "status": "Blocked",
+      "status": "Done",
       "dependencies": [
         "X1-009"
       ],
@@ -1076,7 +1076,7 @@
         "difficulty: technical",
         "priority: high"
       ],
-      "notes": "Migrations 0034-0037, secrets, Vault e as 3 Edge Functions aplicados/deployados em citi-pessoas-test. Worker testado ponta a ponta (HMAC, os 2 jobs do cron, respostas 200) contra a funcao publicada de verdade. AINDA BLOQUEADA: falta o handshake real de OAuth num navegador com conta @citi.org.br - nenhum convite de calendario foi criado de verdade ainda. Ver docs/google-calendar-setup.md."
+      "notes": "Homologada contra o Google de verdade em citi-pessoas-test: conexao OAuth ativa, 4 eventos criados com convite, 4 com link do Meet, 4 cancelados, resposta ao convite voltando pela sincronizacao e cursor incremental ativo. Os 8 jobs da caixa de saida concluiram sem nenhuma retentativa. NAO exercitados contra o Google: reagendar e registrar a conversa a partir do agendamento. Ver docs/google-calendar-setup.md."
     },
     {
       "id": "FB-001",

@@ -1,8 +1,11 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
+  GoogleFormsIntakeConfig,
+  IntakeCampaign,
   Member,
   MemberEvent,
   MemberImportContinuation,
@@ -212,6 +215,38 @@ export function fromGestaoRow(row: Row): Gestao {
     startDate: row.start_date,
     endDate: row.end_date,
     status: row.status,
+  };
+}
+
+export function fromGoogleFormsIntakeConfigRow(row: Row): GoogleFormsIntakeConfig {
+  return {
+    enabled: row.enabled,
+    formId: row.form_id,
+    responderUrl: row.responder_url,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function fromAnonymousFeedbackIntakeConfigRow(row: Row): AnonymousFeedbackIntakeConfig {
+  return {
+    enabled: row.enabled,
+    formId: row.form_id,
+    responderUrl: row.responder_url,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function fromIntakeCampaignRow(row: Row): IntakeCampaign {
+  return {
+    id: row.id,
+    gestaoId: row.gestao_id,
+    entryDate: row.entry_date,
+    responseDeadlineAt: row.response_deadline_at,
+    status: row.status,
+    activatedAt: row.activated_at,
+    activatedById: row.activated_by_id,
+    closedAt: row.closed_at,
+    closedById: row.closed_by_id,
   };
 }
 

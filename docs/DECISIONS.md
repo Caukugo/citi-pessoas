@@ -808,80 +808,88 @@ GG, porque o enum só tem `gg` e `gg_diretoria`; mas a garantia não existia.
 
 ---
 
-## ADR-018 — A cor de ação é o laranja do logotipo, e o verde vira só "em dia"
+## ADR-018 — Produção recebe um Google Form próprio; o de teste nunca é reaproveitado
 
-- **Data:** 2026-09-19 (registro; a migração no código é de 2026)
+- **Data:** 2026-09-20
 - **Status:** Aceita
+- **Nasce de:** a auditoria de rollout de produção (`docs/RUNBOOK_PRODUCAO.md`
+  §11), ao decidir como levar a integração de entrada via Google Forms
+  (migrations `0020`–`0030`) do projeto de teste (`ftghxffivergkmrcxzjm`) para
+  produção (`stpqnjtqtbjbbqxknjzi`).
 
-**Contexto.** A identidade escrita dizia "verde CITi (`#2ddb60`) como ação". O
-logotipo oficial (`public/logo-citi-pessoas.svg`) é **laranja `#ff6a00`** — a
-documentação descrevia uma marca que o próprio asset já contradizia.
+**Contexto.** O formulário do Google é, por desenho, **permanente**: `form_id`
+e `responder_url` vivem em `google_forms_intake_config` (linha única,
+configurada uma vez) e nunca mudam de gestão para gestão — só a **campanha**
+(`member_intake_campaigns`) muda a cada semestre, pela tela `/administracao`.
+Isso levanta a pergunta: produção precisa de um Google Form **novo**, ou pode
+reapontar o Apps Script do formulário de teste (trocando `WEBHOOK_URL` e o
+segredo) para produção?
 
-O redesenho de Membros migrou `src/styles/theme.css` para o laranja, mas a troca
-foi feita de forma aditiva e ficou pela metade: `--primary` e `--accent`
-conviveram apontando para cores diferentes, a barra lateral chegou a acender em
-cores diferentes por rota, e `DESIGN.md`, `docs/DESIGN_SYSTEM.md`,
-`PRODUCT.md`, `docs/PROJECT_CONTEXT.md` e `CLAUDE.md` continuaram descrevendo a
-identidade anterior. O próprio `theme.css` avisava isso num comentário.
+O formulário de teste já tem histórico real de uso: `resposta-teste-0001` e
+as respostas fictícias `.001`–`.010` (algumas processadas, uma removida por
+limpeza controlada nesta mesma sessão) vivem na planilha de respostas e nos
+arquivos de foto do Drive vinculados a ele.
 
-Documentação defasada sobre identidade não é detalhe: `DESIGN.md` é o arquivo
-que as Agent Skills leem para saber o que **não** podem mudar. Enquanto ele
-dissesse "verde", toda tela nova nasceria com a cor errada e toda auditoria de
-skill apontaria o laranja como desvio.
+**Decisão.** Produção recebe um **Google Form novo, exclusivo, permanente**.
+O formulário de teste **nunca** é reapontado para produção — continua
+existindo, para sempre, só para testes futuros.
 
-**Decisão.**
+Concretamente:
 
-1. A cor de ação e de seleção da plataforma é o **laranja `#ff6a00`**.
-   `--primary` e `--accent` apontam para o mesmo valor; `--accent-*` existe
-   só para carregar as variações de superfície (`--accent-strong`,
-   `--accent-soft`, `--accent-gradient`).
-2. O **verde é `--ok` e só isso** — significa "em dia", não "clicável".
-3. Texto sobre laranja é **branco**, com a dispensa de contraste registrada e
-   medida (ver Consequências).
-4. `src/styles/theme.css` é a **fonte de verdade**; a documentação descreve o
-   que está nele, nunca o contrário.
+1. Um Form novo é criado quando o rollout de produção chegar nesse ponto
+   (`docs/RUNBOOK_PRODUCAO.md` §11).
+2. O Apps Script (`google-apps-script/member-intake/`) é colado **uma única
+   vez** nesse Form, com Script Properties de produção (`WEBHOOK_URL`,
+   `GOOGLE_FORMS_WEBHOOK_SECRET` — exclusivos de produção, nunca os de teste).
+3. O gatilho de tempo (`installSyncTrigger()`) é instalado **uma única vez**
+   nesse Apps Script.
+4. **Nenhuma gestão futura exige repetir os passos 1–3.** Uma gestão nova é
+   só uma campanha nova (`citi_start_intake_campaign`, via `/administracao` →
+   "Entrada de membros") — o mesmo Form, o mesmo Apps Script, o mesmo gatilho,
+   para sempre.
 
 **Alternativas consideradas.**
 
-- **Voltar o produto para o verde**, alinhando o código à documentação.
-  Rejeitado: o laranja é a cor do logotipo oficial. Seria alinhar a marca ao
-  documento errado.
-- **Manter os dois vivos**, laranja nas telas redesenhadas e verde no resto.
-  Era o estado anterior. Rejeitado: produziu navegação acendendo em cores
-  diferentes conforme a rota, e ninguém sabia dizer qual era "a" cor.
-- **Só trocar os hex nos documentos**, sem registrar ADR. Rejeitado: daqui a
-  seis meses alguém encontra verde em `format.ts` ou num mock antigo e reabre
-  a discussão do zero.
+- **Reapontar o formulário de teste para produção** (trocar `WEBHOOK_URL` e o
+  segredo no mesmo Apps Script). Ganharia o trabalho de configurar um Form do
+  zero. Rejeitado: mistura permanentemente respostas fictícias com respostas
+  reais na mesma planilha/pasta do Drive — um erro de leitura futura ("essa
+  resposta é real ou de teste?") sem desfazer fácil — e cria um risco
+  operacional contínuo: se alguém precisar testar de novo depois do go-live
+  (ex.: validar uma correção do Apps Script), reaponta o **mesmo** Form de
+  volta para teste e agora uma resposta real de produção pode cair no banco
+  de teste, ou uma resposta de teste pode criar um "membro" fictício em
+  produção. Nenhuma das duas pontas tem como saber, só de olhar o Form, se
+  ele está "modo teste" ou "modo produção" no momento em que alguém responde.
+- **Um único Form com lógica para separar teste/produção** (ex.: campanha
+  fictícia sinalizada). Rejeitado: o isolamento por infraestrutura (dois
+  formulários, dois Apps Script, dois `WEBHOOK_URL`) é mais simples de garantir
+  do que qualquer lógica de sinalização — e o próprio desenho de
+  `google_forms_intake_config` (uma configuração permanente por ambiente) já
+  aponta para "um Form por ambiente", não "um Form para todos os ambientes".
 
-**Motivação.** A identidade tem que ser uma só, e tem que ser a do logotipo.
-Documento de identidade defasado é pior que ausente: ele é lido como requisito.
+**Motivação.** Isolamento por infraestrutura é a garantia mais barata e mais
+difícil de violar por engano. Como o Form já é permanente por desenho (uma
+configuração, reaproveitada em toda gestão futura), o custo de ter **dois**
+formulários permanentes — um por ambiente — é pago uma única vez e nunca mais
+revisitado; o custo de misturar os dois é pago hoje, silenciosamente, toda vez
+que alguém futuramente precisar testar algo depois do go-live.
 
 **Consequências.**
 
-- ✅ Uma cor de ação em toda a plataforma, e a mesma do logotipo.
-- ✅ O verde ganhou significado próprio (`--ok` = em dia), em vez de disputar
-  papel com a cor de ação.
-- ✅ `DESIGN.md`, `docs/DESIGN_SYSTEM.md`, `PRODUCT.md`,
-  `docs/PROJECT_CONTEXT.md`, `CLAUDE.md` e os READMEs de `skills/` descrevem os
-  valores que estão em `theme.css`.
-- ⚠️ **Contraste: dispensa consciente.** Branco sobre `--accent` dá **3.0:1** e
-  sobre `--accent-strong` **3.46:1** — abaixo dos 4.5:1 que a WCAG AA pede para
-  texto normal (13px/600 não conta como "texto grande": o critério é 18.66px
-  bold). Rótulo pequeno usa `--accent-strong` com peso 600, o melhor disponível
-  sem trair o desenho. **Não "corrija" trocando o texto para preto.** Se a regra
-  tiver que passar de verdade um dia, `#c24e00` dá 4.79:1 com branco.
-- ⚠️ O laranja é acento, não protagonista: **no máximo quatro elementos laranja
-  em cena**, e `--accent-gradient` só em nav ativo e ação principal.
-- ⚠️ `public/favicon.svg` ainda desenha o wordmark "citi" em texto Sora, o que
-  `src/components/ui/logo.tsx` proíbe explicitamente para a marca. A cor foi
-  corrigida para `#ff6a00`, mas **derivar o favicon do SVG oficial continua
-  pendente**.
-- ⚠️ `AVATAR_COLORS` em `src/lib/format.ts` ainda usa `#2ddb60` como uma das
-  sete cores de avatar. É paleta decorativa, não cor de ação — foi mantida de
-  propósito.
-
----
-
+- ✅ Zero risco de resposta real cair no banco de teste, ou resposta de teste
+  criar membro em produção.
+- ✅ O formulário de teste continua disponível para testar mudanças futuras
+  no Apps Script/Edge Function sem qualquer risco a produção.
+- ✅ Consistente com o resto do desenho: `form_id`/`responder_url` configurados
+  uma vez, `enabled` controla liga/desliga, campanha muda por gestão — nada
+  disso muda; só existem duas instâncias independentes da mesma configuração.
+- ⚠️ Duplica o trabalho de configuração inicial (dois Forms, dois Apps
+  Script, dois gatilhos) — pago uma única vez, nunca por gestão.
+- ⚠️ Quem opera precisa saber, com clareza, qual link distribuir para qual
+  público (o `responder_url` de teste nunca deveria circular fora do time
+  técnico) — mitigado por nomear os dois Forms de forma inequívoca
+  ("CITi Pessoas — Entrada (PRODUÇÃO)" vs. "... (TESTE)").
 ## ADR-019 — A Agenda de X1 é antecipada da Fase 2 para a Fase 1
 
 - **Data:** 2026-09-19
@@ -1093,6 +1101,80 @@ servidor não pode ser apresentado como culpa de quem está usando.
 - ⚠️ A integração depende de um projeto no Google Cloud com cliente OAuth. Sem
   ele, a plataforma funciona em modo "indisponível por configuração" e a agenda
   continua legível. O guia é `docs/google-calendar-setup.md`.
+## ADR-022 — A cor de ação é o laranja do logotipo, e o verde vira só "em dia"
+
+- **Data:** 2026-09-19 (registro; a migração no código é de 2026)
+- **Status:** Aceita
+
+**Contexto.** A identidade escrita dizia "verde CITi (`#2ddb60`) como ação". O
+logotipo oficial (`public/logo-citi-pessoas.svg`) é **laranja `#ff6a00`** — a
+documentação descrevia uma marca que o próprio asset já contradizia.
+
+O redesenho de Membros migrou `src/styles/theme.css` para o laranja, mas a troca
+foi feita de forma aditiva e ficou pela metade: `--primary` e `--accent`
+conviveram apontando para cores diferentes, a barra lateral chegou a acender em
+cores diferentes por rota, e `DESIGN.md`, `docs/DESIGN_SYSTEM.md`,
+`PRODUCT.md`, `docs/PROJECT_CONTEXT.md` e `CLAUDE.md` continuaram descrevendo a
+identidade anterior. O próprio `theme.css` avisava isso num comentário.
+
+Documentação defasada sobre identidade não é detalhe: `DESIGN.md` é o arquivo
+que as Agent Skills leem para saber o que **não** podem mudar. Enquanto ele
+dissesse "verde", toda tela nova nasceria com a cor errada e toda auditoria de
+skill apontaria o laranja como desvio.
+
+**Decisão.**
+
+1. A cor de ação e de seleção da plataforma é o **laranja `#ff6a00`**.
+   `--primary` e `--accent` apontam para o mesmo valor; `--accent-*` existe
+   só para carregar as variações de superfície (`--accent-strong`,
+   `--accent-soft`, `--accent-gradient`).
+2. O **verde é `--ok` e só isso** — significa "em dia", não "clicável".
+3. Texto sobre laranja é **branco**, com a dispensa de contraste registrada e
+   medida (ver Consequências).
+4. `src/styles/theme.css` é a **fonte de verdade**; a documentação descreve o
+   que está nele, nunca o contrário.
+
+**Alternativas consideradas.**
+
+- **Voltar o produto para o verde**, alinhando o código à documentação.
+  Rejeitado: o laranja é a cor do logotipo oficial. Seria alinhar a marca ao
+  documento errado.
+- **Manter os dois vivos**, laranja nas telas redesenhadas e verde no resto.
+  Era o estado anterior. Rejeitado: produziu navegação acendendo em cores
+  diferentes conforme a rota, e ninguém sabia dizer qual era "a" cor.
+- **Só trocar os hex nos documentos**, sem registrar ADR. Rejeitado: daqui a
+  seis meses alguém encontra verde em `format.ts` ou num mock antigo e reabre
+  a discussão do zero.
+
+**Motivação.** A identidade tem que ser uma só, e tem que ser a do logotipo.
+Documento de identidade defasado é pior que ausente: ele é lido como requisito.
+
+**Consequências.**
+
+- ✅ Uma cor de ação em toda a plataforma, e a mesma do logotipo.
+- ✅ O verde ganhou significado próprio (`--ok` = em dia), em vez de disputar
+  papel com a cor de ação.
+- ✅ `DESIGN.md`, `docs/DESIGN_SYSTEM.md`, `PRODUCT.md`,
+  `docs/PROJECT_CONTEXT.md`, `CLAUDE.md` e os READMEs de `skills/` descrevem os
+  valores que estão em `theme.css`.
+- ⚠️ **Contraste: dispensa consciente.** Branco sobre `--accent` dá **3.0:1** e
+  sobre `--accent-strong` **3.46:1** — abaixo dos 4.5:1 que a WCAG AA pede para
+  texto normal (13px/600 não conta como "texto grande": o critério é 18.66px
+  bold). Rótulo pequeno usa `--accent-strong` com peso 600, o melhor disponível
+  sem trair o desenho. **Não "corrija" trocando o texto para preto.** Se a regra
+  tiver que passar de verdade um dia, `#c24e00` dá 4.79:1 com branco.
+- ⚠️ O laranja é acento, não protagonista: **no máximo quatro elementos laranja
+  em cena**, e `--accent-gradient` só em nav ativo e ação principal.
+- ⚠️ `public/favicon.svg` ainda desenha o wordmark "citi" em texto Sora, o que
+  `src/components/ui/logo.tsx` proíbe explicitamente para a marca. A cor foi
+  corrigida para `#ff6a00`, mas **derivar o favicon do SVG oficial continua
+  pendente**.
+- ⚠️ `AVATAR_COLORS` em `src/lib/format.ts` ainda usa `#2ddb60` como uma das
+  sete cores de avatar. É paleta decorativa, não cor de ação — foi mantida de
+  propósito.
+
+---
+
 
 ---
 

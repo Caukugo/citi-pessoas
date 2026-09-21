@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from './db';
 import { queryKeys } from './queryKeys';
 import type {
+  BulkAssignGgResponsibleResult,
   ID,
   Member,
   MemberCpfStatus,
   MemberCpfWriteResult,
   MemberCreateInput,
+  MemberDeactivateInput,
   MemberFilters,
   MemberIntakeReviewReason,
   MemberRecordCorrection,
@@ -113,12 +115,60 @@ export function useUpdateMember() {
   });
 }
 
+/**
+ * Atribui UM responsável de GG a vários membros de uma vez (migration 0031).
+ * Só quem está sem responsável hoje — tudo ou nada.
+ */
+export function bulkAssignGgResponsible(
+  memberIds: ID[],
+  ggResponsibleId: ID,
+): Promise<BulkAssignGgResponsibleResult> {
+  return db.members.bulkAssignGgResponsible(memberIds, ggResponsibleId);
+}
+
+export function useBulkAssignGgResponsible() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberIds, ggResponsibleId }: { memberIds: ID[]; ggResponsibleId: ID }) =>
+      bulkAssignGgResponsible(memberIds, ggResponsibleId),
+    onSuccess: () => {
+      // Todo mundo do lote mudou de "Alocação pendente" para o novo
+      // responsável — a listagem inteira precisa refletir isso, não só um
+      // membro.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+    },
+  });
+}
+
 export function useArchiveMember() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: archiveMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+    },
+  });
+}
+
+/**
+ * Desliga um membro ativo — interrompe o ciclo em andamento antes do fim
+ * previsto (migration 0032). Nunca produz `inativo`.
+ */
+export function deactivateMember(id: ID, input: MemberDeactivateInput): Promise<Member> {
+  return db.members.deactivate(id, input);
+}
+
+export function useDeactivateMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: ID; input: MemberDeactivateInput }) =>
+      deactivateMember(id, input),
+    onSuccess: (member) => {
+      // Listagem (badge, filtro por situação) e perfil (botão some, badge
+      // aparece) precisam refletir a mudança juntos.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.detail(member.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.events(member.id) });
     },
   });
 }

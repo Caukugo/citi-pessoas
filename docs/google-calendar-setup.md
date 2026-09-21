@@ -188,7 +188,7 @@ mensagem explícita se eles não estiverem lá.
 Validação (termina em `rollback`, não deixa nada para trás):
 
 ```bash
-npx supabase db query --linked -f supabase/tests/0011_agenda_x1.sql
+npx supabase db query --linked -f supabase/tests/0017_agenda_x1.sql
 ```
 
 ---

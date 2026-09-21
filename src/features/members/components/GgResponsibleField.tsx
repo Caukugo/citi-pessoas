@@ -9,6 +9,7 @@ import {
   useUpdateMember,
   type Member,
 } from '@/data';
+import { GG_AREA_SLUG, isValidGgCandidate } from '../model/membersList';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -33,8 +34,6 @@ import {
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-const GG_AREA_SLUG = 'gente-e-gestao';
-
 export function GgResponsibleField({ member }: { member: Member }) {
   const { showToast } = useToast();
   const { data: catalog } = useOrgCatalog();
@@ -46,13 +45,14 @@ export function GgResponsibleField({ member }: { member: Member }) {
     ggAreaId ? { areaId: ggAreaId, status: 'ativo' } : undefined,
   );
 
-  /** A própria pessoa não se acompanha. */
+  /** A própria pessoa não se acompanha. Mesma regra de `isValidGgCandidate`,
+   *  reaproveitada pela atribuição em lote — uma definição só. */
   const options = useMemo(
     () =>
       (ggMembers ?? [])
-        .filter((person) => person.id !== member.id && person.status === 'ativo')
+        .filter((person) => isValidGgCandidate(person, ggAreaId, member.id))
         .map((person) => ({ value: person.id, label: `${person.fullName} · ${person.role}` })),
-    [ggMembers, member.id],
+    [ggMembers, ggAreaId, member.id],
   );
 
   const current = (ggMembers ?? []).find((person) => person.id === member.ggResponsibleId) ?? null;

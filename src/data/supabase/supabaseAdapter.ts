@@ -23,10 +23,13 @@ import { normalizeText } from '@/lib/format';
 import { safeFileName } from '../photoValidation';
 import { supabase } from './client';
 import {
+  fromAnonymousFeedbackIntakeConfigRow,
   fromAnonymousFeedbackRow,
   fromFeedbackRow,
   fromGestaoRow,
+  fromGoogleFormsIntakeConfigRow,
   fromImportContinuationJson,
+  fromIntakeCampaignRow,
   fromMemberEventRow,
   fromMemberRow,
   fromOrgAreaRow,
@@ -368,6 +371,25 @@ export const supabaseAdapter: DataAdapter = {
       return fromMemberRow(data as Record<string, unknown>);
     },
 
+    async bulkAssignGgResponsible(memberIds, ggResponsibleId) {
+      // Tudo numa RPC atômica: se qualquer membro já tiver responsável, não
+      // existir ou não estiver ativo, ou o responsável não for válido, o
+      // banco recusa a chamada inteira — nenhuma atualização parcial.
+      const { data, error } = await supabase().rpc('citi_bulk_assign_gg_responsible', {
+        p_member_ids: memberIds,
+        p_gg_responsible_id: ggResponsibleId,
+      });
+      if (error) fail(error, 'Erro ao atribuir responsável de GG em lote');
+
+      const row = (data ?? {}) as Record<string, unknown>;
+      return {
+        requested: Number(row.requested ?? 0),
+        updated: Number(row.updated ?? 0),
+        ggResponsibleId: String(row.gg_responsible_id ?? ggResponsibleId),
+        ggResponsibleName: String(row.gg_responsible_name ?? ''),
+      };
+    },
+
     async archive(id) {
       // Nunca DELETE: arquivar preserva o histórico.
       const { data, error } = await supabase()
@@ -378,6 +400,19 @@ export const supabaseAdapter: DataAdapter = {
         .single();
       if (error) fail(error, 'Erro ao arquivar membro');
       return fromMemberRow(data);
+    },
+
+    async deactivate(id, input) {
+      // Uma RPC atômica: valida, fecha o ciclo, muda o status e registra o
+      // evento na mesma transação do Postgres (migration 0032).
+      const { data, error } = await supabase().rpc('citi_deactivate_member', {
+        p_member_id: id,
+        p_ended_on: input.endedOn,
+        p_reason: input.reason ?? null,
+      });
+      if (error) fail(error, 'Erro ao desligar membro');
+
+      return fromMemberRow(data as Record<string, unknown>);
     },
 
     async getPhotoUrl(path, expiresInSeconds = PHOTO_URL_TTL_SECONDS) {
@@ -929,42 +964,9 @@ export const supabaseAdapter: DataAdapter = {
       return data ? fromAnonymousFeedbackRow(data) : null;
     },
 
-    async submit(input) {
-      // Inserção pública (sem login), e SÓ inserção.
-      //
-      // ⚠️ SEM `.select()`, de propósito. `anon` tem INSERT e mais nada: não
-      // existe policy nem grant de leitura nesta tabela para quem não é GG.
-      // Pedir a linha de volta fazia o PostgREST tentar um SELECT depois do
-      // INSERT e a requisição falhava por RLS — o formulário público quebrava
-      // depois de gravar, e a pessoa reenviava o relato achando que não foi.
-      //
-      // Ler o próprio envio também não é desejável: um relato anônimo devolvido
-      // ao remetente é uma confirmação que o fluxo não precisa dar.
-      const { error } = await supabase().from('anonymous_feedbacks').insert({
-        content: input.content,
-        target_type: input.targetType,
-        target_member_id: input.targetMemberId ?? null,
-        target_label: input.targetLabel ?? null,
-      });
-      if (error) fail(error, 'Erro ao enviar feedback');
-
-      // O que volta é o que a tela precisa para dizer "recebemos": não é uma
-      // leitura do banco, e não tem id — quem modera é que vai ver o registro.
-      return {
-        id: '',
-        content: input.content,
-        targetType: input.targetType,
-        targetMemberId: input.targetMemberId ?? null,
-        targetLabel: input.targetLabel ?? null,
-        status: 'pendente',
-        directedMemberId: null,
-        moderationNote: null,
-        moderatedById: null,
-        moderatedAt: null,
-        submittedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
-    },
+    // ⚠️ Migration 0033: NÃO existe mais `submit()` aqui. `anon`/`authenticated`
+    // perderam o INSERT direto (RLS + revoke) — a única porta de escrita agora
+    // é a Edge Function `anonymous-feedback-intake`, com `service_role`.
 
     async moderate(id, decision) {
       if (decision.resolution === 'direcionado' && !decision.directedMemberId) {
@@ -1257,6 +1259,118 @@ export const supabaseAdapter: DataAdapter = {
       if (error) fail(error, 'Erro ao gravar o caminho da foto');
 
       return path;
+    },
+  },
+
+  googleFormsIntake: {
+    async getConfig() {
+      const { data, error } = await supabase()
+        .from('google_forms_intake_config')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a configuração do formulário');
+      if (!data) throw new DataError('not_found', 'Configuração do formulário não encontrada.');
+      return fromGoogleFormsIntakeConfigRow(data);
+    },
+
+    async updateConfig(input) {
+      const row: Record<string, unknown> = {};
+      if (input.enabled !== undefined) row.enabled = input.enabled;
+      if (input.formId !== undefined) row.form_id = input.formId;
+      if (input.responderUrl !== undefined) row.responder_url = input.responderUrl;
+
+      const { data, error } = await supabase()
+        .from('google_forms_intake_config')
+        .update(row)
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) fail(error, 'Erro ao salvar a configuração do formulário');
+      return fromGoogleFormsIntakeConfigRow(data);
+    },
+
+    async getActiveCampaign() {
+      const { data, error } = await supabase()
+        .from('member_intake_campaigns')
+        .select('*')
+        .eq('status', 'ativa')
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a campanha de entrada ativa');
+      return data ? fromIntakeCampaignRow(data) : null;
+    },
+
+    async listCampaigns() {
+      const { data, error } = await supabase()
+        .from('member_intake_campaigns')
+        .select('*')
+        .order('activated_at', { ascending: false });
+      if (error) fail(error, 'Erro ao listar campanhas de entrada');
+      return (data ?? []).map(fromIntakeCampaignRow);
+    },
+
+    async startCampaign(input) {
+      // Uma chamada só: localiza a gestão pelo RÓTULO ou cria como
+      // `planejada` (0029), valida (status, período, prazo, sem campanha
+      // anterior) e cria a campanha — tudo na mesma transação do Postgres,
+      // serializada por advisory lock. Erros de negócio chegam aqui como
+      // mensagem prefixada por um código estável (`gestao_ja_possui_campanha:`
+      // etc.) — nunca um erro de SQL bruto.
+      const { data, error } = await supabase().rpc('citi_start_intake_campaign', {
+        p_gestao_label: input.gestaoLabel,
+        p_entry_date: input.entryDate,
+        p_response_deadline_at: input.responseDeadlineAt,
+      });
+      if (error) fail(error, 'Erro ao iniciar a campanha de entrada');
+      return fromIntakeCampaignRow(data as Record<string, unknown>);
+    },
+
+    async closeCampaign(campaignId) {
+      const { data, error } = await supabase().rpc('citi_close_intake_campaign', {
+        p_campaign_id: campaignId,
+      });
+      if (error) fail(error, 'Erro ao encerrar a campanha de entrada');
+      return fromIntakeCampaignRow(data as Record<string, unknown>);
+    },
+
+    async countCampaignSubmissions(campaignId) {
+      const { count, error } = await supabase()
+        .from('member_intake_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+      if (error) fail(error, 'Erro ao contar respostas da campanha');
+      return count ?? 0;
+    },
+  },
+
+  anonymousFeedbackIntake: {
+    async getConfig() {
+      const { data, error } = await supabase()
+        .from('anonymous_feedback_intake_config')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a configuração do feedback anônimo');
+      if (!data) {
+        throw new DataError('not_found', 'Configuração do feedback anônimo não encontrada.');
+      }
+      return fromAnonymousFeedbackIntakeConfigRow(data);
+    },
+
+    async updateConfig(input) {
+      const row: Record<string, unknown> = {};
+      if (input.enabled !== undefined) row.enabled = input.enabled;
+      if (input.formId !== undefined) row.form_id = input.formId;
+      if (input.responderUrl !== undefined) row.responder_url = input.responderUrl;
+
+      const { data, error } = await supabase()
+        .from('anonymous_feedback_intake_config')
+        .update(row)
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) fail(error, 'Erro ao salvar a configuração do feedback anônimo');
+      return fromAnonymousFeedbackIntakeConfigRow(data);
     },
   },
 };

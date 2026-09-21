@@ -45,8 +45,10 @@ export function MemberAvatar({
   const { data: signedUrl } = useMemberPhotoUrl(path);
 
   // `photoUrl` é a foto EXTERNA de cadastros antigos, anterior ao bucket. A
-  // assinada tem precedência: é a que a importação passou a gravar.
-  const url = signedUrl ?? member.photoUrl ?? null;
+  // assinada tem precedência — e só cai para a legada quando NÃO HÁ caminho:
+  // com caminho, enquanto a assinatura não chega, é iniciais (nunca a legada
+  // "piscando" antes de trocar pela assinada quando as duas existem).
+  const url = path ? (signedUrl ?? null) : (member.photoUrl ?? null);
 
   return (
     <Avatar

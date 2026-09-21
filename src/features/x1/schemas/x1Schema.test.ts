@@ -67,6 +67,28 @@ describe('x1FormSchema', () => {
   it('link vazio é válido — nem toda conversa tem documento', () => {
     expect(x1FormSchema.safeParse({ ...validForm(), documentUrl: '' }).success).toBe(true);
   });
+
+  describe('escala de "Valores do CITi" (1 a 4)', () => {
+    // migration fix/valores-citi-escala-1-4: a escala passou de 1–5 para 1–4.
+    it.each(['1', '2', '3', '4', ''])('aceita nota válida "%s"', (rating) => {
+      const result = x1FormSchema.safeParse({
+        ...validForm(),
+        citiValues: { ...validForm().citiValues, 'Eu sou o CITi': rating },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it.each(['5', '0', '-1', '4.5', '05', '+4', 'cinco', ' 4'])(
+      'recusa nota inválida "%s"',
+      (rating) => {
+        const result = x1FormSchema.safeParse({
+          ...validForm(),
+          citiValues: { ...validForm().citiValues, 'Eu sou o CITi': rating },
+        });
+        expect(result.success).toBe(false);
+      },
+    );
+  });
 });
 
 describe('toX1CreateInput', () => {
@@ -119,7 +141,7 @@ describe('toX1CreateInput', () => {
       {
         ...validForm(),
         citiValues: {
-          'Eu sou o CITi': '5',
+          'Eu sou o CITi': '3',
           'Obcecados por aprender': '',
           'Obcecados por vencer': '',
           'Obcecados por entregar': '4',
@@ -129,7 +151,7 @@ describe('toX1CreateInput', () => {
     );
 
     expect(input.citiValues).toEqual([
-      { value: 'Eu sou o CITi', rating: 5, note: null },
+      { value: 'Eu sou o CITi', rating: 3, note: null },
       { value: 'Obcecados por entregar', rating: 4, note: null },
     ]);
   });

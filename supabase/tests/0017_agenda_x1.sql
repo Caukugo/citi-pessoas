@@ -2,7 +2,7 @@
 -- TESTES DA AGENDA DE X1 E DA INTEGRAÇÃO COM GOOGLE CALENDAR (migration 0034)
 --
 -- Como rodar:
---   npx supabase db query --linked -f supabase/tests/0011_agenda_x1.sql
+--   npx supabase db query --linked -f supabase/tests/0017_agenda_x1.sql
 --
 -- ⚠️ TERMINA EM `rollback`. Nada do que ele cria sobrevive.
 -- ⚠️ Todos os dados são FICTÍCIOS (e-mails `.invalid`, uuids `7e57...`).

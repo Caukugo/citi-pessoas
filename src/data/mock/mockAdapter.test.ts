@@ -114,18 +114,21 @@ describe('members', () => {
 
 describe('feedback anônimo', () => {
   it('não guarda nenhum dado de quem enviou', async () => {
-    const created = await mockAdapter.anonymousFeedbacks.submit({
-      content: 'Um feedback qualquer.',
-      targetType: 'citi',
-      targetMemberId: null,
-      targetLabel: null,
-    });
+    // Migration 0033 removeu `submit()`: a única porta de escrita agora é a
+    // Edge Function `anonymous-feedback-intake`. A regra de anonimato continua
+    // provada sobre os registros que o board realmente lê.
+    const feedbacks = await mockAdapter.anonymousFeedbacks.list();
+    expect(feedbacks.length).toBeGreaterThan(0);
 
-    // Regra de produto: anonimato é por construção.
-    expect(Object.keys(created)).not.toContain('authorName');
-    expect(Object.keys(created)).not.toContain('authorEmail');
-    expect(Object.keys(created)).not.toContain('ip');
-    expect(created.status).toBe('pendente');
+    for (const feedback of feedbacks) {
+      expect(Object.keys(feedback)).not.toContain('authorName');
+      expect(Object.keys(feedback)).not.toContain('authorEmail');
+      expect(Object.keys(feedback)).not.toContain('ip');
+    }
+  });
+
+  it('não existe mais submit() no adapter — a porta de escrita é a Edge Function', () => {
+    expect((mockAdapter.anonymousFeedbacks as unknown as Record<string, unknown>).submit).toBeUndefined();
   });
 
   it('tomar ciência registra a decisão e NÃO cria um feedback de acompanhamento', async () => {
@@ -638,6 +641,303 @@ describe('foto do membro e responsável de GG', () => {
     expect(eventos.some((e) => e.title === 'Responsável de GG atribuído')).toBe(true);
     expect(eventos.some((e) => e.title === 'Responsável de GG alterado')).toBe(true);
     expect(eventos.some((e) => e.title === 'Responsável de GG removido')).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('atribuição em lote de responsável de GG (modo mock)', () => {
+  async function ggAreaId() {
+    const catalog = await mockAdapter.org.getCatalog();
+    return catalog.areas.find((a) => a.slug === 'gente-e-gestao')!.id;
+  }
+
+  async function criarMembro(overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]>) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Lote',
+      email: `fixture.lote.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Gente e Gestão',
+      status: 'ativo',
+      joinedAt: '2026-01-01',
+      ggResponsibleId: null,
+      ...overrides,
+    });
+  }
+
+  it('atribui o mesmo responsável a vários membros sem responsável de uma vez', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Responsavel Lote', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo A' });
+    const b = await criarMembro({ fullName: 'Alvo B' });
+
+    const resultado = await mockAdapter.members.bulkAssignGgResponsible([a.id, b.id], gg.id);
+
+    expect(resultado).toEqual({
+      requested: 2,
+      updated: 2,
+      ggResponsibleId: gg.id,
+      ggResponsibleName: gg.fullName,
+    });
+    expect((await mockAdapter.members.getById(a.id))?.ggResponsibleId).toBe(gg.id);
+    expect((await mockAdapter.members.getById(b.id))?.ggResponsibleId).toBe(gg.id);
+  });
+
+  it('registra um evento mudanca_responsavel_gg para cada membro do lote', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Evento', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Evento A' });
+
+    await mockAdapter.members.bulkAssignGgResponsible([a.id], gg.id);
+
+    const eventos = (await mockAdapter.members.listEvents(a.id)).filter(
+      (e) => e.type === 'mudanca_responsavel_gg',
+    );
+    expect(eventos).toHaveLength(1);
+    expect(eventos[0].title).toBe('Responsável de GG atribuído');
+  });
+
+  it('lista vazia é recusada, nada é alterado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Vazio', areaId, status: 'ativo' });
+    await expect(mockAdapter.members.bulkAssignGgResponsible([], gg.id)).rejects.toThrow(/lote_vazio/);
+  });
+
+  it('id duplicado na lista é recusado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Dup', areaId, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Dup' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([a.id, a.id], gg.id),
+    ).rejects.toThrow(/uuid_duplicado_no_lote/);
+  });
+
+  it('responsável inativo é recusado', async () => {
+    const areaId = await ggAreaId();
+    const ggInativo = await criarMembro({ fullName: 'GG Lote Inativo', areaId, status: 'inativo' });
+    const a = await criarMembro({ fullName: 'Alvo Resp Inativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([a.id], ggInativo.id),
+    ).rejects.toThrow(/responsavel_invalido/);
+  });
+
+  it('responsável fora da área de Gente e Gestão é recusado', async () => {
+    const gg = await criarMembro({ fullName: 'GG Lote Fora', area: 'Desenvolvimento', areaId: null, status: 'ativo' });
+    const a = await criarMembro({ fullName: 'Alvo Resp Fora' });
+
+    await expect(mockAdapter.members.bulkAssignGgResponsible([a.id], gg.id)).rejects.toThrow(
+      /responsavel_invalido/,
+    );
+  });
+
+  it('membro inativo no lote é recusado — e ninguém do lote é atualizado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Parcial', areaId, status: 'ativo' });
+    const ativo = await criarMembro({ fullName: 'Alvo Ativo Parcial' });
+    const inativo = await criarMembro({ fullName: 'Alvo Inativo Parcial', status: 'inativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([ativo.id, inativo.id], gg.id),
+    ).rejects.toThrow(/membro_inativo/);
+
+    // Tudo ou nada: o alvo válido do MESMO lote não foi tocado.
+    expect((await mockAdapter.members.getById(ativo.id))?.ggResponsibleId).toBeNull();
+  });
+
+  it('um membro já atribuído reprova o lote inteiro — nenhuma atualização parcial', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote JaAtrib', areaId, status: 'ativo' });
+    const outroGg = await criarMembro({ fullName: 'GG Lote JaAtrib Outro', areaId, status: 'ativo' });
+    const semResponsavel = await criarMembro({ fullName: 'Alvo Sem Responsavel' });
+    const jaAtribuido = await criarMembro({ fullName: 'Alvo Ja Atribuido', ggResponsibleId: outroGg.id });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible([semResponsavel.id, jaAtribuido.id], gg.id),
+    ).rejects.toThrow(/membro_ja_atribuido/);
+
+    // Nem o alvo livre ganhou o novo responsável, nem o já atribuído foi sobrescrito.
+    expect((await mockAdapter.members.getById(semResponsavel.id))?.ggResponsibleId).toBeNull();
+    expect((await mockAdapter.members.getById(jaAtribuido.id))?.ggResponsibleId).toBe(outroGg.id);
+  });
+
+  it('membro inexistente na lista é recusado', async () => {
+    const areaId = await ggAreaId();
+    const gg = await criarMembro({ fullName: 'GG Lote Inexistente', areaId, status: 'ativo' });
+
+    await expect(
+      mockAdapter.members.bulkAssignGgResponsible(['mbr-nao-existe'], gg.id),
+    ).rejects.toThrow(/membro_inexistente/);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('deactivate — desligamento de membro (migration 0032)', () => {
+  /**
+   * `joinedAt: '2026-01-01'` dá, pela aproximação do mock (ver `mockCurrentCycle`
+   * em `mockAdapter.ts`), um ciclo de 2026-01-01 a 2026-12-31 — "hoje" (data real
+   * de execução do teste) cai dentro dele, o que é o cenário normal.
+   */
+  async function criarAtivo(overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]> = {}) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Desligamento',
+      email: `fixture.deslig.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Gente e Gestão',
+      status: 'ativo',
+      joinedAt: '2026-01-01',
+      ...overrides,
+    });
+  }
+
+  it('desliga um membro ativo: status vira desligado (nunca inativo), exitedAt grava a data', async () => {
+    const membro = await criarAtivo();
+
+    const resultado = await mockAdapter.members.deactivate(membro.id, {
+      endedOn: '2026-06-15',
+      reason: 'Mudança de curso',
+    });
+
+    expect(resultado.status).toBe('desligado');
+    expect(resultado.exitedAt).toBe('2026-06-15');
+
+    const depois = await mockAdapter.members.getById(membro.id);
+    expect(depois?.status).toBe('desligado');
+  });
+
+  it('sucesso registra exatamente um evento de desligamento', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'desligamento',
+    );
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('membro inativo (não ativo) é recusado', async () => {
+    const membro = await criarAtivo({ status: 'inativo' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_nao_ativo/);
+  });
+
+  it('repetir sobre quem já foi desligado é recusado — não duplica evento', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-20' }),
+    ).rejects.toThrow(/membro_nao_ativo/);
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'desligamento',
+    );
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('data no futuro é recusada', async () => {
+    const membro = await criarAtivo();
+    const futuro = new Date();
+    futuro.setDate(futuro.getDate() + 5);
+
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: futuro.toISOString().slice(0, 10) }),
+    ).rejects.toThrow(/data_futura/);
+  });
+
+  it('data anterior ao início do ciclo é recusada', async () => {
+    const membro = await criarAtivo({ joinedAt: '2026-01-01' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2025-12-31' }),
+    ).rejects.toThrow(/data_anterior_ao_ciclo/);
+  });
+
+  it('data que não é interrupção antecipada (ciclo já vencido) é recusada', async () => {
+    // Ciclo 2024-01-01 → 2024-12-31: já venceu bem antes de hoje.
+    const membro = await criarAtivo({ joinedAt: '2024-01-01' });
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2025-06-01' }),
+    ).rejects.toThrow(/data_nao_e_interrupcao_antecipada/);
+  });
+
+  it('dependente ativo como manager_id bloqueia, com a contagem — sem redistribuição automática', async () => {
+    const gerente = await criarAtivo();
+    await criarAtivo({ managerId: gerente.id });
+
+    await expect(
+      mockAdapter.members.deactivate(gerente.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_com_dependentes/);
+
+    expect((await mockAdapter.members.getById(gerente.id))?.status).toBe('ativo');
+  });
+
+  it('dependente ativo como gg_responsible_id bloqueia', async () => {
+    const responsavel = await criarAtivo();
+    await criarAtivo({ ggResponsibleId: responsavel.id });
+
+    await expect(
+      mockAdapter.members.deactivate(responsavel.id, { endedOn: '2026-06-15' }),
+    ).rejects.toThrow(/membro_com_dependentes/);
+  });
+
+  it('motivo acima do limite de caracteres é recusado', async () => {
+    const membro = await criarAtivo();
+    await expect(
+      mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15', reason: 'x'.repeat(501) }),
+    ).rejects.toThrow(/motivo_muito_longo/);
+  });
+
+  it('motivo só com espaços vira null, nunca string vazia', async () => {
+    const membro = await criarAtivo();
+    await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15', reason: '   ' });
+
+    const eventos = await mockAdapter.members.listEvents(membro.id);
+    const evento = eventos.find((e) => e.type === 'desligamento');
+    expect(evento?.description).not.toContain('Motivo:');
+  });
+
+  it('não altera CPF, foto nem outros dados do membro', async () => {
+    const membro = await criarAtivo({ photoPath: 'algum/caminho.png' });
+    const resultado = await mockAdapter.members.deactivate(membro.id, { endedOn: '2026-06-15' });
+
+    expect(resultado.photoPath).toBe('algum/caminho.png');
+    expect(resultado.fullName).toBe(membro.fullName);
+    expect(resultado.email).toBe(membro.email);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('anonymousFeedbackIntake (canal permanente, migration 0033)', () => {
+  it('nasce desabilitada, sem form_id nem responder_url', async () => {
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config).toEqual({
+      enabled: false,
+      formId: null,
+      responderUrl: null,
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it('atualiza só os campos enviados, preservando o resto', async () => {
+    await mockAdapter.anonymousFeedbackIntake.updateConfig({
+      formId: 'fixture-form',
+      responderUrl: 'https://forms.gle/fixture',
+    });
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config.formId).toBe('fixture-form');
+    expect(config.responderUrl).toBe('https://forms.gle/fixture');
+    expect(config.enabled).toBe(false);
+  });
+
+  it('habilita depois de form_id/responder_url configurados', async () => {
+    await mockAdapter.anonymousFeedbackIntake.updateConfig({
+      formId: 'fixture-form',
+      responderUrl: 'https://forms.gle/fixture',
+      enabled: true,
+    });
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config.enabled).toBe(true);
   });
 });
 

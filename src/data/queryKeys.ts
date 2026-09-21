@@ -83,4 +83,14 @@ export const queryKeys = {
     /** Áreas + subáreas + cargos. Uma chave só: eles são consultados juntos. */
     catalog: ['org', 'catalog'] as const,
   },
+  googleFormsIntake: {
+    config: ['googleFormsIntake', 'config'] as const,
+    activeCampaign: ['googleFormsIntake', 'activeCampaign'] as const,
+    campaigns: ['googleFormsIntake', 'campaigns'] as const,
+    submissionCount: (campaignId: ID) =>
+      ['googleFormsIntake', 'submissionCount', campaignId] as const,
+  },
+  anonymousFeedbackIntake: {
+    config: ['anonymousFeedbackIntake', 'config'] as const,
+  },
 } as const;

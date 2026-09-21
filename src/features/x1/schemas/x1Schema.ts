@@ -18,6 +18,15 @@ import { CITI_VALUES, type ID, type X1CreateInput, type X1ValueRating } from '@/
 /** Uma linha de lista repetível (ponto discutido, encaminhamento). */
 const lineSchema = z.object({ text: z.string() });
 
+/**
+ * Notas válidas de `citiValues`: '1' a '4', ou '' (não avaliado).
+ *
+ * Comparação por conjunto de strings exatas — nunca `Number()`/parsing: assim
+ * '4.5', '05', '+4' e qualquer outro texto que "pareça" um número válido são
+ * recusados, não convertidos silenciosamente.
+ */
+const VALID_CITI_VALUE_RATINGS = new Set(['', '1', '2', '3', '4']);
+
 export const x1FormSchema = z
   .object({
     // Sobre o X1
@@ -43,7 +52,7 @@ export const x1FormSchema = z
     topics: z.array(lineSchema),
     followUps: z.array(lineSchema),
 
-    /** `{ [valor do CITi]: '1'..'5' | '' }`. Vazio = não avaliado nesta conversa. */
+    /** `{ [valor do CITi]: '1'..'4' | '' }`. Vazio = não avaliado nesta conversa. */
     citiValues: z.record(z.string()),
 
     comments: z.string().trim(),
@@ -76,6 +85,19 @@ export const x1FormSchema = z
         message:
           'Escreva pelo menos o resumo, um ponto discutido ou um encaminhamento, senão o registro não conta nada sobre a conversa.',
       });
+    }
+
+    // Cada valor do CITi só aceita '1'..'4' ou '' (não avaliado). Rejeita 0,
+    // negativo, 5+, decimal e qualquer texto que não seja exatamente um desses
+    // cinco valores — sem tentar interpretar ou corrigir o que veio.
+    for (const [citiValue, rawRating] of Object.entries(values.citiValues)) {
+      if (!VALID_CITI_VALUE_RATINGS.has(rawRating)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['citiValues', citiValue],
+          message: 'Nota inválida para este valor do CITi: use de 1 a 4, ou deixe em branco.',
+        });
+      }
     }
   });
 
@@ -113,7 +135,7 @@ function orNull(value: string): string | null {
  * registro. "Não conversamos sobre isso" e "conversamos e está fraco" são
  * coisas diferentes, e transformar uma na outra seria inventar percepção.
  */
-function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
+export function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
   return CITI_VALUES.filter((value) => raw[value]).map((value) => ({
     value,
     rating: Number(raw[value]),
