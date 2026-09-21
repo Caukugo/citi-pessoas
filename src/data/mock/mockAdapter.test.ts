@@ -114,18 +114,21 @@ describe('members', () => {
 
 describe('feedback anônimo', () => {
   it('não guarda nenhum dado de quem enviou', async () => {
-    const created = await mockAdapter.anonymousFeedbacks.submit({
-      content: 'Um feedback qualquer.',
-      targetType: 'citi',
-      targetMemberId: null,
-      targetLabel: null,
-    });
+    // Migration 0033 removeu `submit()`: a única porta de escrita agora é a
+    // Edge Function `anonymous-feedback-intake`. A regra de anonimato continua
+    // provada sobre os registros que o board realmente lê.
+    const feedbacks = await mockAdapter.anonymousFeedbacks.list();
+    expect(feedbacks.length).toBeGreaterThan(0);
 
-    // Regra de produto: anonimato é por construção.
-    expect(Object.keys(created)).not.toContain('authorName');
-    expect(Object.keys(created)).not.toContain('authorEmail');
-    expect(Object.keys(created)).not.toContain('ip');
-    expect(created.status).toBe('pendente');
+    for (const feedback of feedbacks) {
+      expect(Object.keys(feedback)).not.toContain('authorName');
+      expect(Object.keys(feedback)).not.toContain('authorEmail');
+      expect(Object.keys(feedback)).not.toContain('ip');
+    }
+  });
+
+  it('não existe mais submit() no adapter — a porta de escrita é a Edge Function', () => {
+    expect((mockAdapter.anonymousFeedbacks as unknown as Record<string, unknown>).submit).toBeUndefined();
   });
 
   it('tomar ciência registra a decisão e NÃO cria um feedback de acompanhamento', async () => {
@@ -901,6 +904,40 @@ describe('deactivate — desligamento de membro (migration 0032)', () => {
     expect(resultado.photoPath).toBe('algum/caminho.png');
     expect(resultado.fullName).toBe(membro.fullName);
     expect(resultado.email).toBe(membro.email);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('anonymousFeedbackIntake (canal permanente, migration 0033)', () => {
+  it('nasce desabilitada, sem form_id nem responder_url', async () => {
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config).toEqual({
+      enabled: false,
+      formId: null,
+      responderUrl: null,
+      updatedAt: expect.any(String),
+    });
+  });
+
+  it('atualiza só os campos enviados, preservando o resto', async () => {
+    await mockAdapter.anonymousFeedbackIntake.updateConfig({
+      formId: 'fixture-form',
+      responderUrl: 'https://forms.gle/fixture',
+    });
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config.formId).toBe('fixture-form');
+    expect(config.responderUrl).toBe('https://forms.gle/fixture');
+    expect(config.enabled).toBe(false);
+  });
+
+  it('habilita depois de form_id/responder_url configurados', async () => {
+    await mockAdapter.anonymousFeedbackIntake.updateConfig({
+      formId: 'fixture-form',
+      responderUrl: 'https://forms.gle/fixture',
+      enabled: true,
+    });
+    const config = await mockAdapter.anonymousFeedbackIntake.getConfig();
+    expect(config.enabled).toBe(true);
   });
 });
 

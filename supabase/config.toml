@@ -427,6 +427,16 @@ verify_jwt = false
 [functions.google-forms-intake]
 verify_jwt = false
 
+# `anonymous-feedback-intake` é chamada pelo Apps Script vinculado ao Google
+# Form permanente de Feedback Anônimo (migration 0033) — nunca pelo navegador.
+# Segredo PRÓPRIO (`ANONYMOUS_FEEDBACK_WEBHOOK_SECRET`), nunca o de
+# `google-forms-intake`: são canais diferentes, e um vazamento em um não pode
+# comprometer o outro. Mesma autenticação por HMAC (corpo + timestamp),
+# conferida dentro de handleRequest — testada em
+# supabase/functions/anonymous-feedback-intake/handler.test.ts.
+[functions.anonymous-feedback-intake]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

@@ -26,4 +26,5 @@ export * from './gestoes';
 export * from './org';
 export * from './membersImport';
 export * from './googleFormsIntake';
+export * from './anonymousFeedbackIntake';
 export * from './gestaoLabel';

@@ -1,6 +1,7 @@
 import type {
   AnonymousFeedback,
-  AnonymousFeedbackCreateInput,
+  AnonymousFeedbackIntakeConfig,
+  AnonymousFeedbackIntakeConfigInput,
   AnonymousFeedbackModeration,
   AnonymousFeedbackStatus,
   AuthUser,
@@ -65,6 +66,8 @@ export interface DataAdapter {
   membersImport: MembersImportRepository;
   /** Formulário permanente de entrada (Google Forms) e suas campanhas. */
   googleFormsIntake: GoogleFormsIntakeRepository;
+  /** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). */
+  anonymousFeedbackIntake: AnonymousFeedbackIntakeRepository;
 }
 
 export interface MembersRepository {
@@ -204,13 +207,29 @@ export interface FeedbacksRepository {
   update(id: ID, input: FeedbackUpdateInput): Promise<Feedback>;
 }
 
+/**
+ * ⚠️ Migration 0033: NÃO existe mais `submit()` aqui. O canal de envio é o
+ * Google Form permanente → Edge Function `anonymous-feedback-intake` (com
+ * `service_role`) → INSERT. `anon`/`authenticated` perderam o INSERT direto na
+ * tabela (RLS + revoke), então este cliente nunca teria como escrever de
+ * qualquer forma — remover o método evita a falsa promessa de que a
+ * plataforma ainda oferece um caminho de envio.
+ */
 export interface AnonymousFeedbacksRepository {
   list(status?: AnonymousFeedbackStatus): Promise<AnonymousFeedback[]>;
   getById(id: ID): Promise<AnonymousFeedback | null>;
-  /** Chamado pelo formulário público externo — sem autenticação. */
-  submit(input: AnonymousFeedbackCreateInput): Promise<AnonymousFeedback>;
   /** Decisão humana da GG. Nunca converte em Feedback de acompanhamento. */
   moderate(id: ID, decision: AnonymousFeedbackModeration): Promise<AnonymousFeedback>;
+}
+
+/**
+ * Configuração permanente do canal de Feedback Anônimo via Google Forms
+ * (migration 0033). Mesmo padrão de `GoogleFormsIntakeRepository`, sem
+ * campanha: o canal é permanente, sem período.
+ */
+export interface AnonymousFeedbackIntakeRepository {
+  getConfig(): Promise<AnonymousFeedbackIntakeConfig>;
+  updateConfig(input: AnonymousFeedbackIntakeConfigInput): Promise<AnonymousFeedbackIntakeConfig>;
 }
 
 export interface SettingsRepository {

@@ -1,5 +1,6 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
@@ -1277,6 +1278,14 @@ export const SETTINGS: Settings = {
 // — configurar é uma decisão explícita da GG, feita pela Administração.
 
 export const GOOGLE_FORMS_INTAKE_CONFIG: GoogleFormsIntakeConfig = {
+  enabled: false,
+  formId: null,
+  responderUrl: null,
+  updatedAt: NOW,
+};
+
+/** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). Nasce desabilitado. */
+export const ANONYMOUS_FEEDBACK_INTAKE_CONFIG: AnonymousFeedbackIntakeConfig = {
   enabled: false,
   formId: null,
   responderUrl: null,

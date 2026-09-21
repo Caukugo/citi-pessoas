@@ -1,5 +1,6 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
@@ -215,6 +216,15 @@ export function fromGestaoRow(row: Row): Gestao {
 }
 
 export function fromGoogleFormsIntakeConfigRow(row: Row): GoogleFormsIntakeConfig {
+  return {
+    enabled: row.enabled,
+    formId: row.form_id,
+    responderUrl: row.responder_url,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function fromAnonymousFeedbackIntakeConfigRow(row: Row): AnonymousFeedbackIntakeConfig {
   return {
     enabled: row.enabled,
     formId: row.form_id,
