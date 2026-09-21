@@ -635,7 +635,7 @@ export type CITiValue = (typeof CITI_VALUES)[number];
 /** Avaliação de um valor do CITi dentro de um X1. */
 export interface X1ValueRating {
   value: string;
-  /** Nota de 1 a 5. Opcional: nem todo X1 avalia valores. */
+  /** Nota de 1 a 4. Opcional: nem todo X1 avalia valores. */
   rating?: number | null;
   note?: string | null;
 }
