@@ -101,9 +101,12 @@ A identidade visual do CITi é **decisão de produto, não preferência estétic
 Está registrada em `DESIGN.md` e em `docs/DESIGN_SYSTEM.md`, com os tokens em
 `src/styles/theme.css`.
 
-Compromissos inegociáveis: fundo preto real (`#000000`), verde CITi (`#2ddb60`)
-como ação, tipografia **Inter** (UI) e **Sora** (títulos), superfícies em vidro
-escuro.
+Compromissos inegociáveis: fundo preto real (`#000000`), **laranja CITi
+(`#ff6a00`) como ação** — a cor do logotipo oficial —, tipografia **Inter** (UI)
+e **Sora** (títulos), superfícies em vidro escuro.
+
+O verde `#2ddb60` foi a cor de ação até a migração de 2026. Hoje o verde é só
+`--ok` ("em dia"). Ver `DESIGN.md` → Colors.
 
 Nenhuma heurística genérica de skill externa sobrescreve esses valores.
 

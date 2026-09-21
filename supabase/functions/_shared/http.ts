@@ -57,7 +57,11 @@ export function corsHeaders(origin: string | null): Record<string, string> {
     // acrescenta sozinho quando algum código passar a usar o cliente aqui.
     'Access-Control-Allow-Headers':
       'authorization, apikey, content-type, x-client-info, x-request-id',
-    'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS',
+    // `POST` e `PATCH` entraram com a Agenda de X1 (X1-010): criar, reagendar
+    // e cancelar compromisso. Ampliar aqui não afeta `member-cpf`, que só
+    // responde aos métodos que implementa — o preflight passa a admitir mais,
+    // o handler continua recusando o resto com `metodo_nao_suportado`.
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
     // Sem credenciais de navegador: a autorização é o JWT no cabeçalho, não
     // cookie. Assim não existe superfície de CSRF.
     'Access-Control-Max-Age': '600',

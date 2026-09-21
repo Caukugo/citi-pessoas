@@ -11,8 +11,11 @@ import type {
   MemberEvent,
   MemberIntakeReviewReason,
   MemberIntakeSource,
+  GoogleCalendarConfig,
   Settings,
   X1,
+  X1Appointment,
+  X1SyncOperation,
 } from '../types';
 import { resetMockPrivateData } from './privateStore';
 import {
@@ -25,6 +28,7 @@ import {
   MEMBER_EVENTS,
   SETTINGS,
   X1S,
+  X1_APPOINTMENTS,
 } from './fixtures';
 
 /**
@@ -41,6 +45,19 @@ const STORAGE_KEY = 'citi-pessoas:mock-db:v1';
 export interface MockDatabase {
   members: Member[];
   x1s: X1[];
+  /** Agenda de X1: o compromisso, separado do registro da conversa. */
+  x1Appointments: X1Appointment[];
+  /**
+   * A caixa de saida do modo mock.
+   *
+   * NADA aqui fala com o Google. Ela existe para que a tela exercite de
+   * verdade "enviando", "falhou", "Meet pendente" e "requer reconexao" — os
+   * estados onde a maioria dos bugs mora — sem enviar convite para ninguem.
+   */
+  x1SyncJobs: MockSyncJob[];
+  /** Conexao simulada. `null` = desconectada. */
+  googleConnection: MockGoogleConnection | null;
+  googleConfig: GoogleCalendarConfig;
   feedbacks: Feedback[];
   anonymousFeedbacks: AnonymousFeedback[];
   memberEvents: MemberEvent[];
@@ -59,6 +76,27 @@ export interface MockDatabase {
   anonymousFeedbackIntakeConfig: AnonymousFeedbackIntakeConfig;
   /** Sessão do modo mock. No Supabase quem cuida disso é a própria lib. */
   currentUser: AuthUser | null;
+}
+
+/** Espelho enxuto de uma operacao da caixa de saida. */
+export interface MockSyncJob {
+  id: string;
+  appointmentId: string;
+  tipo: X1SyncOperation;
+  chaveIdempotencia: string;
+  situacao: 'pendente' | 'concluido' | 'aguardando_reconexao' | 'requer_atencao';
+  tentativas: number;
+  ultimoErro: string | null;
+}
+
+/** A conexao do modo mock. Nao existe token aqui, nem de mentira. */
+export interface MockGoogleConnection {
+  googleEmail: string;
+  calendarId: string;
+  scopes: string[];
+  connectedAt: string;
+  lastSyncedAt: string | null;
+  status: 'conectada' | 'requer_reconexao';
 }
 
 /** Espelho enxuto de `member_intake_submissions`. */
@@ -92,6 +130,26 @@ function seed(): MockDatabase {
     // Cópias: sem isso, editar no app mutaria as fixtures importadas.
     members: structuredClone(MEMBERS),
     x1s: structuredClone(X1S),
+    x1Appointments: structuredClone(X1_APPOINTMENTS),
+    x1SyncJobs: [],
+    // Comeca CONECTADA no mock: e o estado em que a maioria das telas e
+    // exercitada. Os outros quatro estados sao alcancaveis pelo painel de
+    // cenarios, que so existe quando IS_MOCK.
+    googleConnection: {
+      googleEmail: 'marina.quintela@citi.org.br',
+      calendarId: 'primary',
+      scopes: ['openid', 'email', 'https://www.googleapis.com/auth/calendar.events.owned'],
+      connectedAt: nowISO(),
+      lastSyncedAt: nowISO(),
+      status: 'conectada',
+    },
+    googleConfig: {
+      enabled: true,
+      eventTitleTemplate: 'X1 · {membro}',
+      defaultDurationMinutes: 60,
+      defaultTimeZone: 'America/Recife',
+      updatedAt: nowISO(),
+    },
     feedbacks: structuredClone(FEEDBACKS),
     anonymousFeedbacks: structuredClone(ANONYMOUS_FEEDBACKS),
     memberEvents: structuredClone(MEMBER_EVENTS),

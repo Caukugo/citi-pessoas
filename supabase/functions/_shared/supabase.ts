@@ -24,13 +24,25 @@
 /** Papéis com acesso à plataforma. `gg` e `gg_diretoria` são equivalentes. */
 export const PAPEIS_AUTORIZADOS = ['gg', 'gg_diretoria'] as const;
 
-export interface ServerEnv {
+/**
+ * O que QUALQUER função precisa para autorizar e falar com o banco.
+ *
+ * Separado de `ServerEnv` porque as chaves de CPF não são de todo mundo: sem
+ * esta divisão, cada função nova teria que carregar chaves criptográficas
+ * falsas só para satisfazer o tipo — e chave falsa em ambiente é exatamente o
+ * tipo de coisa que um dia vira chave de verdade no lugar errado.
+ */
+export interface BaseEnv {
   supabaseUrl: string;
   anonKey: string;
   serviceKey: string;
+  allowedOrigins: string[];
+}
+
+/** O ambiente da função de CPF: base + as chaves criptográficas dela. */
+export interface ServerEnv extends BaseEnv {
   encryptionKey: string;
   hashKey: string;
-  allowedOrigins: string[];
   keyVersion: number;
 }
 
@@ -55,7 +67,7 @@ export type AuthResult =
  * isso é informação útil para quem está sondando a API.
  */
 export async function authorize(
-  env: ServerEnv,
+  env: BaseEnv,
   token: string,
   fetchImpl: FetchLike,
 ): Promise<AuthResult> {
@@ -102,7 +114,7 @@ export async function authorize(
  * schema, e o cliente só precisa saber que falhou.
  */
 export async function callRpc<T>(
-  env: ServerEnv,
+  env: BaseEnv,
   name: string,
   args: Record<string, unknown>,
   fetchImpl: FetchLike,
@@ -119,5 +131,18 @@ export async function callRpc<T>(
 
   if (!response.ok) return { ok: false, status: 502 };
 
-  return { ok: true, data: (await response.json()) as T };
+  // ⚠️ FUNÇÃO `returns void` VEM COM O CORPO VAZIO (o PostgREST responde 204
+  // sem nada, e às vezes 200 sem nada). `.json()` numa resposta vazia lança
+  // `SyntaxError: Unexpected end of JSON input` — e como isto está FORA do
+  // `if (!response.ok)`, virava uma exceção não tratada em vez de um retorno
+  // de erro, derrubando com 500 qualquer chamador de uma RPC void
+  // (`citi_google_oauth_abrir_state`, `citi_desconecta_google`,
+  // `citi_conclui_sincronizacao_x1`, `citi_google_invalidar_sync_token`,
+  // `citi_salva_conexao_google`). Nenhum teste em Vitest pegou isto porque o
+  // `fetch` falso sempre devolvia o texto `'null'` — que É um JSON válido —
+  // em vez de um corpo genuinamente vazio.
+  const texto = await response.text();
+  if (!texto) return { ok: true, data: undefined as T };
+
+  return { ok: true, data: JSON.parse(texto) as T };
 }

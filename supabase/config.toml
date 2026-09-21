@@ -466,3 +466,60 @@ enabled = true
 # formatted with uppercase keywords, indent 2, max width 180, trailing commas,
 # and column/key alignment. Set to "null" to emit raw, unformatted SQL.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":180,\"commaStyle\":\"trailing\"}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar-oauth` atende DOIS chamadores muito diferentes: o navegador
+# autenticado (que pede a URL de consentimento, com JWT e origem conferida) e o
+# GOOGLE, que devolve a pessoa por um redirecionamento de TOPO — sem `Origin`,
+# sem `Authorization` e sem cookie.
+#
+# Com `verify_jwt = true` o gateway recusaria o callback do Google ANTES de ele
+# chegar à função, e a autorização morreria num erro sem explicação.
+#
+# O que autentica o callback é o `state` de uso único, preso ao profile na etapa
+# `/iniciar` — que essa sim exige JWT. O consumo é atômico no banco, então dois
+# callbacks concorrentes não podem ganhar os dois.
+# Coberto por supabase/functions/google-calendar-oauth/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar-oauth]
+verify_jwt = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar` — o serviço da Agenda de X1 (X1-009/X1-010).
+#
+# `verify_jwt = false` pela MESMA razão do `member-cpf`: o pré-voo do navegador
+# (OPTIONS, que não leva Authorization) seria recusado no gateway antes de
+# chegar à função, e a agenda quebraria com um erro de CORS sem explicação.
+#
+# A autorização NÃO é mais fraca por isso — é mais estrita. Dentro do handler,
+# `authorize()` valida o token no Auth do Supabase E confere o papel em
+# `profiles` (gg ou gg_diretoria). Autenticado sem perfil é bloqueado, que é o
+# furo que a 0019 fechou no banco.
+#
+# ⚠️ E há uma guarda que o gateway não teria como fazer: só o ORGANIZADOR
+# reagenda ou cancela, conferido linha a linha contra a sessão. Ver
+# supabase/functions/google-calendar/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar]
+verify_jwt = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# `google-calendar-sync` — o worker periódico da Agenda de X1 (X1-010).
+#
+# `verify_jwt = false` por um motivo diferente das outras: NÃO EXISTE USUÁRIO
+# nesta chamada. Quem chama é o próprio banco, pelo `pg_cron` + `pg_net`
+# (migration 0035). Não há sessão, não há navegador e não há JWT para verificar.
+#
+# A autenticação é HMAC de `timestamp + corpo`, com o segredo no Vault —
+# conferida DENTRO do handler, antes de o corpo ser sequer interpretado, e com
+# comparação em tempo constante. O timestamp entra na assinatura justamente
+# para que um pedido capturado expire em minutos em vez de valer para sempre.
+#
+# ⚠️ Sem `GOOGLE_CALENDAR_CRON_SECRET`, a função RECUSA TUDO. Aqui não vale o
+# estado degradado do `google-calendar`: um worker que aceitasse pedidos sem
+# assinatura seria um endpoint aberto que esvazia filas e varre calendários.
+#
+# Coberto por supabase/functions/google-calendar-sync/handler.test.ts.
+# ─────────────────────────────────────────────────────────────────────────────
+[functions.google-calendar-sync]
+verify_jwt = false

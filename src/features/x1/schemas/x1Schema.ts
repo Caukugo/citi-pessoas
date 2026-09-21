@@ -135,7 +135,7 @@ function orNull(value: string): string | null {
  * registro. "Não conversamos sobre isso" e "conversamos e está fraco" são
  * coisas diferentes, e transformar uma na outra seria inventar percepção.
  */
-function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
+export function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
   return CITI_VALUES.filter((value) => raw[value]).map((value) => ({
     value,
     rating: Number(raw[value]),

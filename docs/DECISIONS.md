@@ -890,6 +890,291 @@ que alguém futuramente precisar testar algo depois do go-live.
   público (o `responder_url` de teste nunca deveria circular fora do time
   técnico) — mitigado por nomear os dois Forms de forma inequívoca
   ("CITi Pessoas — Entrada (PRODUÇÃO)" vs. "... (TESTE)").
+## ADR-019 — A Agenda de X1 é antecipada da Fase 2 para a Fase 1
+
+- **Data:** 2026-09-19
+- **Status:** Aceita
+
+**Contexto.** `docs/FEATURES.md` listava "Calendário X1 com visão mensal e
+integração com Google Calendar" em **Futuro — Fase 2**, e `CLAUDE.md` §9 diz
+"nada de Fase 2/3". `docs/PROJECT_CONTEXT.md` §18 ainda trata o modelo de
+integração com Google Calendar e Google Docs como **ponto em aberto**.
+
+Ao mesmo tempo, a Fase 1 entregou só metade do X1: dá para registrar uma
+conversa que já aconteceu, mas não dá para marcar a próxima. `x1s.scheduled_for`
+existe desde a migration `0001` — é um `date` sem hora, sem organizador e sem
+evento — e `/x1` continua um `FeatureStub`. Na prática, GG marca os X1 no Google
+Calendar por fora e a plataforma nunca fica sabendo. O acompanhamento que a
+plataforma calcula ignora o compromisso que já existe.
+
+O fluxo de produto, o protótipo navegável e os estados visuais foram desenhados
+e aprovados antes deste ADR.
+
+**Decisão.** A Agenda de X1 e a integração individual com Google Calendar entram
+na **Fase 1**, como issues **X1-009** e **X1-010** do EPIC 3. `docs/FEATURES.md`
+deixa de listá-las na Fase 2.
+
+O que **não** vem junto: recorrência automática, sugestão de horário, delegação,
+troca de organizador, importação de eventos externos, webhooks push e
+verificação de disponibilidade. Essas continuam fora de escopo.
+
+**Alternativas consideradas.**
+
+- **Manter na Fase 2 e seguir com o resto da Fase 1.** Rejeitado: o X1 é o
+  núcleo da Fase 1, e ele está pela metade. Agendar não é enfeite do registro —
+  é o que faz o registro acontecer.
+- **Entregar só a agenda interna, sem Google.** Rejeitado: GG já usa o Google
+  Calendar. Uma agenda que não emite convite vira uma segunda lista para manter
+  à mão, e a primeira coisa que fica desatualizada.
+- **Entregar só o link `action=TEMPLATE` para o Google.** Rejeitado: abre um
+  formulário pré-preenchido e a plataforma nunca sabe se o evento foi criado,
+  aceito, remarcado ou cancelado. É a aparência da integração sem nenhuma das
+  garantias.
+
+**Motivação.** O compromisso é o elo que faltava entre "quem precisa de X1" e
+"o X1 aconteceu". Sem ele a plataforma sabe cobrar, mas não sabe ajudar.
+
+**Consequências.**
+
+- ✅ A pendência deixa de ser só uma acusação e passa a ter uma ação ao lado.
+- ✅ `/x1` deixa de ser `FeatureStub` — a última rota vazia do EPIC 3.
+- ⚠️ A Fase 1 cresce, e cresce na direção de uma dependência externa. O ADR-021
+  trata de como essa dependência é contida.
+- ⚠️ `docs/PROJECT_CONTEXT.md` §18 deixa de listar a integração como ponto em
+  aberto: ela passa a ter modelo definido (ADR-020 e ADR-021).
+
+---
+
+## ADR-020 — Agendamento é uma entidade separada do registro de X1
+
+- **Data:** 2026-09-19
+- **Status:** Aceita
+
+**Contexto.** `x1s` já tem `status = 'agendado'` e `scheduled_for date`. A
+tentação óbvia é usar a tabela que já existe: acrescentar hora, duração, id de
+evento do Google e um quarto valor ao enum.
+
+Mas `x1s` é o registro **da conversa**: resumo, tópicos, encaminhamentos,
+habilidades, avaliação dos valores do CITi, comentários internos. Tem a
+constraint `x1_realizado_tem_data` e 25 migrations de história atrás. Um
+compromisso cancelado não é uma conversa cancelada — é uma conversa que nunca
+existiu.
+
+E há uma segunda confusão embutida: "situação" de um compromisso não é uma coisa
+só. O membro pode estar **atrasado**, com o X1 **agendado**, o convite
+**aceito** e a sincronização **em dia**, tudo ao mesmo tempo.
+
+**Decisão.**
+
+1. Tabela nova **`x1_appointments`** para o compromisso. **`x1s` não é
+   alterada.** O vínculo é `x1_appointments.x1_id`, único e opcional — conversa
+   sem agendamento continua possível, que é como o Perfil funciona hoje.
+2. **Três dimensões, três colunas, três enums**: `status` (o compromisso),
+   `invite_response` (o que a pessoa respondeu), `sync_status` (o que o Google
+   sabe). Nenhuma deriva da outra.
+3. **"Aguardando registro" não é gravado.** É o fim do compromisso já ter
+   passado sem conversa vinculada — `ARCHITECTURE.md` §4.1.
+4. Os `x1s` agendados existentes viram agendamentos de origem `legado_x1`,
+   **sem horário inventado e sem organizador inventado**, e incapazes de gerar
+   convite (constraint `x1_agendamento_sem_horario_nao_sincroniza`).
+5. **Organizador referencia `profiles`; quem conduz referencia `members`.**
+   Organizador é a conta que autentica e cujo token emite o convite — `members`
+   não tem login.
+
+**Alternativas consideradas.**
+
+- **Estender `x1s`.** Rejeitado: força um quarto valor no enum de uma tabela com
+  check de conversa realizada, e faz um compromisso cancelado virar uma linha de
+  conversa que ninguém teve. O histórico passaria a contar encontros que não
+  aconteceram.
+- **Uma dimensão só de estado**, com valores misturados (`agendado`, `aceito`,
+  `nao_sincronizado`…). Rejeitado: é assim que "cancelado" passa a significar "o
+  Google não respondeu" — e aí um erro de rede vira um cancelamento na cara de
+  quem lê.
+- **Gravar "aguardando registro" numa coluna**, atualizada por rotina.
+  Rejeitado: é gravar o relógio. Contradiz §4.1 e cria a chance de duas telas
+  discordarem sobre que horas são.
+- **Traduzir o organizador do legado por `profiles.member_id`.** Rejeitado:
+  acertaria em alguns casos e **erraria em silêncio** nos outros — atribuiria a
+  alguém a responsabilidade por um convite que essa pessoa nunca emitiu.
+
+**Motivação.** O compromisso e a conversa têm ciclos de vida diferentes, donos
+diferentes e verdades diferentes. Modelá-los juntos é barato hoje e caro para
+sempre.
+
+**Consequências.**
+
+- ✅ `x1s` continua sendo o histórico do que **aconteceu**, e só isso.
+- ✅ A migração do legado é exatamente reversível: nenhuma linha de `x1s` é
+  escrita, e apagar os agendamentos de origem `legado_x1` devolve o banco ao
+  estado anterior.
+- ✅ Agendar, aceitar convite ou ver o horário passar **não** mudam
+  `getMemberX1Status()`. Há teste de não-regressão para cada um desses casos.
+- ⚠️ Duas tabelas para consultar onde havia uma. O custo aparece no adapter
+  (`listByRange`, `listNextByMember`), não nas telas.
+- ⚠️ `nextScheduledX1()` em `src/data/x1.ts` tinha um bug — devolvia o agendado
+  mais antigo, inclusive no passado. Foi corrigido e marcado `@deprecated`: a
+  agenda passa a ser a fonte.
+- ⚠️ Um agendamento carrega **um** `invite_response`. Está certo para um X1 1:1
+  e fica errado no dia em que houver um terceiro na conversa. A evolução é
+  aditiva, mas é uma migration.
+
+---
+
+## ADR-021 — A conexão com o Google é individual, e o token vive fora do alcance do banco
+
+- **Data:** 2026-09-19
+- **Status:** Aceita
+
+**Contexto.** Para emitir um convite de verdade, alguém precisa autorizar a
+plataforma a escrever no Google Calendar. Duas perguntas: **de quem** é essa
+conta, e **onde** mora a credencial.
+
+Entrar na plataforma com e-mail e senha não autoriza nada no Google — são dois
+estados independentes, e confundi-los produz a pior mensagem de erro possível:
+mandar a pessoa refazer o login quando o problema é um segredo faltando no
+servidor.
+
+O projeto já resolveu um problema da mesma família no ADR-017: CPF cifrado fora
+de `members`, com chave que o banco não tem.
+
+**Decisão.**
+
+1. **A conexão é individual.** Cada integrante de GG autoriza com a própria
+   conta CITi e organiza os próprios compromissos. **Não existe conta central
+   compartilhada.** O convidado é o e-mail institucional do membro
+   (`members.email`), nunca o pessoal por substituição silenciosa.
+2. **O backend deriva a identidade organizadora da sessão** e da conexão
+   autorizada — nunca de um id ou e-mail vindos do cliente. Trocar um parâmetro
+   não usa o token de outra pessoa.
+3. **O refresh token fica cifrado (AES-256-GCM) em tabela própria com RLS
+   ligada e nenhuma policy**, mais `revoke all from anon, authenticated`. Só
+   `service_role` alcança a linha, e mesmo ela recebe cifrado: a chave existe
+   apenas nos segredos da Edge Function. Mesmo desenho de `member_private_data`.
+4. **Chave própria** (`GOOGLE_TOKEN_ENCRYPTION_KEY`), separada de
+   `CPF_ENCRYPTION_KEY`.
+5. **Escopos mínimos**: `openid`, `email` e `calendar.events.owned`.
+   `calendar.freebusy` **não** é pedido — por isso a tela diz "Disponibilidade
+   não verificada", e isso é literalmente verdade.
+6. **Cinco estados honestos de conexão**: indisponível por configuração ·
+   desconectada · conectando · conectada · requer reconexão. Consultar
+   agendamentos salvos funciona em todos eles.
+7. **Nada interno vai ao Google.** Resumo, avaliação de valores, comentários de
+   GG e o motivo interno de cancelamento nunca entram no payload. A montagem do
+   convite é função pura com lista branca e teste que procura a string.
+
+**Alternativas consideradas.**
+
+- **Uma conta de serviço única do CITi** organizando tudo. Rejeitado: todo
+  convite chegaria assinado por um robô, ninguém conseguiria remarcar pelo
+  próprio Google, e uma credencial só passaria a valer por toda a agenda de todo
+  mundo.
+- **Delegação em todo o domínio (domain-wide delegation).** Rejeitado pelo mesmo
+  motivo, com raio de dano maior: uma chave que lê a agenda de qualquer pessoa
+  do domínio é exatamente o que este produto não precisa ter.
+- **Guardar o token no Supabase Vault.** Rejeitado: o projeto não usa
+  `vault`/`pgsodium` em nenhuma migration, e o ADR-017 já estabeleceu o padrão
+  de "o banco guarda o que não sabe decifrar". Uma segunda forma de proteger
+  segredo seria uma segunda coisa para manter certa.
+- **Reaproveitar `CPF_ENCRYPTION_KEY`.** Rejeitado: uma rotação de chave de CPF
+  derrubaria todas as conexões do Google. Dados com ciclos de rotação diferentes
+  não compartilham chave.
+- **Sincronizar por webhook push do Google.** Rejeitado na primeira versão:
+  exige URL pública, renovação a cada ~7 dias e mais uma tabela. A consulta
+  periódica resolve, e a evolução continua aberta.
+
+**Motivação.** A credencial de uma pessoa é dela. E um erro de configuração do
+servidor não pode ser apresentado como culpa de quem está usando.
+
+**Consequências.**
+
+- ✅ Cada convite sai do Google de quem realmente vai conversar.
+- ✅ Um vazamento do banco não entrega acesso à agenda de ninguém.
+- ✅ "Disponibilidade não verificada" é uma afirmação verdadeira, não um hedge.
+- ⚠️ Só o organizador remarca ou cancela pela plataforma, **validado no
+  servidor**. Toda GG consulta e toda GG registra conversa — `gg` e
+  `gg_diretoria` continuam com o mesmo acesso (migration `0019`). A propriedade
+  do evento é regra extra de mutação, **não** um RBAC novo.
+- ⚠️ Não existe transação entre Postgres e Google. A defesa contra convite
+  duplicado é uma caixa de saída com chave de idempotência e um id de evento
+  determinístico — mais a regra de **consultar o evento antes de reenviar**.
+- ⚠️ A integração depende de um projeto no Google Cloud com cliente OAuth. Sem
+  ele, a plataforma funciona em modo "indisponível por configuração" e a agenda
+  continua legível. O guia é `docs/google-calendar-setup.md`.
+## ADR-022 — A cor de ação é o laranja do logotipo, e o verde vira só "em dia"
+
+- **Data:** 2026-09-19 (registro; a migração no código é de 2026)
+- **Status:** Aceita
+
+**Contexto.** A identidade escrita dizia "verde CITi (`#2ddb60`) como ação". O
+logotipo oficial (`public/logo-citi-pessoas.svg`) é **laranja `#ff6a00`** — a
+documentação descrevia uma marca que o próprio asset já contradizia.
+
+O redesenho de Membros migrou `src/styles/theme.css` para o laranja, mas a troca
+foi feita de forma aditiva e ficou pela metade: `--primary` e `--accent`
+conviveram apontando para cores diferentes, a barra lateral chegou a acender em
+cores diferentes por rota, e `DESIGN.md`, `docs/DESIGN_SYSTEM.md`,
+`PRODUCT.md`, `docs/PROJECT_CONTEXT.md` e `CLAUDE.md` continuaram descrevendo a
+identidade anterior. O próprio `theme.css` avisava isso num comentário.
+
+Documentação defasada sobre identidade não é detalhe: `DESIGN.md` é o arquivo
+que as Agent Skills leem para saber o que **não** podem mudar. Enquanto ele
+dissesse "verde", toda tela nova nasceria com a cor errada e toda auditoria de
+skill apontaria o laranja como desvio.
+
+**Decisão.**
+
+1. A cor de ação e de seleção da plataforma é o **laranja `#ff6a00`**.
+   `--primary` e `--accent` apontam para o mesmo valor; `--accent-*` existe
+   só para carregar as variações de superfície (`--accent-strong`,
+   `--accent-soft`, `--accent-gradient`).
+2. O **verde é `--ok` e só isso** — significa "em dia", não "clicável".
+3. Texto sobre laranja é **branco**, com a dispensa de contraste registrada e
+   medida (ver Consequências).
+4. `src/styles/theme.css` é a **fonte de verdade**; a documentação descreve o
+   que está nele, nunca o contrário.
+
+**Alternativas consideradas.**
+
+- **Voltar o produto para o verde**, alinhando o código à documentação.
+  Rejeitado: o laranja é a cor do logotipo oficial. Seria alinhar a marca ao
+  documento errado.
+- **Manter os dois vivos**, laranja nas telas redesenhadas e verde no resto.
+  Era o estado anterior. Rejeitado: produziu navegação acendendo em cores
+  diferentes conforme a rota, e ninguém sabia dizer qual era "a" cor.
+- **Só trocar os hex nos documentos**, sem registrar ADR. Rejeitado: daqui a
+  seis meses alguém encontra verde em `format.ts` ou num mock antigo e reabre
+  a discussão do zero.
+
+**Motivação.** A identidade tem que ser uma só, e tem que ser a do logotipo.
+Documento de identidade defasado é pior que ausente: ele é lido como requisito.
+
+**Consequências.**
+
+- ✅ Uma cor de ação em toda a plataforma, e a mesma do logotipo.
+- ✅ O verde ganhou significado próprio (`--ok` = em dia), em vez de disputar
+  papel com a cor de ação.
+- ✅ `DESIGN.md`, `docs/DESIGN_SYSTEM.md`, `PRODUCT.md`,
+  `docs/PROJECT_CONTEXT.md`, `CLAUDE.md` e os READMEs de `skills/` descrevem os
+  valores que estão em `theme.css`.
+- ⚠️ **Contraste: dispensa consciente.** Branco sobre `--accent` dá **3.0:1** e
+  sobre `--accent-strong` **3.46:1** — abaixo dos 4.5:1 que a WCAG AA pede para
+  texto normal (13px/600 não conta como "texto grande": o critério é 18.66px
+  bold). Rótulo pequeno usa `--accent-strong` com peso 600, o melhor disponível
+  sem trair o desenho. **Não "corrija" trocando o texto para preto.** Se a regra
+  tiver que passar de verdade um dia, `#c24e00` dá 4.79:1 com branco.
+- ⚠️ O laranja é acento, não protagonista: **no máximo quatro elementos laranja
+  em cena**, e `--accent-gradient` só em nav ativo e ação principal.
+- ⚠️ `public/favicon.svg` ainda desenha o wordmark "citi" em texto Sora, o que
+  `src/components/ui/logo.tsx` proíbe explicitamente para a marca. A cor foi
+  corrigida para `#ff6a00`, mas **derivar o favicon do SVG oficial continua
+  pendente**.
+- ⚠️ `AVATAR_COLORS` em `src/lib/format.ts` ainda usa `#2ddb60` como uma das
+  sete cores de avatar. É paleta decorativa, não cor de ação — foi mantida de
+  propósito.
+
+---
+
 
 ---
 

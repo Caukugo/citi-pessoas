@@ -13,6 +13,8 @@ import type {
   MemberImportResult,
   MemberIntakeReviewReason,
   X1,
+  X1Appointment,
+  X1SyncOperation,
 } from '../types';
 import { MOCK_USERS } from './fixtures';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
@@ -39,6 +41,7 @@ import {
   mockPhotoBytes,
 } from './privateStore';
 import { commit, delay, mockDb, mockId, nowISO } from './store';
+import type { MockSyncJob } from './store';
 
 /**
  * Implementação de `DataAdapter` sobre dados fictícios locais.
@@ -96,6 +99,148 @@ function onlyDigits(value: string): string | null {
 /** Ordena por data decrescente (mais recente primeiro). */
 function byDateDesc<T>(items: T[], getDate: (item: T) => string | null | undefined): T[] {
   return [...items].sort((a, b) => (getDate(b) ?? '').localeCompare(getDate(a) ?? ''));
+}
+
+
+// ─── Agenda de X1 ─────────────────────────────────────────────────────────────
+
+/**
+ * O instante em que o compromisso começa. Sem hora (legado), é o começo do dia.
+ *
+ * Recife é UTC−3 o ano inteiro, então o offset fixo é exato no mock. O código
+ * de produto usa `zonedTimeToInstant()`, que vale para qualquer fuso.
+ */
+function appointmentStart(appointment: X1Appointment): Date {
+  if (appointment.startsAt) return new Date(appointment.startsAt);
+  if (appointment.scheduledDate) return new Date(`${appointment.scheduledDate}T00:00:00-03:00`);
+  return new Date(appointment.createdAt);
+}
+
+/** O fim. Sem hora, é o FIM DO DIA — não a meia-noite que já passou. */
+function appointmentEnd(appointment: X1Appointment): Date {
+  if (appointment.endsAt) return new Date(appointment.endsAt);
+  if (appointment.scheduledDate) return new Date(`${appointment.scheduledDate}T23:59:59-03:00`);
+  return appointmentStart(appointment);
+}
+
+/** Índice de membros por id, para busca por nome sem varrer a lista toda vez. */
+function memberIndex(): Map<ID, Member> {
+  return new Map(mockDb().members.map((member) => [member.id, member]));
+}
+
+function requireAppointment(list: X1Appointment[], id: ID): X1Appointment {
+  const found = list.find((appointment) => appointment.id === id);
+  if (!found) throw new DataError('not_found', 'Agendamento não encontrado.');
+  return found;
+}
+
+/**
+ * ⚠️ Só o organizador altera ou cancela.
+ *
+ * No mock isto é uma checagem local; no Supabase quem decide é o servidor.
+ * Existe aqui para que a regra apareça em desenvolvimento e ninguém construa
+ * uma tela que só funciona porque o botão estava escondido.
+ */
+function assertOrganizer(appointment: X1Appointment, user: AuthUser | null): void {
+  if (!user) {
+    throw new DataError('unauthorized', 'Sessão expirada. Entre de novo.');
+  }
+  if (appointment.organizerProfileId && appointment.organizerProfileId !== user.id) {
+    throw new DataError(
+      'unauthorized',
+      'Só quem organizou este X1 pode reagendar ou cancelar.',
+    );
+  }
+}
+
+/**
+ * Devolve uma cópia com o vínculo do evento já resolvido — e promove o Meet de
+ * "pendente" para "disponível" depois de alguns segundos.
+ *
+ * O Google cria a conferência de forma assíncrona; o atraso simulado existe
+ * para que a tela exercite de verdade o estado "gerando link", que é onde a
+ * tentação de mostrar um link inexistente aparece.
+ */
+function withEvent(appointment: X1Appointment): X1Appointment {
+  const event = appointment.event;
+
+  if (event?.meetStatus === 'pendente' && event.lastSyncedAt) {
+    const decorrido = Date.now() - new Date(event.lastSyncedAt).getTime();
+    if (decorrido > MOCK_MEET_DELAY_MS) {
+      event.meetStatus = 'disponivel';
+      event.hangoutLink = `https://meet.google.com/mock-${appointment.id.slice(-4)}`;
+      commit();
+    }
+  }
+
+  return structuredClone(appointment);
+}
+
+/** Quanto tempo o Meet fica "em geração" no modo mock. */
+const MOCK_MEET_DELAY_MS = 4_000;
+
+/**
+ * Enfileira uma operação e — por ser mock — resolve-a na hora.
+ *
+ * ⚠️ NADA aqui fala com o Google e NENHUM convite é enviado. A chave de
+ * idempotência é real: repetir a mesma intenção devolve o mesmo job, que é a
+ * propriedade que impede convite duplicado no modo real.
+ */
+function enqueue(
+  appointment: X1Appointment,
+  tipo: X1SyncOperation,
+): { job: MockSyncJob; alreadyQueued: boolean } {
+  const db = mockDb();
+
+  // Para `criar_evento` a versão é fixada em 0: a criação só pode ser
+  // enfileirada uma vez na vida do agendamento.
+  const versao = tipo === 'criar_evento' ? 0 : appointment.versao;
+  const chave = `${appointment.id}:${tipo}:${versao}`;
+
+  const existente = db.x1SyncJobs.find((job) => job.chaveIdempotencia === chave);
+  if (existente) return { job: existente, alreadyQueued: true };
+
+  const job: MockSyncJob = {
+    id: mockId('job'),
+    appointmentId: appointment.id,
+    tipo,
+    chaveIdempotencia: chave,
+    situacao: 'concluido',
+    tentativas: 1,
+    ultimoErro: null,
+  };
+  db.x1SyncJobs.push(job);
+
+  if (tipo === 'cancelar_evento') {
+    appointment.event = null;
+    appointment.syncStatus = 'sincronizado';
+    return { job, alreadyQueued: false };
+  }
+
+  appointment.event = {
+    calendarId: 'primary',
+    // Determinístico a partir do id, como no modo real: reenviar não cria um
+    // segundo evento.
+    eventId: mockEventId(appointment.id),
+    etag: `"mock-${appointment.versao}"`,
+    htmlLink: `https://calendar.google.com/calendar/event?eid=${mockEventId(appointment.id)}`,
+    hangoutLink: appointment.event?.hangoutLink ?? null,
+    meetStatus: appointment.wantsMeet
+      ? (appointment.event?.meetStatus === 'disponivel' ? 'disponivel' : 'pendente')
+      : 'sem_meet',
+    invitedEmail:
+      db.members.find((member) => member.id === appointment.memberId)?.email ?? null,
+    lastSyncedAt: nowISO(),
+  };
+  appointment.syncStatus = 'sincronizado';
+
+  return { job, alreadyQueued: false };
+}
+
+/** Id de evento no formato que o Google aceita: base32hex, 5–1024 caracteres. */
+function mockEventId(appointmentId: ID): string {
+  const limpo = appointmentId.replace(/[^a-v0-9]/g, '');
+  return `mock${limpo}`.padEnd(8, '0').slice(0, 64);
 }
 
 export const mockAdapter: DataAdapter = {
@@ -813,6 +958,505 @@ export const mockAdapter: DataAdapter = {
 
       commit();
       return updated;
+    },
+  },
+
+  x1Appointments: {
+    async listByRange(filters) {
+      await delay();
+      const from = new Date(`${filters.from}T00:00:00-03:00`).getTime();
+      const to = new Date(`${filters.to}T23:59:59-03:00`).getTime();
+      const term = normalizeText(filters.search ?? '');
+      const members = memberIndex();
+
+      return mockDb()
+        .x1Appointments.filter((appointment) => {
+          const instant = appointmentStart(appointment).getTime();
+          if (instant < from || instant > to) return false;
+
+          // Cancelado e não realizado saem por padrão: a agenda mostra o que
+          // ainda vai acontecer, não o que foi desfeito.
+          if (!filters.includeClosed && appointment.status !== 'agendado') {
+            if (appointment.status !== 'realizado') return false;
+          }
+
+          // ⚠️ O LEGADO ENTRA NOS DOIS RECORTES, de propósito.
+          //
+          // Compromisso migrado não tem organizador (ninguém emitiu convite
+          // por ele). Se o filtro o excluísse, ele só apareceria em "Toda GG"
+          // — e a visão padrão esconderia justamente o que precisa ser
+          // regularizado. Ele é de ninguém e é de todo mundo.
+          if (
+            filters.organizerProfileId &&
+            appointment.organizerProfileId !== null &&
+            appointment.organizerProfileId !== filters.organizerProfileId
+          ) {
+            return false;
+          }
+
+          if (filters.memberId && appointment.memberId !== filters.memberId) return false;
+
+          if (term) {
+            const member = members.get(appointment.memberId);
+            const alvo = normalizeText(`${member?.fullName ?? ''} ${member?.role ?? ''}`);
+            if (!alvo.includes(term)) return false;
+          }
+
+          return true;
+        })
+        .sort((a, b) => appointmentStart(a).getTime() - appointmentStart(b).getTime())
+        .map(withEvent);
+    },
+
+    async listByMember(memberId) {
+      await delay();
+      return mockDb()
+        .x1Appointments.filter((appointment) => appointment.memberId === memberId)
+        .sort((a, b) => appointmentStart(b).getTime() - appointmentStart(a).getTime())
+        .map(withEvent);
+    },
+
+    async listNextByMember(now) {
+      await delay();
+      const instant = now ? new Date(now).getTime() : Date.now();
+      const result: Record<ID, X1Appointment> = {};
+
+      // Mesma regra do `nextAppointment()` puro e da consulta do Supabase:
+      // só o que ainda NÃO terminou, sem conversa vinculada, agendado.
+      for (const appointment of mockDb().x1Appointments) {
+        if (appointment.status !== 'agendado' || appointment.x1Id) continue;
+        if (appointmentEnd(appointment).getTime() <= instant) continue;
+
+        const atual = result[appointment.memberId];
+        if (
+          !atual ||
+          appointmentStart(appointment).getTime() < appointmentStart(atual).getTime()
+        ) {
+          result[appointment.memberId] = withEvent(appointment);
+        }
+      }
+
+      return result;
+    },
+
+    async getById(id) {
+      await delay();
+      const found = mockDb().x1Appointments.find((appointment) => appointment.id === id);
+      return found ? withEvent(found) : null;
+    },
+
+    async create(input) {
+      await delay();
+      const db = mockDb();
+      const organizer = db.currentUser;
+
+      if (!organizer) {
+        throw new DataError('unauthorized', 'Sessão expirada. Entre de novo para agendar.');
+      }
+
+      const member = db.members.find((m) => m.id === input.memberId);
+      if (!member) throw new DataError('not_found', 'Membro não encontrado.');
+
+      // O convite precisa de um e-mail institucional válido. Sem ele, não dá
+      // para enviar — e a tela aponta para a correção do cadastro.
+      if (!member.email || !/^\S+@\S+\.\S+$/.test(member.email)) {
+        throw new DataError(
+          'invalid',
+          'Este membro não tem e-mail institucional válido. Corrija o cadastro antes de agendar.',
+        );
+      }
+
+      if (input.mode === 'presencial' && !input.location?.trim()) {
+        throw new DataError('invalid', 'Informe o local do encontro presencial.');
+      }
+
+      const wantsInvite = input.sendInvite ?? true;
+      if (wantsInvite && !db.googleConnection) {
+        throw new DataError(
+          'unauthorized',
+          'Conecte sua conta do Google para enviar o convite.',
+        );
+      }
+
+      const durationMinutes = input.durationMinutes;
+      const startsAt = new Date(input.startsAt).toISOString();
+      const endsAt = new Date(
+        new Date(startsAt).getTime() + durationMinutes * 60_000,
+      ).toISOString();
+
+      const appointment: X1Appointment = {
+        id: mockId('apt'),
+        memberId: input.memberId,
+        organizerProfileId: organizer.id,
+        conductedById: input.conductedById ?? organizer.memberId ?? null,
+        startsAt,
+        endsAt,
+        scheduledDate: null,
+        durationMinutes,
+        timeZone: input.timeZone ?? db.googleConfig.defaultTimeZone,
+        mode: input.mode,
+        location: input.mode === 'presencial' ? (input.location?.trim() ?? null) : null,
+        wantsMeet: input.mode === 'online' ? (input.wantsMeet ?? true) : false,
+        status: 'agendado',
+        inviteResponse: 'pendente',
+        inviteResponseAt: null,
+        // ⚠️ Só vira 'sincronizado' quando o "Google" confirma. Até lá a tela
+        // diz "Enviando…", nunca um sucesso que não aconteceu.
+        syncStatus: wantsInvite ? 'pendente' : null,
+        title: null,
+        sharedAgenda: input.sharedAgenda?.trim() || null,
+        internalNotes: input.internalNotes?.trim() || null,
+        cancellationReason: null,
+        cancelledAt: null,
+        cancelledByProfileId: null,
+        x1Id: null,
+        origin: 'plataforma',
+        originX1Id: null,
+        gestaoId: input.gestaoId ?? db.settings.currentGestaoId ?? null,
+        versao: 0,
+        createdByProfileId: organizer.id,
+        updatedByProfileId: null,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+        event: null,
+      };
+
+      db.x1Appointments.push(appointment);
+      if (wantsInvite) enqueue(appointment, 'criar_evento');
+      commit();
+
+      return withEvent(appointment);
+    },
+
+    async update(id, input) {
+      await delay();
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+      assertOrganizer(appointment, db.currentUser);
+
+      if (appointment.status !== 'agendado') {
+        throw new DataError('invalid', 'Só dá para reagendar um X1 que ainda está agendado.');
+      }
+
+      const mode = input.mode ?? appointment.mode;
+      const location = input.location !== undefined ? input.location : appointment.location;
+
+      if (mode === 'presencial' && !location?.trim()) {
+        throw new DataError('invalid', 'Informe o local do encontro presencial.');
+      }
+
+      const durationMinutes = input.durationMinutes ?? appointment.durationMinutes ?? 60;
+      const startsAt = input.startsAt
+        ? new Date(input.startsAt).toISOString()
+        : appointment.startsAt;
+
+      if (startsAt) {
+        appointment.startsAt = startsAt;
+        appointment.endsAt = new Date(
+          new Date(startsAt).getTime() + durationMinutes * 60_000,
+        ).toISOString();
+        appointment.durationMinutes = durationMinutes;
+        // Reagendar preenche o horário de um legado — mas a procedência fica.
+        appointment.scheduledDate = null;
+      }
+
+      appointment.mode = mode;
+      appointment.location = mode === 'presencial' ? (location?.trim() ?? null) : null;
+      appointment.wantsMeet =
+        mode === 'online' ? (input.wantsMeet ?? appointment.wantsMeet) : false;
+
+      if (input.conductedById !== undefined) appointment.conductedById = input.conductedById;
+      if (input.timeZone !== undefined) appointment.timeZone = input.timeZone;
+      if (input.sharedAgenda !== undefined) {
+        appointment.sharedAgenda = input.sharedAgenda?.trim() || null;
+      }
+      if (input.internalNotes !== undefined) {
+        appointment.internalNotes = input.internalNotes?.trim() || null;
+      }
+
+      appointment.versao += 1;
+      appointment.updatedByProfileId = db.currentUser?.id ?? null;
+      appointment.updatedAt = nowISO();
+
+      if (appointment.syncStatus !== null) {
+        appointment.syncStatus = 'pendente';
+        enqueue(appointment, 'atualizar_evento');
+      }
+
+      commit();
+      return withEvent(appointment);
+    },
+
+    async cancel(id, input) {
+      await delay();
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+      assertOrganizer(appointment, db.currentUser);
+
+      appointment.status = 'cancelado';
+      appointment.cancelledAt = nowISO();
+      appointment.cancelledByProfileId = db.currentUser?.id ?? null;
+      // ⚠️ Fica aqui. O convidado recebe o cancelamento sem justificativa.
+      appointment.cancellationReason = input?.reason?.trim() || null;
+      appointment.versao += 1;
+      appointment.updatedAt = nowISO();
+
+      if (appointment.syncStatus !== null) {
+        appointment.syncStatus = 'pendente';
+        enqueue(appointment, 'cancelar_evento');
+      }
+
+      commit();
+      return withEvent(appointment);
+    },
+
+    async markNotHeld(id) {
+      await delay();
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+
+      if (appointment.x1Id) {
+        throw new DataError(
+          'conflict',
+          'Este X1 já tem conversa registrada. Corrija o registro em vez de marcar como não realizado.',
+        );
+      }
+
+      // Não é falta e não gera penalidade automática: só encerra o compromisso.
+      appointment.status = 'nao_realizado';
+      appointment.updatedByProfileId = db.currentUser?.id ?? null;
+      appointment.updatedAt = nowISO();
+      commit();
+
+      return withEvent(appointment);
+    },
+
+    async record(id, input) {
+      await delay();
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+
+      // IDEMPOTENTE: repetir devolve a mesma conversa, sem criar outra.
+      if (appointment.x1Id) {
+        const existing = db.x1s.find((x) => x.id === appointment.x1Id);
+        if (existing) {
+          return { x1: existing, appointment: withEvent(appointment), alreadyRecorded: true };
+        }
+      }
+
+      if (appointment.status === 'cancelado') {
+        throw new DataError('invalid', 'Não dá para registrar conversa de um X1 cancelado.');
+      }
+      if (input.occurredAt > nowISO().slice(0, 10)) {
+        throw new DataError('invalid', 'A conversa não pode estar no futuro.');
+      }
+
+      const conteudo = [
+        input.summary,
+        input.comments,
+        input.followUps,
+        (input.topics ?? []).join(''),
+      ].some((valor) => Boolean(valor?.trim()));
+
+      if (!conteudo) {
+        throw new DataError(
+          'invalid',
+          'Preencha ao menos resumo, ponto discutido, encaminhamento ou comentário.',
+        );
+      }
+
+      const campos = {
+        conductedById: input.conductedById,
+        occurredAt: input.occurredAt,
+        status: 'realizado' as const,
+        summary: input.summary ?? null,
+        topics: input.topics ?? [],
+        followUps: input.followUps ?? null,
+        documentUrl: input.documentUrl ?? null,
+        hardSkills: input.hardSkills ?? [],
+        softSkills: input.softSkills ?? [],
+        desiredSkills: input.desiredSkills ?? [],
+        citiValues: input.citiValues ?? [],
+        comments: input.comments ?? null,
+      };
+
+      let x1: X1;
+      const legado =
+        appointment.origin === 'legado_x1' && appointment.originX1Id
+          ? db.x1s.find((x) => x.id === appointment.originX1Id)
+          : undefined;
+
+      if (legado) {
+        // PREENCHE o registro que já existia. Criar um segundo deixaria o
+        // antigo agendado para sempre.
+        Object.assign(legado, campos, { updatedAt: nowISO() });
+        x1 = legado;
+      } else {
+        x1 = {
+          id: mockId('x1'),
+          memberId: appointment.memberId,
+          scheduledFor:
+            appointment.scheduledDate ?? appointment.startsAt?.slice(0, 10) ?? input.occurredAt,
+          gestaoId: appointment.gestaoId ?? null,
+          createdById: db.currentUser?.memberId ?? null,
+          updatedById: null,
+          createdAt: nowISO(),
+          updatedAt: nowISO(),
+          ...campos,
+        };
+        db.x1s.push(x1);
+      }
+
+      appointment.x1Id = x1.id;
+      appointment.status = 'realizado';
+      appointment.updatedByProfileId = db.currentUser?.id ?? null;
+      appointment.updatedAt = nowISO();
+
+      db.memberEvents.push({
+        id: mockId('evt'),
+        memberId: appointment.memberId,
+        type: 'x1',
+        occurredAt: input.occurredAt,
+        title: 'X1 realizado',
+        description: input.summary ?? null,
+        sourceId: x1.id,
+        createdAt: nowISO(),
+      });
+
+      commit();
+      return { x1, appointment: withEvent(appointment), alreadyRecorded: false };
+    },
+
+    async requestSync(id, operation) {
+      await delay();
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+
+      if (!appointment.startsAt) {
+        throw new DataError(
+          'invalid',
+          'Este X1 está sem horário definido e por isso não vai para o Google.',
+        );
+      }
+      if (!db.googleConnection) {
+        throw new DataError('unauthorized', 'Conecte sua conta do Google para sincronizar.');
+      }
+
+      const tipo = operation ?? (appointment.event ? 'atualizar_evento' : 'criar_evento');
+      const { job, alreadyQueued } = enqueue(appointment, tipo);
+      appointment.syncStatus = 'pendente';
+      commit();
+
+      return {
+        jobId: job.id,
+        alreadyQueued,
+        state: await mockAdapter.x1Appointments.getSyncState(id),
+      };
+    },
+
+    async getSyncState(id) {
+      await delay(60);
+      const db = mockDb();
+      const appointment = requireAppointment(db.x1Appointments, id);
+      const jobs = db.x1SyncJobs.filter((job) => job.appointmentId === id);
+      const ultimo = jobs.at(-1);
+
+      return {
+        appointmentId: id,
+        status: appointment.syncStatus ?? null,
+        meetStatus: appointment.event?.meetStatus ?? 'sem_meet',
+        htmlLink: appointment.event?.htmlLink ?? null,
+        hangoutLink: appointment.event?.hangoutLink ?? null,
+        lastError: ultimo?.ultimoErro ?? null,
+        lastSyncedAt: appointment.event?.lastSyncedAt ?? null,
+        pendingOperations: db.x1SyncJobs.filter(
+          (job) => job.situacao === 'pendente' || job.situacao === 'aguardando_reconexao',
+        ).length,
+      };
+    },
+
+    async refreshInviteResponses() {
+      await delay();
+      // ⚠️ O mock NÃO inventa respostas. Fingir que alguém aceitou seria
+      // exatamente a simulação silenciosa que o produto proíbe. Para exercitar
+      // resposta e mudança externa, use o painel de cenários do modo mock.
+      return [];
+    },
+  },
+
+  googleCalendar: {
+    async getConnection() {
+      await delay(80);
+      const db = mockDb();
+      const pendentes = db.x1SyncJobs.filter(
+        (job) => job.situacao === 'pendente' || job.situacao === 'aguardando_reconexao',
+      ).length;
+
+      if (!db.googleConnection) {
+        return { status: 'desconectada', pendingOperations: pendentes };
+      }
+
+      return {
+        status: db.googleConnection.status,
+        googleEmail: db.googleConnection.googleEmail,
+        calendarId: db.googleConnection.calendarId,
+        scopes: db.googleConnection.scopes,
+        connectedAt: db.googleConnection.connectedAt,
+        lastSyncedAt: db.googleConnection.lastSyncedAt,
+        pendingOperations: pendentes,
+      };
+    },
+
+    async getAuthorizationUrl() {
+      await delay();
+      // ⚠️ Não existe OAuth no modo mock, e não se finge que existe. A tela
+      // reconhece este endereço e abre a confirmação de demonstração em vez de
+      // mandar alguém para uma página que não vai voltar.
+      throw new DataError(
+        'unavailable',
+        'O modo de dados fictícios não conecta ao Google de verdade. Use o painel de cenários para simular a conexão.',
+      );
+    },
+
+    async disconnect() {
+      await delay();
+      const db = mockDb();
+      db.googleConnection = null;
+      // Desconectar não desmarca: os compromissos e o histórico ficam.
+      for (const job of db.x1SyncJobs) {
+        if (job.situacao === 'pendente') job.situacao = 'aguardando_reconexao';
+      }
+      for (const appointment of db.x1Appointments) {
+        if (appointment.syncStatus === 'pendente' || appointment.syncStatus === 'falha') {
+          appointment.syncStatus = 'requer_reconexao';
+        }
+      }
+      commit();
+    },
+
+    async sync() {
+      await delay();
+      const db = mockDb();
+      if (!db.googleConnection) {
+        // Sem conexão a leitura continua funcionando: devolve zero, não erro.
+        return { updated: 0, discarded: 0, syncedAt: null };
+      }
+      db.googleConnection.lastSyncedAt = nowISO();
+      commit();
+      return { updated: 0, discarded: 0, syncedAt: db.googleConnection.lastSyncedAt };
+    },
+
+    async getConfig() {
+      await delay();
+      return structuredClone(mockDb().googleConfig);
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.googleConfig = { ...db.googleConfig, ...input, updatedAt: nowISO() };
+      commit();
+      return structuredClone(db.googleConfig);
     },
   },
 

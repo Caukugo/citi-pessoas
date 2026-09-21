@@ -1,21 +1,28 @@
 ---
 name: Plataforma de Gestão de Pessoas — CITi
-description: Fundo preto real, verde CITi como ação e superfícies de vidro escuro, a serviço de uma ferramenta operacional interna.
+description: Fundo preto real, laranja CITi como ação e superfícies de vidro escuro, a serviço de uma ferramenta operacional interna.
 colors:
-  citi-green: '#2ddb60'
-  citi-green-hover: '#36e66a'
-  citi-green-active: '#24c856'
-  citi-green-glow: '#7af2a5'
-  green-foreground: '#04180b'
+  citi-orange: '#ff6a00'
+  citi-orange-hover: '#ff7f24'
+  citi-orange-active: '#e85f00'
+  citi-orange-strong: '#e85f00'
+  citi-orange-glow: '#ffa767'
+  citi-orange-soft: 'rgba(255,106,0,0.09)'
+  orange-foreground: '#ffffff'
   true-black: '#000000'
   surface-near-black: '#050607'
   surface-raised: '#0a0b0c'
   surface-popover: '#0f1011'
+  surface-shell: '#0e0e0e'
+  surface-stage: '#131313'
+  surface-panel: '#252525'
+  surface-card: 'rgba(37,37,37,0.59)'
   text-white: '#ffffff'
   text-secondary: '#c3cbd4'
   text-muted: '#8a93a0'
-  signal-warn: '#f4c152'
-  signal-bad: '#ff8a8a'
+  signal-ok: '#50e678'
+  signal-warn: '#daaf4c'
+  signal-bad: '#ff5859'
   signal-info: '#7ab8f2'
 typography:
   display:
@@ -61,8 +68,8 @@ rounded:
   pill: '999px'
 components:
   button-primary:
-    background: '{colors.citi-green}'
-    color: '{colors.green-foreground}'
+    background: '{colors.citi-orange}'
+    color: '{colors.orange-foreground}'
     rounded: '{rounded.control}'
   button-secondary:
     background: 'rgba(255,255,255,0.05)'
@@ -98,14 +105,14 @@ components:
 
 A plataforma parece um instrumento ligado numa sala escura: o fundo é preto de
 verdade, as superfícies são lâminas de vidro fosco que mal se destacam do fundo,
-e o verde do CITi é a única fonte de luz — reservado para o que se pode fazer e
-para o que está selecionado.
+e o laranja do CITi é a única fonte de luz — reservado para o que se pode fazer
+e para o que está selecionado.
 
 A densidade é de ferramenta operacional, não de landing page. A GG revisita as
 mesmas telas muitas vezes por semana, em sessões curtas, entre aulas e reuniões.
 Isso significa varredura rápida, hierarquia previsível e ausência de decoração
 que compita com o dado. A identidade não aparece em ilustração ou em efeito:
-aparece na precisão do espaçamento, na consistência do verde e na calma do fundo.
+aparece na precisão do espaçamento, na consistência do laranja e na calma do fundo.
 
 Esta é uma identidade **deliberada e já validada pelo CITi**. Ela não é um tema
 padrão a ser "melhorado": rejeita explicitamente o visual de template SaaS
@@ -115,21 +122,32 @@ rejeita igualmente o visual de landing page experimental.
 **Key Characteristics:**
 
 - Preto real como fundo, não cinza-escuro tingido
-- Um único acento cromático: o verde CITi
+- Um único acento cromático: o laranja CITi
 - Vidro escuro translúcido como material das superfícies
 - Densidade de ferramenta, não de site de marketing
 - Cor semântica carrega significado, nunca estética
 
 ## Colors
 
-Uma paleta quase monocromática — preto, branco e cinzas frios — perfurada por um
-único verde saturado.
+Uma paleta quase monocromática — preto, branco e cinzas — perfurada por um
+único laranja saturado.
+
+> **Migração de identidade concluída (2026).** A cor de ação era o verde
+> `#2ddb60`. Passou a ser o **laranja `#ff6a00`**, que é a cor do logotipo
+> oficial (`public/logo-citi-pessoas.svg`). O verde não sumiu: desceu para
+> `--ok`, onde significa "em dia" — e não "clicável".
+> Fonte de verdade executável: `src/styles/theme.css`.
 
 ### Primary
 
-- **Verde CITi** (`#2ddb60`): ação principal, item ativo, foco e estado "em dia".
-  É o que se pode clicar e o que está selecionado. Hover `#36e66a`, pressionado
-  `#24c856`, texto sobre o verde `#04180b`.
+- **Laranja CITi** (`#ff6a00`): ação principal, item ativo, foco e seleção.
+  É o que se pode clicar e o que está selecionado. Hover `#ff7f24`, pressionado
+  `#e85f00`, brilho `#ffa767`, texto sobre o laranja `#ffffff`.
+- `--primary` e `--accent` apontam **para o mesmo laranja**. `--accent-*` existe
+  porque traz a variação de superfície (`--accent-strong`, `--accent-soft`,
+  `--accent-gradient`) que a camada de ação usa; não é uma segunda cor.
+- **`--accent-strong` (`#e85f00`) é a base escurecida para superfície que
+  CARREGA TEXTO** — aba ativa, chip. Use-a quando houver rótulo por cima.
 
 ### Neutral
 
@@ -137,6 +155,10 @@ Uma paleta quase monocromática — preto, branco e cinzas frios — perfurada p
 - **Quase-Preto** (`#050607`): cards e painéis.
 - **Elevado** (`#0a0b0c`): cabeçalho fixo, superfície elevada.
 - **Popover** (`#0f1011`): menus e sobreposições.
+- **Casca / palco / painel** (`#0e0e0e` / `#131313` / `#252525`): as camadas
+  grafite do redesenho. A profundidade vem de contraste e borda, não de sombra.
+- **Cartão translúcido** (`rgba(37,37,37,0.59)`): deixa a escultura do fundo
+  aparecer por trás sem virar vidro.
 - **Branco** (`#ffffff`): texto principal.
 - **Cinza Claro Frio** (`#c3cbd4`): texto de apoio.
 - **Cinza Frio** (`#8a93a0`): rótulo, legenda, texto discreto.
@@ -146,16 +168,33 @@ Uma paleta quase monocromática — preto, branco e cinzas frios — perfurada p
 
 Carregam significado, nunca são escolhidos por estética.
 
-- **Atenção** (`#f4c152`): pendente. Ex.: "primeiro X1 pendente".
-- **Negativo** (`#ff8a8a`): atrasado, erro. Ex.: X1 atrasado.
+- **Positivo** (`#50e678`): concluído, em dia.
+- **Atenção** (`#daaf4c`): pendente. Ex.: "primeiro X1 pendente".
+- **Negativo** (`#ff5859`): atrasado, erro. Ex.: X1 atrasado.
 - **Informativo** (`#7ab8f2`): agendado, neutro-informativo.
-- Positivo reutiliza o verde de marca (`#2ddb60`): concluído, em dia.
+
+> O verde **é** `--ok` e só isso. Ele não é mais cor de ação, e encontrar verde
+> num botão ou num item de navegação é sinal de tela não migrada, não de estilo.
 
 ### Named Rules
 
-**A Regra do Verde é Ação.** O verde de marca marca o que se pode fazer e o que
-está selecionado. Nunca é decoração, nunca é fundo de bloco inteiro, nunca
+**A Regra do Laranja é Ação.** O laranja de marca marca o que se pode fazer e o
+que está selecionado. Nunca é decoração, nunca é fundo de bloco inteiro, nunca
 pinta um gráfico só para colorir.
+
+**A Regra dos Quatro Laranjas.** O laranja é ACENTO, não protagonista: no máximo
+**quatro elementos laranja em cena ao mesmo tempo**, e o `--accent-gradient` só
+em dois lugares — item de navegação ativo e ação principal. Todo o resto usa
+laranja chapado.
+
+**A Regra do Contraste — dispensa registrada.** Texto sobre laranja é **branco**,
+por decisão de design. Branco sobre `--accent` dá 3.0:1 e sobre `--accent-strong`
+3.46:1; nenhum dos dois alcança os 4.5:1 da WCAG para texto normal, e 13px/600
+não conta como "texto grande" (o critério é 18.66px bold). Por isso rótulo
+pequeno usa `--accent-strong` com peso 600 — o melhor disponível sem trair o
+desenho. **Isto é decisão consciente, não descuido: não "corrija" trocando o
+texto para preto.** Se a regra tiver mesmo que passar um dia, `#c24e00` dá
+4.79:1 com branco.
 
 **A Regra do Preto Deliberado.** `#000000` é decisão de identidade. A
 recomendação genérica de "sempre tingir o preto" não se aplica aqui.
@@ -216,7 +255,7 @@ descolar a lâmina de vidro do fundo, não para empilhar objetos.
 
 - **Sombra de superfície** (`box-shadow: 0 18px 48px -24px rgba(0,0,0,0.9)`):
   padrão de todo card/painel de vidro.
-- **Realce verde de hover**
+- **Realce laranja de hover**
   (`0 20px 46px -26px color-mix(in srgb, var(--primary) 45%, transparent)`):
   só em superfícies clicáveis (`glass-interactive`), só no hover.
 - **Realce do botão primário** (`0 10px 30px -12px var(--primary)`): só no hover
@@ -224,12 +263,12 @@ descolar a lâmina de vidro do fundo, não para empilhar objetos.
 
 ### Named Rules
 
-**A Regra do Brilho Intencional.** O realce verde no hover é identidade do CITi,
-não "AI glow". Ele é **restrito a hover de elementos acionáveis** — nunca em
-estado de repouso, nunca em fundo de página, nunca como halo decorativo atrás de
-seção. Impeccable sinaliza `dark-glow` / `radial-halo` como anti-padrão; a regra
-aqui é mais estrita que a heurística em repouso e deliberadamente permissiva no
-hover de ação.
+**A Regra do Brilho Intencional.** O realce laranja no hover é identidade do
+CITi, não "AI glow". Ele é **restrito a hover de elementos acionáveis** — nunca
+em estado de repouso, nunca em fundo de página, nunca como halo decorativo atrás
+de seção. Impeccable sinaliza `dark-glow` / `radial-halo` como anti-padrão; a
+regra aqui é mais estrita que a heurística em repouso e deliberadamente
+permissiva no hover de ação.
 
 ## Shapes
 
@@ -251,8 +290,8 @@ Catálogo navegável: `npm run dev` → `/design-system`.
 ### Buttons
 
 - **Shape:** `rounded-control` (14px), `font-semibold`, alturas `h-8`/`h-9`/`h-11`.
-- **Primary:** fundo `#2ddb60`, texto `#04180b`, borda `primary/40`. Hover
-  `#36e66a` + realce verde; ativo `#24c856`.
+- **Primary:** fundo `#ff6a00`, texto `#ffffff`, borda `primary/40`. Hover
+  `#ff7f24` + realce laranja; ativo `#e85f00`.
 - **Secondary (padrão):** `bg-foreground/5`, texto secundário, borda `border`.
 - **Ghost:** transparente, texto muted.
 - **Danger:** `bg-bad/10`, texto `bad`, borda `bad/30` — sempre com `ConfirmDialog`.
@@ -260,19 +299,20 @@ Catálogo navegável: `npm run dev` → `/design-system`.
 
 ### Chips
 
-Chip de filtro; o estado ativo fica verde.
+Chip de filtro; o estado ativo fica laranja. Como ele carrega texto, a base é
+`--accent-strong` (`#e85f00`), não `--accent`.
 
 ### Cards / Containers
 
 `Surface`, `Panel`, `Card` — raio 18px, fundo `#050607` sob gradiente de vidro,
 borda `rgba(255,255,255,0.08)`, sombra ambiente. `glass-interactive` adiciona o
-realce verde no hover para cards clicáveis.
+realce laranja no hover para cards clicáveis.
 
 ### Inputs / Fields
 
-Fundo `rgba(255,255,255,0.04)`, borda `border`, raio 14px. Foco: anel verde
-(`outline: 2px` em `color-mix(ring 60%)`, offset 2px). Todo campo vive dentro de
-`<FormField>`, que liga rótulo, ajuda e erro por id.
+Fundo `rgba(255,255,255,0.04)`, borda `border`, raio 14px. Foco: anel laranja
+(`--ring: #ff6a00`, `outline: 2px` em `color-mix(ring 60%)`, offset 2px). Todo
+campo vive dentro de `<FormField>`, que liga rótulo, ajuda e erro por id.
 
 ### Estados obrigatórios
 
@@ -308,7 +348,7 @@ Easing: sem bounce/elastic. Movimento de entrada e saída deve ser sóbrio.
 
 - **Do** usar os tokens de `src/styles/theme.css` — `bg-surface`,
   `text-muted-foreground`, `rounded-surface`.
-- **Do** reservar o verde para ação e seleção.
+- **Do** reservar o laranja para ação e seleção — no máximo quatro em cena.
 - **Do** tratar os quatro estados em toda tela que carrega dados.
 - **Do** manter a tabela dentro de `<TableWrapper>` e testar no celular.
 - **Do** escolher o tom semântico pelo significado (`warn` = pendente,
@@ -321,8 +361,11 @@ Easing: sem bounce/elastic. Movimento de entrada e saída deve ser sóbrio.
 - **Don't** trocar Inter ou Sora. São as fontes oficiais do CITi.
 - **Don't** substituir `#000000` por um preto tingido.
 - **Don't** inventar uma segunda cor de destaque.
-- **Don't** usar glow verde em repouso, halo radial de fundo ou spotlight
-  decorativo — o realce verde é só hover de elemento acionável.
+- **Don't** usar o verde como cor de ação. Verde agora é só `--ok`, "em dia".
+- **Don't** trocar o texto branco sobre laranja por preto "para passar no
+  contraste" — a dispensa está registrada acima, com o número medido.
+- **Don't** usar glow laranja em repouso, halo radial de fundo ou spotlight
+  decorativo — o realce laranja é só hover de elemento acionável.
 - **Don't** criar botão, card ou campo próprio dentro de uma feature.
 - **Don't** remover o `outline` de foco.
 - **Don't** animar tabela ou dado por decoração.

@@ -15,6 +15,9 @@ import type {
   OrgSubarea,
   Settings,
   X1,
+  X1Appointment,
+  X1AppointmentEventLink,
+  GoogleCalendarConfig,
 } from '../types';
 
 /**
@@ -353,4 +356,129 @@ export function toCorrectionPayload(changes: MemberRecordCorrection): Row {
     if (key in changes && changes[key] !== undefined) payload[column] = changes[key];
   }
   return payload;
+}
+
+// ─── Agenda de X1 ─────────────────────────────────────────────────────────────
+
+/**
+ * O vínculo com o evento no Google, lido das colunas `event_*` da view
+ * `x1_agenda` — que já faz o `left join` com `deleted_at is null`.
+ */
+export function fromAppointmentEventRow(row: Row): X1AppointmentEventLink | null {
+  // Sem `event_id` não há evento vivo no Google: o `left join` da view veio
+  // vazio. Isso é o normal para o legado e para quem nunca enviou convite.
+  if (!row.event_event_id) return null;
+
+  return {
+    calendarId: row.event_calendar_id,
+    eventId: row.event_event_id,
+    etag: row.event_etag,
+    htmlLink: row.event_html_link,
+    hangoutLink: row.event_hangout_link,
+    meetStatus: row.event_meet_status ?? 'sem_meet',
+    invitedEmail: row.event_invited_email,
+    lastSyncedAt: row.event_ultima_sync_em,
+  };
+}
+
+export function fromX1AppointmentRow(row: Row): X1Appointment {
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    organizerProfileId: row.organizer_profile_id,
+    conductedById: row.conducted_by_id,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    scheduledDate: row.scheduled_date,
+    durationMinutes: row.duration_minutes,
+    timeZone: row.time_zone,
+    mode: row.mode,
+    location: row.location,
+    wantsMeet: row.wants_meet ?? false,
+    status: row.status,
+    inviteResponse: row.invite_response ?? 'pendente',
+    inviteResponseAt: row.invite_response_at,
+    syncStatus: row.sync_status ?? null,
+    title: row.title,
+    sharedAgenda: row.shared_agenda,
+    internalNotes: row.internal_notes,
+    cancellationReason: row.cancellation_reason,
+    cancelledAt: row.cancelled_at,
+    cancelledByProfileId: row.cancelled_by_profile_id,
+    x1Id: row.x1_id,
+    origin: row.origin,
+    originX1Id: row.origin_x1_id,
+    gestaoId: row.gestao_id,
+    versao: row.versao ?? 0,
+    createdByProfileId: row.created_by_profile_id,
+    updatedByProfileId: row.updated_by_profile_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    event: fromAppointmentEventRow(row),
+  };
+}
+
+/**
+ * Escrita do agendamento.
+ *
+ * ⚠️ NÃO existe caminho aqui para `sync_status`, `x1_id`, `origin`,
+ * `invite_response` nem `versao`, e a ausência é deliberada: são campos do
+ * SERVIÇO. Um trigger no banco recusa o cliente que tentar escrevê-los
+ * (migration 0034), e este mapper é a primeira das duas travas — a intenção
+ * não chega nem a virar requisição.
+ *
+ * `organizer_profile_id` também não está aqui: ele vem da SESSÃO, via
+ * `default auth.uid()` na inserção do adapter. Aceitá-lo do cliente deixaria
+ * alguém emitir convite com o token de outra pessoa.
+ */
+export function toX1AppointmentRow(input: Partial<X1Appointment>): Row {
+  const row: Row = {};
+  if (input.memberId !== undefined) row.member_id = input.memberId;
+  if (input.conductedById !== undefined) row.conducted_by_id = input.conductedById;
+  if (input.startsAt !== undefined) row.starts_at = input.startsAt;
+  if (input.endsAt !== undefined) row.ends_at = input.endsAt;
+  if (input.scheduledDate !== undefined) row.scheduled_date = input.scheduledDate;
+  if (input.durationMinutes !== undefined) row.duration_minutes = input.durationMinutes;
+  if (input.timeZone !== undefined) row.time_zone = input.timeZone;
+  if (input.mode !== undefined) row.mode = input.mode;
+  if (input.location !== undefined) row.location = input.location;
+  if (input.wantsMeet !== undefined) row.wants_meet = input.wantsMeet;
+  if (input.status !== undefined) row.status = input.status;
+  if (input.title !== undefined) row.title = input.title;
+  if (input.sharedAgenda !== undefined) row.shared_agenda = input.sharedAgenda;
+  if (input.internalNotes !== undefined) row.internal_notes = input.internalNotes;
+  if (input.cancellationReason !== undefined) row.cancellation_reason = input.cancellationReason;
+  if (input.cancelledAt !== undefined) row.cancelled_at = input.cancelledAt;
+  if (input.cancelledByProfileId !== undefined) {
+    row.cancelled_by_profile_id = input.cancelledByProfileId;
+  }
+  if (input.gestaoId !== undefined) row.gestao_id = input.gestaoId;
+  if (input.updatedByProfileId !== undefined) {
+    row.updated_by_profile_id = input.updatedByProfileId;
+  }
+  return row;
+}
+
+/** Configuração da integração. ⚠️ Nunca carrega segredo: eles não estão no banco. */
+export function fromGoogleCalendarConfigRow(row: Row): GoogleCalendarConfig {
+  return {
+    enabled: row.enabled ?? false,
+    eventTitleTemplate: row.event_title_template,
+    defaultDurationMinutes: row.default_duration_minutes,
+    defaultTimeZone: row.default_time_zone,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toGoogleCalendarConfigRow(input: Partial<GoogleCalendarConfig>): Row {
+  const row: Row = {};
+  if (input.enabled !== undefined) row.enabled = input.enabled;
+  if (input.eventTitleTemplate !== undefined) {
+    row.event_title_template = input.eventTitleTemplate;
+  }
+  if (input.defaultDurationMinutes !== undefined) {
+    row.default_duration_minutes = input.defaultDurationMinutes;
+  }
+  if (input.defaultTimeZone !== undefined) row.default_time_zone = input.defaultTimeZone;
+  return row;
 }

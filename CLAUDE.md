@@ -380,14 +380,23 @@ Depois: descreva o que mudou, o que testou e o que ficou de fora.
 
 ## 15. Agent Skills
 
-O projeto usa duas skills externas: **Impeccable** (UX, UI, auditoria,
-acessibilidade, polish) e **Emil Design Engineering** (motion, interação,
-detalhe). Catálogo, exemplos e decisões: **`skills/README.md`**.
+O projeto usa skills externas: **Impeccable** (UX, UI, auditoria, acessibilidade,
+polish), **Emil Design Engineering** (motion, interação, detalhe), **Grill Me**
+(entrevista crítica de plano) e **Img → HTML** + **To Wireframe** (recriar um mock
+de interface; wireframe tipado de tela). Catálogo, exemplos e decisões:
+**`skills/README.md`**.
+
+⚠️ **A saída da Img → HTML é protótipo, não produto.** Ela gera HTML/CSS avulso em
+`mocks/` — justamente o que a §6 proíbe dentro de `src/`. Os dois só coexistem
+porque não se tocam: nada de `mocks/` entra em `src/`, e traduzir um protótipo para
+tela real é tarefa separada, com `@/components/ui` e os tokens. Ver
+`skills/img-to-html/README.md` §3.
 
 ### Hierarquia de autoridade
 
 ```text
 Contexto do projeto  >  DESIGN.md / identidade CITi  >  Impeccable  >  Emil
+                                                     >  Grill Me / Img → HTML
 ```
 
 Skills externas trazem **heurísticas**. `docs/PROJECT_CONTEXT.md` e `DESIGN.md`
@@ -400,8 +409,10 @@ fonte oficial do CITi. A dispensa já está registrada em `.impeccable/config.js
 ### Ao trabalhar com skill
 
 - **Não invente requisito.** Não está em `docs/`? Pergunte.
-- **Não altere a identidade.** Preto `#000000`, verde `#2ddb60`, Inter e Sora
-  são decisão do CITi, não preferência estética.
+- **Não altere a identidade.** Preto `#000000`, **laranja `#ff6a00`** (cor de
+  ação, do logotipo oficial), Inter e Sora são decisão do CITi, não preferência
+  estética. O verde `#2ddb60` deixou de ser cor de ação em 2026 — hoje é só
+  `--ok`, "em dia".
 - **Audite antes de redesenhar.** `/impeccable critique` ou `audit` antes de
   reescrever tela.
 - **Reutilize componentes** de `@/components/ui` e preserve os padrões que já

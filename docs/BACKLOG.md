@@ -405,10 +405,105 @@ pontos e encaminhamentos.
 
 ### X1-008 — Integração com Perfil
 
-- **Responsável:** Bia · **Reviewer:** Gabi · 🟡 assistida · Alta · **Blocked**
+- **Responsável:** Bia · **Reviewer:** Gabi · 🟡 assistida · Alta · ✅ Done
 - **Dependências:** PERFIL-003, X1-003 · **Branch:** `feat/x1-in-profile`
 
 A aba de X1 dentro do Perfil. **Combine com a Gabi antes de começar.**
+
+---
+
+### X1-009 — Agenda de X1
+
+- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Done**
+- **Dependências:** X1-003, X1-006 · **Branch:** `feat/agenda-x1-google-calendar`
+
+> Escopo antecipado da Fase 2 por decisão registrada — ver **ADR-019**. O
+> modelo de dados está no **ADR-020**. Especificação de execução:
+> `docs/agenda-x1-plan.md`.
+>
+> ✅ **Implementada e validada.** As migrations `0034`–`0037` estão aplicadas em
+> `citi-pessoas-test`, com as 42 checagens de `supabase/tests/0017_agenda_x1.sql`
+> passando. Produção ainda não as tem.
+
+**Objetivo.** A tela `/x1` deixa de ser `FeatureStub` e passa a ser a Agenda:
+calendário mensal, compromissos do dia e quem precisa de acompanhamento. O
+compromisso é uma entidade nova (`x1_appointments`), separada do registro da
+conversa.
+
+**Critérios de aceite**
+
+- [ ] Calendário mensal com navegação e "Hoje" — **"Hoje" usa o tempo real** no
+      fuso `America/Recife`, nunca uma data fixa.
+- [ ] Selecionar um dia atualiza a lista; os compromissos saem em ordem
+      cronológica com membro, organizador, início/fim e modalidade.
+- [ ] Segmentado "Meus x1" / "Toda GG", busca e filtro por organizador —
+      **tudo na URL** (`useSearchParams`), para o recorte ser compartilhável.
+- [ ] **"Meus x1" na agenda é quem organiza; "Meus x1" nas pendências é a
+      carteira de GG.** A diferença aparece no rótulo ou na ajuda.
+- [ ] Bloco "Precisam de acompanhamento": primeiro X1 pendente, atrasado e sem
+      próximo agendamento — sem duplicar o diretório inteiro de membros.
+- [ ] Gavetas de agendar, revisar, detalhes e reagendar; diálogo de confirmação
+      para cancelar. Revisar → voltar **preserva os campos**.
+- [ ] Registrar conversa reaproveita o **formulário real** de X1-001 — schemas,
+      valores do CITi e validações intactos. Não reduzir aos campos do mock.
+- [ ] Vínculo agendamento ↔ conversa é **único e atômico**: repetir não cria uma
+      segunda conversa. Registro **sem** agendamento continua funcionando.
+- [ ] Agendar pelo Perfil abre o formulário com o membro já preenchido.
+- [ ] Os quatro estados. Filtro sem resultado **não** é ausência de dados.
+- [ ] `getMemberX1Status()` **não muda** ao agendar, aceitar convite ou ver o
+      horário passar — com teste de não-regressão para cada caso.
+- [ ] Periodicidade vem de `x1PeriodicityFor()`. **Nunca 30 dias fixos.**
+- [ ] Desktop e viewport estreito. A página não rola para o lado.
+
+---
+
+### X1-010 — Integração com Google Calendar
+
+- **Responsável:** Bia · **Reviewer:** Cauan/Sofia · 🔴 técnica · Alta · **Done**
+- **Dependências:** X1-009 · **Branch:** `feat/agenda-x1-google-calendar`
+
+> Conexão individual e proteção do token: **ADR-021**. Guia de configuração:
+> `docs/google-calendar-setup.md`.
+>
+> ✅ **Homologada contra o Google de verdade**, em `citi-pessoas-test`.
+> Evidência no banco: conexão OAuth ativa, 4 eventos criados com convite, 4 com
+> link do Meet, 4 cancelados, resposta ao convite voltando pela sincronização e
+> cursor incremental ativo. Os 8 jobs da caixa de saída concluíram **sem
+> nenhuma retentativa**.
+>
+> ⚠️ **Não exercitados contra o Google:** reagendar (nenhum job
+> `atualizar_evento`) e registrar a conversa a partir do agendamento (nenhum
+> agendamento com `x1_id`). O código trata os dois e tem teste com `fetch`
+> falso. Ver `google-calendar-setup.md` §10.
+
+**Objetivo.** Cada integrante de GG conecta a própria conta CITi e o convite sai
+do Google dela, para o e-mail institucional do membro.
+
+**Critérios de aceite**
+
+- [ ] Conectar, reconectar e desconectar, com a conta conectada visível.
+      **Conexão é individual** — não existe conta central compartilhada.
+- [ ] **Cinco estados distintos**: indisponível por configuração · desconectada ·
+      conectando · conectada · requer reconexão. Servidor sem segredo **nunca**
+      manda a pessoa refazer o OAuth.
+- [ ] **Consultar agendamentos salvos funciona sem conexão nenhuma.**
+- [ ] Voltar do OAuth devolve ao contexto com o preenchimento preservado.
+- [ ] Criar evento real com o convidado certo; "Abrir no Calendar" aponta para o
+      **evento existente**, nunca `action=TEMPLATE`.
+- [ ] Presencial exige local; online gera Meet. Meet pendente ou indisponível
+      tem estado honesto — **não fingir que o link existe**.
+- [ ] Reagendar atualiza **o mesmo evento**; cancelar notifica e preserva o
+      histórico. O **motivo interno não vai** para o Google.
+- [ ] Outro GG não altera nem cancela — **403 na API**, não só escondido na tela.
+- [ ] Repetir operação não duplica evento, registro nem convite.
+- [ ] Sincronização periódica e manual para horário, local, Meet, resposta e
+      cancelamento. **Erro de acesso não vira cancelamento.**
+- [ ] Nunca importar a agenda pessoal; evento alheio é descartado sem persistir.
+- [ ] Token, chave, nota interna e resumo de X1 **não** aparecem no cliente, no
+      convite nem em log.
+- [ ] Falha **nunca** vira toast de sucesso nem perde o preenchimento.
+- [ ] Escopos mínimos: `openid`, `email`, `calendar.events.owned`. Sem
+      `freebusy` ⇒ a tela diz "Disponibilidade não verificada".
 
 ---
 

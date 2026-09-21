@@ -350,7 +350,7 @@ Pare e chame o Cauan se o Claude:
 - 🚩 quiser instalar biblioteca nova;
 - 🚩 alterar `src/app/`, `src/data/` ou `src/components/ui/` sem a issue pedir;
 - 🚩 criar um componente de botão, campo ou tabela próprio;
-- 🚩 escrever cor em hex (`#2ddb60`) em vez de usar token;
+- 🚩 escrever cor em hex (`#ff6a00`) em vez de usar token;
 - 🚩 usar `any` ou desabilitar regra de lint;
 - 🚩 sugerir mudar regra de produto ("seria melhor se o feedback anônimo…");
 - 🚩 mexer em migration ou schema do banco;

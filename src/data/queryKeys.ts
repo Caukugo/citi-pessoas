@@ -1,4 +1,4 @@
-import type { ID, MemberFilters } from './types';
+import type { ID, MemberFilters, X1AppointmentFilters } from './types';
 
 /**
  * Chaves do cache do TanStack Query, centralizadas.
@@ -39,6 +39,28 @@ export const queryKeys = {
     detail: (id: ID) => ['x1', 'detail', id] as const,
     /** Último X1 realizado de cada membro — alimenta a listagem de membros. */
     lastCompletedByMember: ['x1', 'lastCompletedByMember'] as const,
+  },
+  x1Appointments: {
+    all: ['x1Appointments'] as const,
+    /** A agenda por intervalo e filtros. */
+    list: (filters?: X1AppointmentFilters) => ['x1Appointments', 'list', filters ?? {}] as const,
+    byMember: (memberId: ID) => ['x1Appointments', 'byMember', memberId] as const,
+    detail: (id: ID) => ['x1Appointments', 'detail', id] as const,
+    /** Próximo compromisso de cada membro — alimenta pendências e listagem. */
+    nextByMember: ['x1Appointments', 'nextByMember'] as const,
+    /**
+     * Estado da integração de UM compromisso.
+     *
+     * Chave própria, separada da chave de detalhe, porque ela é consultada em
+     * intervalo curto enquanto o Meet ainda não existe — e repuxar o
+     * compromisso inteiro por causa disso faria a tela piscar sem motivo.
+     */
+    sync: (id: ID) => ['x1Appointments', 'sync', id] as const,
+  },
+  googleCalendar: {
+    /** Situação da conexão de quem está logado. */
+    connection: ['googleCalendar', 'connection'] as const,
+    config: ['googleCalendar', 'config'] as const,
   },
   feedbacks: {
     all: ['feedbacks'] as const,

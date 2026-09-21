@@ -67,10 +67,26 @@ export function lastCompletedX1(x1s: X1[]): X1 | null {
   return completed[0] ?? null;
 }
 
-/** O próximo X1 agendado, ou `null`. */
-export function nextScheduledX1(x1s: X1[]): X1 | null {
+/**
+ * O próximo X1 agendado — o que AINDA vai acontecer.
+ *
+ * ⚠️ CORREÇÃO: a versão anterior ordenava os agendados e devolvia o primeiro,
+ * sem olhar o relógio. Com um X1 marcado para março que ninguém fechou, o
+ * Perfil mostrava "próximo X1: março" em setembro. O primeiro da lista não é o
+ * próximo — é o mais antigo.
+ *
+ * Compara por DIA, não por instante: `scheduledFor` é uma data sem hora, e um
+ * X1 marcado para hoje ainda é "o próximo" às 18h.
+ *
+ * @deprecated A agenda é a fonte disto agora — use `nextAppointment()` de
+ * `@/features/x1/model/agenda`, que também exclui cancelado, não realizado e
+ * já registrado. Esta função sai de cena quando o legado sem horário for
+ * regularizado.
+ */
+export function nextScheduledX1(x1s: X1[], now: Date = new Date()): X1 | null {
+  const today = format(now, 'yyyy-MM-dd');
   const scheduled = x1s
-    .filter((x) => x.status === 'agendado' && x.scheduledFor)
+    .filter((x) => x.status === 'agendado' && x.scheduledFor && x.scheduledFor >= today)
     .sort((a, b) => (a.scheduledFor ?? '').localeCompare(b.scheduledFor ?? ''));
   return scheduled[0] ?? null;
 }

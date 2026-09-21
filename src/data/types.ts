@@ -722,6 +722,344 @@ export type MemberX1Status =
   /** Passou da periodicidade sem X1 realizado. */
   | 'atrasado';
 
+// ─── Agenda de X1 — o COMPROMISSO ─────────────────────────────────────────────
+
+/**
+ * Situação do AGENDAMENTO — o compromisso, não a conversa.
+ *
+ * ⚠️ "Aguardando registro" NÃO está aqui, e a ausência é deliberada: ela é
+ * derivada (o fim do encontro passou e não há conversa vinculada). Use
+ * `appointmentDisplayState()` em `@/features/x1/model/appointmentState`.
+ * Gravar isso seria gravar o relógio — ver ARCHITECTURE.md §4.1.
+ */
+export type X1AppointmentStatus = 'agendado' | 'realizado' | 'cancelado' | 'nao_realizado';
+
+export const X1_APPOINTMENT_STATUS_LABEL: Record<X1AppointmentStatus, string> = {
+  agendado: 'Agendado',
+  realizado: 'Realizado',
+  cancelado: 'Cancelado',
+  nao_realizado: 'Não realizado',
+};
+
+/**
+ * O que a pessoa respondeu ao convite. Dimensão SEPARADA da situação.
+ *
+ * ⚠️ Recusar não cancela o compromisso e não é falta. Aceitar não é ter
+ * conversado.
+ */
+export type X1InviteResponse = 'pendente' | 'aceito' | 'talvez' | 'recusado';
+
+export const X1_INVITE_RESPONSE_LABEL: Record<X1InviteResponse, string> = {
+  // Curto de propósito: ao lado de "Aceito" e "Recusado", o rótulo longo
+  // ocupava quase três vezes a largura dos outros e desequilibrava o cartão.
+  pendente: 'Aguardando',
+  aceito: 'Aceito',
+  talvez: 'Talvez',
+  recusado: 'Recusado',
+};
+
+/**
+ * O que o Google sabe sobre este compromisso. Terceira dimensão, independente
+ * das outras duas.
+ *
+ * `null` significa "fora da integração" — é o caso do legado sem horário, que
+ * nunca gerou e nunca vai gerar convite. Isso é diferente de `'falha'`, e a
+ * tela precisa dizer coisas diferentes para os dois.
+ */
+export type X1SyncStatus = 'pendente' | 'sincronizado' | 'falha' | 'requer_reconexao';
+
+export const X1_SYNC_STATUS_LABEL: Record<X1SyncStatus, string> = {
+  pendente: 'Enviando para o Google…',
+  sincronizado: 'Sincronizado',
+  falha: 'Não foi possível confirmar',
+  requer_reconexao: 'Requer reconexão',
+};
+
+/** De onde o agendamento veio. `legado_x1` nunca gera convite. */
+export type X1AppointmentOrigin = 'plataforma' | 'legado_x1';
+
+/** Modalidade do encontro. Explícita — não derivada da ausência de local. */
+export type X1AppointmentMode = 'online' | 'presencial';
+
+export const X1_APPOINTMENT_MODE_LABEL: Record<X1AppointmentMode, string> = {
+  online: 'Online',
+  presencial: 'Presencial',
+};
+
+/** As durações que o produto oferece. 60 é a sugestão inicial, editável. */
+export type X1AppointmentDuration = 30 | 45 | 60;
+export const X1_APPOINTMENT_DURATIONS: readonly X1AppointmentDuration[] = [30, 45, 60] as const;
+export const X1_APPOINTMENT_DEFAULT_DURATION: X1AppointmentDuration = 60;
+
+/** Fuso padrão do CITi. Configurável, mas este é o ponto de partida. */
+export const X1_APPOINTMENT_DEFAULT_TIME_ZONE = 'America/Recife';
+
+/**
+ * Situação do link do Meet.
+ *
+ * `pendente` é um estado real e honesto: o Google cria a conferência de forma
+ * assíncrona, e pedir não é ter. Nunca mostre um link que ainda não existe.
+ */
+export type X1MeetStatus = 'sem_meet' | 'pendente' | 'disponivel' | 'indisponivel';
+
+/** O vínculo com o evento real no Google. Ausente quando nunca houve convite. */
+export interface X1AppointmentEventLink {
+  calendarId: string;
+  /** Id do evento no Google. Escolhido por nós, de forma determinística. */
+  eventId: string;
+  /** Versão do evento, não identidade. Usada em `If-Match`. */
+  etag?: string | null;
+  /** Abre o evento EXISTENTE no Calendar — nunca `action=TEMPLATE`. */
+  htmlLink?: string | null;
+  hangoutLink?: string | null;
+  meetStatus: X1MeetStatus;
+  /** E-mail institucional usado no envio, congelado no momento do envio. */
+  invitedEmail?: string | null;
+  lastSyncedAt?: ISODate | null;
+}
+
+/**
+ * Um compromisso de X1.
+ *
+ * ⚠️ NÃO é a conversa. `x1s` continua guardando o registro do que foi
+ * conversado; aqui mora o encontro marcado. `x1Id` liga os dois quando alguém
+ * registra — e é único dos dois lados. Ver ADR-020.
+ */
+export interface X1Appointment {
+  id: ID;
+  memberId: ID;
+
+  /**
+   * PROFILE (não member) de quem organiza: a conta cuja conexão com o Google
+   * emite o convite. Nulo só em linha migrada do legado.
+   */
+  organizerProfileId?: ID | null;
+
+  /**
+   * MEMBER de quem conduz — mesma convenção de `X1.conductedById`. Nem sempre
+   * é o organizador: GG às vezes agenda no lugar do gerente.
+   */
+  conductedById?: ID | null;
+
+  /**
+   * O instante de início. Nulo APENAS no legado, que tem só `scheduledDate`.
+   * Exatamente um dos dois está preenchido.
+   */
+  startsAt?: ISODate | null;
+  endsAt?: ISODate | null;
+  /** "Horário a definir": o que o legado da migration 0001 tem. */
+  scheduledDate?: ISODate | null;
+  durationMinutes?: X1AppointmentDuration | null;
+  timeZone: string;
+
+  mode: X1AppointmentMode;
+  /** Só existe quando é presencial. */
+  location?: string | null;
+  /** A INTENÇÃO de gerar Meet. O resultado está em `event.meetStatus`. */
+  wantsMeet: boolean;
+
+  // As três dimensões, separadas.
+  status: X1AppointmentStatus;
+  inviteResponse: X1InviteResponse;
+  inviteResponseAt?: ISODate | null;
+  /** `null` = fora da integração. Diferente de `'falha'`. */
+  syncStatus?: X1SyncStatus | null;
+
+  title?: string | null;
+  /** A pauta que a pessoa convidada vê. Vai no convite. */
+  sharedAgenda?: string | null;
+  /** ⚠️ Anotação de GG. NUNCA entra no convite. */
+  internalNotes?: string | null;
+  /** ⚠️ Motivo interno. NUNCA entra no convite. */
+  cancellationReason?: string | null;
+  cancelledAt?: ISODate | null;
+  cancelledByProfileId?: ID | null;
+
+  /** A conversa registrada. Nulo até alguém registrar. */
+  x1Id?: ID | null;
+  origin: X1AppointmentOrigin;
+  originX1Id?: ID | null;
+
+  gestaoId?: ID | null;
+  /** Contador de alterações. Compõe a chave de idempotência da fila. */
+  versao: number;
+
+  createdByProfileId?: ID | null;
+  updatedByProfileId?: ID | null;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+
+  /** O evento no Google, quando existe. */
+  event?: X1AppointmentEventLink | null;
+}
+
+/**
+ * O que a tela envia para criar um compromisso.
+ *
+ * Repare no que NÃO está aqui: `status`, `syncStatus`, `inviteResponse`,
+ * `x1Id`, `versao` e `organizerProfileId`. Os cinco primeiros são do serviço;
+ * o organizador vem da SESSÃO, nunca do cliente — senão trocar um parâmetro
+ * usaria o token de outra pessoa.
+ */
+export interface X1AppointmentCreateInput {
+  memberId: ID;
+  conductedById?: ID | null;
+  startsAt: ISODate;
+  durationMinutes: X1AppointmentDuration;
+  timeZone?: string;
+  mode: X1AppointmentMode;
+  location?: string | null;
+  wantsMeet?: boolean;
+  sharedAgenda?: string | null;
+  internalNotes?: string | null;
+  gestaoId?: ID | null;
+  /** Manda o convite agora. `false` deixa o compromisso só na plataforma. */
+  sendInvite?: boolean;
+}
+
+/** Reagendar/editar. O mesmo evento é atualizado — não se cria outro. */
+export type X1AppointmentUpdateInput = Partial<
+  Pick<
+    X1AppointmentCreateInput,
+    | 'conductedById'
+    | 'startsAt'
+    | 'durationMinutes'
+    | 'timeZone'
+    | 'mode'
+    | 'location'
+    | 'wantsMeet'
+    | 'sharedAgenda'
+    | 'internalNotes'
+  >
+>;
+
+export interface X1AppointmentCancelInput {
+  /** ⚠️ Fica na plataforma. O convidado recebe o cancelamento sem motivo. */
+  reason?: string | null;
+}
+
+/** O registro da conversa, feito a partir de um compromisso. */
+export interface X1AppointmentRecordInput {
+  conductedById: ID;
+  occurredAt: ISODate;
+  summary?: string | null;
+  topics?: string[];
+  followUps?: string | null;
+  documentUrl?: string | null;
+  hardSkills?: string[];
+  softSkills?: string[];
+  desiredSkills?: string[];
+  citiValues?: X1ValueRating[];
+  comments?: string | null;
+}
+
+export interface X1AppointmentRecordResult {
+  x1: X1;
+  appointment: X1Appointment;
+  /** `true` quando já havia registro: nada novo foi criado. */
+  alreadyRecorded: boolean;
+}
+
+/**
+ * O recorte da agenda.
+ *
+ * `from`/`to` são obrigatórios de propósito: a agenda sempre consulta um
+ * intervalo. "Todos os compromissos de todo mundo" não é uma pergunta que a
+ * tela faz.
+ */
+export interface X1AppointmentFilters {
+  from: ISODate;
+  to: ISODate;
+  /** Só os que EU organizo. É o que "Meus x1" significa na agenda. */
+  organizerProfileId?: ID | null;
+  memberId?: ID | null;
+  search?: string;
+  /** Cancelados e não realizados ficam fora por padrão. */
+  includeClosed?: boolean;
+}
+
+export type X1SyncOperation =
+  | 'criar_evento'
+  | 'atualizar_evento'
+  | 'cancelar_evento'
+  | 'confirmar_evento';
+
+/** Situação da integração de UM compromisso. */
+export interface X1SyncState {
+  appointmentId: ID;
+  status: X1SyncStatus | null;
+  meetStatus: X1MeetStatus;
+  htmlLink?: string | null;
+  hangoutLink?: string | null;
+  /** Código tipado, nunca a mensagem crua do Google. */
+  lastError?: string | null;
+  lastSyncedAt?: ISODate | null;
+  /** Quantas operações desta pessoa esperam reconexão. */
+  pendingOperations: number;
+}
+
+export interface X1SyncRequestResult {
+  jobId: ID;
+  /** `true` quando a operação já estava na fila. Repetir não duplica nada. */
+  alreadyQueued: boolean;
+  state: X1SyncState;
+}
+
+// ─── Conexão com o Google Calendar ────────────────────────────────────────────
+
+/**
+ * Os cinco estados honestos da conexão.
+ *
+ * ⚠️ `indisponivel_por_configuracao` existe para que a plataforma NUNCA mande
+ * alguém refazer o OAuth quando o problema é um segredo faltando no servidor.
+ * Estar logado na plataforma e ter autorizado o Calendar são coisas
+ * independentes.
+ *
+ * Em TODOS os estados, consultar agendamentos salvos continua funcionando.
+ */
+export type GoogleConnectionStatus =
+  | 'indisponivel_por_configuracao'
+  | 'desconectada'
+  | 'conectando'
+  | 'conectada'
+  | 'requer_reconexao';
+
+export const GOOGLE_CONNECTION_STATUS_LABEL: Record<GoogleConnectionStatus, string> = {
+  indisponivel_por_configuracao: 'Integração não configurada',
+  desconectada: 'Não conectado',
+  conectando: 'Conectando…',
+  conectada: 'Google conectado',
+  requer_reconexao: 'Reconexão necessária',
+};
+
+/**
+ * A conexão de QUEM ESTÁ LOGADO. Não existe "ver a conexão de outra pessoa".
+ *
+ * ⚠️ Não tem e não pode ter o token. Ele vive cifrado no banco, e a chave só
+ * existe na Edge Function.
+ */
+export interface GoogleCalendarConnection {
+  status: GoogleConnectionStatus;
+  /** A conta de fato conectada. Nulo quando não há conexão. */
+  googleEmail?: string | null;
+  calendarId?: string | null;
+  scopes?: string[];
+  connectedAt?: ISODate | null;
+  lastSyncedAt?: ISODate | null;
+  /** Operações paradas esperando reconexão. */
+  pendingOperations: number;
+}
+
+/** Configuração administrativa. ⚠️ Nunca devolve segredo. */
+export interface GoogleCalendarConfig {
+  enabled: boolean;
+  /** Só aceita os placeholders `{membro}` e `{gestao}`. */
+  eventTitleTemplate: string;
+  defaultDurationMinutes: X1AppointmentDuration;
+  defaultTimeZone: string;
+  updatedAt: ISODate;
+}
+
 // ─── Feedback de acompanhamento ───────────────────────────────────────────────
 
 /**

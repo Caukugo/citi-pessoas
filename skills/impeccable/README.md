@@ -121,7 +121,8 @@ CITi**. Quando isso acontece, **a identidade do CITi vence**.
 | --- | --- | --- |
 | `overused-font` — "Inter é genérica" | **Inter** é a fonte oficial de UI | **Dispensado.** Registrado em `.impeccable/config.json` com justificativa |
 | "Nunca use preto puro, sempre tinja" | Fundo é **`#000000`**, preto real | **Identidade vence.** Documentado em `DESIGN.md` |
-| `dark-glow` — glow colorido é anti-padrão | Realce verde no hover é identidade | **Permitido só no hover** de elemento acionável. Em repouso, a regra do Impeccable vale |
+| `dark-glow` — glow colorido é anti-padrão | Realce laranja no hover é identidade | **Permitido só no hover** de elemento acionável. Em repouso, a regra do Impeccable vale |
+| Contraste de texto sobre o acento (WCAG AA) | Texto **branco** sobre laranja é decisão de design (3.0:1 / 3.46:1) | **Identidade vence, com o número medido.** Rótulo pequeno usa `--accent-strong` + peso 600. Registrado em `DESIGN.md` → Named Rules |
 | "Não use dark mode com acentos brilhantes" | A plataforma é dark por definição | **Identidade vence** |
 
 A dispensa da fonte foi registrada pelo mecanismo oficial:

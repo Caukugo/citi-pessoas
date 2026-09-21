@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Pencil, Plus, UserMinus, UserX } from 'lucide-react';
+import { CalendarPlus, Pencil, Plus, UserMinus, UserX } from 'lucide-react';
 import {
   Button,
   EmptyState,
@@ -159,8 +159,24 @@ export function MemberProfilePage() {
             <Button icon={<Pencil size={15} />} onClick={() => setEditOpen(true)}>
               Editar cadastro
             </Button>
+            {/* Leva para a Agenda de X1 com esta pessoa já escolhida.
+                A gaveta de agendamento mora lá porque depende da conexão com o
+                Google e da agenda inteira para avisar de conflito — montá-la
+                aqui duplicaria as duas coisas. */}
+            <Button
+              icon={<CalendarPlus size={15} />}
+              onClick={() => navigate(`${ROUTES.x1}?agendar=${member.id}`)}
+            >
+              Agendar X1
+            </Button>
+            <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
+              {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
+            </Button>
             {/* Só para quem está no ciclo em andamento — nunca para inativo
-                (concluiu normalmente) nem para quem já foi desligado. */}
+                (concluiu normalmente) nem para quem já foi desligado.
+
+                ⚠️ Por último de propósito: é a única ação destrutiva da barra, e
+                encostá-la no primário ("Registrar X1") convida ao clique errado. */}
             {member.status === 'ativo' && (
               <Button
                 variant="danger"
@@ -170,9 +186,6 @@ export function MemberProfilePage() {
                 Desligar membro
               </Button>
             )}
-            <Button variant="primary" icon={<Plus size={15} />} onClick={() => setRegisterOpen(true)}>
-              {isFirstX1 ? 'Registrar primeiro X1' : 'Registrar X1'}
-            </Button>
           </div>
         }
       />

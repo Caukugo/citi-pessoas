@@ -4,11 +4,11 @@
    Princípio: superfícies grafite, laranja CITi como destaque e ação,
    tipografia clara e superfícies em vidro escuro.
 
-   NOTA DE TRANSIÇÃO (redesenho de Membros, 2026): a cor de ação passou de
-   verde (`--primary`) para laranja (`--accent`). A troca é ADITIVA — nenhuma
-   tela que ainda consome `--primary` mudou de aparência. Quem já foi
-   redesenhado consome `--accent`; o resto migra tela a tela.
-   DESIGN.md e docs/DESIGN_SYSTEM.md ainda descrevem a identidade anterior.
+   MIGRAÇÃO DE IDENTIDADE CONCLUÍDA (2026): a cor de ação passou de verde
+   (`#2ddb60`) para o laranja `#ff6a00` — a cor do logotipo oficial em
+   `public/logo-citi-pessoas.svg`. `--primary` e `--accent` apontam para o
+   mesmo laranja. O verde desceu para `--ok`, onde quer dizer "em dia".
+   DESIGN.md e docs/DESIGN_SYSTEM.md foram sincronizados com este arquivo.
 
    ATENÇÃO: este arquivo é compartilhado por todas as features.
    Não altere valores aqui para resolver um caso específico de tela —
@@ -43,10 +43,13 @@
   --primary-foreground: #ffffff;
 
   /* ── Acento laranja (redesenho de Membros, 2026) ────────────────────────
-     MUDANÇA DE IDENTIDADE, decidida pelo produto: o laranja passa a ser a cor
-     de AÇÃO e de SELEÇÃO. É uma camada ADITIVA — nada de verde foi removido,
-     e `--primary` continua sendo o verde CITi, que as telas ainda não
-     redesenhadas seguem consumindo sem mudar de aparência.
+     MUDANÇA DE IDENTIDADE, decidida pelo produto: o laranja é a cor de AÇÃO e
+     de SELEÇÃO.
+
+     `--accent` aponta para o MESMO valor de `--primary`. Os dois convivem
+     porque `--accent-*` carrega as variações de superfície da camada de ação
+     (`--accent-strong`, `--accent-soft`, `--accent-gradient`) que `--primary`
+     não tem. Não é uma segunda cor de marca — é a mesma, com mais degraus.
 
      O laranja é ACENTO, não protagonista: no máximo quatro elementos laranja
      em cena ao mesmo tempo, e o gradiente só em dois lugares (item de
