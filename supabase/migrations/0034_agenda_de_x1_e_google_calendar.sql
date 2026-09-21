@@ -378,45 +378,6 @@ create policy "GG lê e escreve agendamento de X1" on x1_appointments
 -- Sem DELETE: agendamento se cancela, não se apaga. O histórico fica.
 grant select, insert, update on table x1_appointments to authenticated;
 
--- ─── A view de ordenação ─────────────────────────────────────────────────────
---
--- `security_invoker` faz a view respeitar a RLS de quem consulta, e não a de
--- quem a criou — mesmo padrão da view da 0011.
---
--- Existe para que "ordenar a agenda" seja uma coisa só: o legado sem horário
--- entra no COMEÇO do dia dele (00:00 local) e termina no FIM (23:59:59 local),
--- nunca no dia errado e nunca "aguardando registro" às 00h01. Repetir esse
--- coalesce em cada consulta é como as duas pontas passam a discordar.
-
-create view x1_agenda with (security_invoker = true) as
-select
-  a.*,
-  coalesce(a.starts_at, (a.scheduled_date + time '00:00:00') at time zone a.time_zone) as sort_at,
-  coalesce(a.ends_at,   (a.scheduled_date + time '23:59:59') at time zone a.time_zone) as ends_at_efetivo,
-
-  -- O vínculo com o Google vem junto, achatado.
-  --
-  -- POR QUE ACHATADO E NÃO EMBED: o PostgREST só monta objeto aninhado quando
-  -- enxerga uma FK, e view não tem FK. Sem estas colunas, toda tela da agenda
-  -- faria uma segunda consulta só para descobrir o link do Meet.
-  e.calendar_id    as event_calendar_id,
-  e.event_id       as event_event_id,
-  e.etag           as event_etag,
-  e.html_link      as event_html_link,
-  e.hangout_link   as event_hangout_link,
-  e.meet_status    as event_meet_status,
-  e.invited_email  as event_invited_email,
-  e.ultima_sync_em as event_ultima_sync_em
-from x1_appointments a
-left join x1_appointment_events e
-  on e.appointment_id = a.id
- and e.deleted_at is null;
-
-comment on view x1_agenda is
-  'x1_appointments com a chave de ordenação e o fim efetivo já resolvidos. Agendamento sem horário (legado) ocupa o dia inteiro: começa às 00:00 e termina às 23:59:59 no fuso dele.';
-
-grant select on x1_agenda to authenticated;
-
 -- ═════════════════════════════════════════════════════════════════════════════
 -- PARTE 3 — O VÍNCULO COM O EVENTO EXTERNO
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -461,8 +422,12 @@ create table x1_appointment_events (
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now(),
 
+  -- ⚠️ NÃO dá para escrever isto como um `{5,1024}` só: o motor de regex do
+  -- Postgres tem um teto interno de repetição (bem abaixo de 1024) e recusa a
+  -- expressão inteira com "invalid repetition count(s)". Por isso o tamanho é
+  -- checado por `char_length` e o alfabeto por uma classe sem limite superior.
   constraint x1_evento_id_formato_google
-    check (event_id ~ '^[a-v0-9]{5,1024}$')
+    check (char_length(event_id) between 5 and 1024 and event_id ~ '^[a-v0-9]+$')
 );
 
 comment on table x1_appointment_events is
@@ -498,6 +463,45 @@ create policy "GG lê o vínculo com o evento do Google" on x1_appointment_event
   for select using (is_gg());
 
 grant select on table x1_appointment_events to authenticated;
+
+-- ─── A view de ordenação ─────────────────────────────────────────────────────
+--
+-- `security_invoker` faz a view respeitar a RLS de quem consulta, e não a de
+-- quem a criou — mesmo padrão da view da 0011.
+--
+-- Existe para que "ordenar a agenda" seja uma coisa só: o legado sem horário
+-- entra no COMEÇO do dia dele (00:00 local) e termina no FIM (23:59:59 local),
+-- nunca no dia errado e nunca "aguardando registro" às 00h01. Repetir esse
+-- coalesce em cada consulta é como as duas pontas passam a discordar.
+
+create view x1_agenda with (security_invoker = true) as
+select
+  a.*,
+  coalesce(a.starts_at, (a.scheduled_date + time '00:00:00') at time zone a.time_zone) as sort_at,
+  coalesce(a.ends_at,   (a.scheduled_date + time '23:59:59') at time zone a.time_zone) as ends_at_efetivo,
+
+  -- O vínculo com o Google vem junto, achatado.
+  --
+  -- POR QUE ACHATADO E NÃO EMBED: o PostgREST só monta objeto aninhado quando
+  -- enxerga uma FK, e view não tem FK. Sem estas colunas, toda tela da agenda
+  -- faria uma segunda consulta só para descobrir o link do Meet.
+  e.calendar_id    as event_calendar_id,
+  e.event_id       as event_event_id,
+  e.etag           as event_etag,
+  e.html_link      as event_html_link,
+  e.hangout_link   as event_hangout_link,
+  e.meet_status    as event_meet_status,
+  e.invited_email  as event_invited_email,
+  e.ultima_sync_em as event_ultima_sync_em
+from x1_appointments a
+left join x1_appointment_events e
+  on e.appointment_id = a.id
+ and e.deleted_at is null;
+
+comment on view x1_agenda is
+  'x1_appointments com a chave de ordenação e o fim efetivo já resolvidos. Agendamento sem horário (legado) ocupa o dia inteiro: começa às 00:00 e termina às 23:59:59 no fuso dele.';
+
+grant select on x1_agenda to authenticated;
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- PARTE 4 — A CAIXA DE SAÍDA
