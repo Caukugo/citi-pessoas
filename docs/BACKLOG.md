@@ -465,11 +465,13 @@ conversa.
 > Conexão individual e proteção do token: **ADR-021**. Guia de configuração:
 > `docs/google-calendar-setup.md`.
 >
-> ⛔ **Implementada, bloqueada na homologação.** OAuth, operações de evento,
-> caixa de saída e sincronização estão escritos e cobertos por teste com `fetch`
-> falso — nenhuma chamada real ao Google aconteceu. Para destravar: projeto no
-> Google Cloud, cliente OAuth e segredos (`google-calendar-setup.md` §4–§8).
-> **Nada aqui foi validado contra o Google de verdade.**
+> ⛔ **Deployada em `citi-pessoas-test`, ainda bloqueada na homologação.**
+> Migrations, secrets, Vault e as 3 Edge Functions estão aplicados no projeto
+> de teste. O worker (`google-calendar-sync`) foi disparado de verdade contra
+> a função publicada — HMAC bateu, os 2 jobs do cron rodaram, resposta 200
+> só com números. **Falta o handshake de OAuth num navegador de verdade**, com
+> conta `@citi.org.br`: nenhum convite de calendário foi criado ainda. Ver
+> `google-calendar-setup.md` §10.
 
 **Objetivo.** Cada integrante de GG conecta a própria conta CITi e o convite sai
 do Google dela, para o e-mail institucional do membro.

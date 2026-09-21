@@ -1076,7 +1076,7 @@
         "difficulty: technical",
         "priority: high"
       ],
-      "notes": "Implementada e testada com fetch falso (OAuth, operacoes de evento, caixa de saida e sincronizacao). BLOQUEADA NA HOMOLOGACAO: depende do projeto no Google Cloud, do cliente OAuth e dos segredos. Ver docs/google-calendar-setup.md."
+      "notes": "Migrations 0034-0037, secrets, Vault e as 3 Edge Functions aplicados/deployados em citi-pessoas-test. Worker testado ponta a ponta (HMAC, os 2 jobs do cron, respostas 200) contra a funcao publicada de verdade. AINDA BLOQUEADA: falta o handshake real de OAuth num navegador com conta @citi.org.br - nenhum convite de calendario foi criado de verdade ainda. Ver docs/google-calendar-setup.md."
     },
     {
       "id": "FB-001",
