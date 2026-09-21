@@ -170,7 +170,9 @@ export function X1Page() {
 
             <GoogleConnectionChip
               connection={agenda.connection}
+              isError={agenda.connectionError}
               onConnect={onConnect}
+              onRetry={agenda.refetchConnection}
               onOpenConnection={() => setConfirmingDisconnect(true)}
             />
           </div>

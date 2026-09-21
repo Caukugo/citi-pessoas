@@ -42,6 +42,18 @@ export interface X1AgendaData {
 
   /** A conexão de quem está usando. `undefined` enquanto carrega. */
   connection: GoogleCalendarConnection | undefined;
+  /**
+   * `true` quando a CONSULTA da conexão falhou (não apenas "ainda carregando").
+   *
+   * ⚠️ Existe separado de `isError` de propósito, pela mesma razão que a
+   * conexão não entra em `isLoading`: um erro aqui não pode virar tela de erro
+   * da agenda inteira. Mas sem este sinal, o chip não tem como distinguir
+   * "carregando" de "falhou" — as duas produzem `connection: undefined` — e
+   * mostraria "Verificando conexão…" para sempre diante de um erro real.
+   */
+  connectionError: boolean;
+  /** Reconsulta só o status da conexão — não inicia OAuth nenhum. */
+  refetchConnection: () => void;
 
   /** `true` quando dá para emitir convite: há conexão válida. */
   canSchedule: boolean;
@@ -157,6 +169,8 @@ export function useX1Agenda(filters: X1AgendaFilters): X1AgendaData {
     today,
     now,
     connection: connection.data,
+    connectionError: connection.isError,
+    refetchConnection: () => void connection.refetch(),
     canSchedule,
     scheduleHint: scheduleHintFor(connectionStatus),
     // ⚠️ A conexão NÃO entra em `isLoading`: a agenda precisa carregar e ser

@@ -29,15 +29,59 @@ const ICON: Partial<Record<GoogleConnectionStatus, typeof AlertTriangle>> = {
 
 export function GoogleConnectionChip({
   connection,
+  isError,
   onConnect,
+  onRetry,
   onOpenConnection,
   className,
 }: {
   connection: GoogleCalendarConnection | undefined;
+  /**
+   * A CONSULTA falhou (rede, sessão expirada, erro do servidor) — diferente
+   * de "ainda não voltou". Sem isto, `connection: undefined` significa tanto
+   * "carregando" quanto "falhou", e o chip ficaria preso em "Verificando
+   * conexão…" para sempre diante de um erro real, escondendo o problema em
+   * vez de mostrá-lo.
+   */
+  isError?: boolean;
   onConnect: () => void;
+  /**
+   * Reconsulta o status — NÃO inicia OAuth. Distinto de `onConnect` de
+   * propósito: a consulta pode falhar por um motivo (sessão, rede) que não
+   * tem nada a ver com a autorização do Google, e mandar a pessoa para a tela
+   * de consentimento do Google resolveria o problema errado.
+   */
+  onRetry: () => void;
   onOpenConnection: () => void;
   className?: string;
 }) {
+  // ⚠️ Erro vem ANTES do fallback "conectando": os dois produzem `connection
+  // === undefined`, e só a ordem aqui decide qual dos dois a pessoa vê.
+  if (!connection && isError) {
+    return (
+      <div
+        role="alert"
+        className={cn(
+          'glass flex items-center gap-3 rounded-full border border-warn/40 px-4 py-2',
+          className,
+        )}
+      >
+        <AlertTriangle size={16} className="shrink-0 text-warn" aria-hidden />
+        <span className="min-w-0">
+          <span className="block text-[13px] font-medium text-foreground">
+            Não foi possível verificar a conexão
+          </span>
+          <span className="block text-[11px] text-muted-foreground">
+            Confira sua sessão e tente de novo
+          </span>
+        </span>
+        <Button size="sm" variant="accent" onClick={onRetry} className="shrink-0">
+          Tentar de novo
+        </Button>
+      </div>
+    );
+  }
+
   const status = connection?.status ?? 'conectando';
   const Icon = ICON[status];
 
