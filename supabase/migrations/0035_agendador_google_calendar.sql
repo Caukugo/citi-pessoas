@@ -230,17 +230,22 @@ security definer
 set search_path = public, extensions, pg_temp
 as $$
 declare
-  v_segredo   text := citi_segredo_do_vault('citi_google_cron_secret');
-  v_base      text := citi_segredo_do_vault('citi_project_url');
-  v_corpo     text;
-  v_ts        text := (extract(epoch from now()) * 1000)::bigint::text;
+  v_segredo    text := citi_segredo_do_vault('citi_google_cron_secret');
+  v_base       text := citi_segredo_do_vault('citi_project_url');
+  -- ⚠️ O CORPO NASCE COMO `jsonb`, não como `json`. `json_build_object` grava
+  -- espaço em volta do `:` (`{"tarefa" : "caixa"}`); `jsonb` normaliza sem
+  -- esse espaço. `net.http_post` serializa o parâmetro `body` a partir do
+  -- valor `jsonb`, então assinar o texto de `json_build_object` assina bytes
+  -- DIFERENTES dos que de fato saem na rede — e o lado que recebe, que
+  -- verifica contra o corpo cru, sempre acusaria assinatura inválida.
+  v_corpo_json jsonb := jsonb_build_object('tarefa', p_tarefa);
+  v_corpo      text  := v_corpo_json::text;
+  v_ts         text  := (extract(epoch from now()) * 1000)::bigint::text;
   v_assinatura text;
 begin
   if p_tarefa not in ('caixa', 'sincronizacao') then
     raise exception 'Tarefa desconhecida: %', p_tarefa using errcode = '22023';
   end if;
-
-  v_corpo := json_build_object('tarefa', p_tarefa)::text;
 
   -- ⚠️ O timestamp entra NA ASSINATURA, não só no cabeçalho. Assinar apenas o
   -- corpo deixaria um pedido capturado válido para sempre; assim ele expira
@@ -257,7 +262,9 @@ begin
       'x-citi-timestamp',  v_ts,
       'x-citi-signature',  v_assinatura
     ),
-    body    := v_corpo::jsonb,
+    -- O MESMO valor jsonb assinado acima, não uma nova conversão — é o que
+    -- garante bytes idênticos entre o que foi assinado e o que sai na rede.
+    body    := v_corpo_json,
     timeout_milliseconds := 55000
   );
 end;
