@@ -1,21 +1,21 @@
 import { Logo, Surface } from '@/components/ui';
-import { FeatureStub } from '@/app/components/FeatureStub';
 
 /**
- * ANON-001 — FORMULÁRIO EXTERNO DE FEEDBACK ANÔNIMO · Feature Owner: Clara
+ * ANTIGA ANON-001 — FORMULÁRIO EXTERNO DE FEEDBACK ANÔNIMO.
  *
- * ⚠️ Esta é a ÚNICA tela pública da plataforma além do login. Ela não exige
- * conta e não deve exigir. Quem envia permanece anônimo:
+ * Migration 0033: o canal de envio passou a ser o Google Form permanente
+ * (link fixo, distribuído pela Administração e por QR code) → Edge Function
+ * `anonymous-feedback-intake` → `anonymous_feedbacks`. Esta rota não sai do
+ * ar (um link antigo não pode virar 404), mas não é mais o canal de envio: a
+ * tabela não aceita mais INSERT direto de `anon`/`authenticated` (RLS +
+ * revoke), então um formulário React aqui nunca teria como gravar nada.
  *
- * • NÃO peça nome, e-mail, matrícula ou qualquer identificação.
- * • NÃO registre IP nem qualquer rastro de origem.
- * • Depois de enviar, mostre só uma confirmação — sem link para a área interna.
+ * Por isso a tela não tenta mais coletar o feedback — só orienta a pessoa a
+ * usar o link oficial, que a GG tem.
  */
 export function AnonymousFeedbackFormPage() {
   return (
     <>
-      {/* A escultura que antes vinha do PublicLayout. Mesmo asset, mesmas
-          medidas: esta tela não mudou de aparência. */}
       <img
         src="/bg-blob.webp"
         alt=""
@@ -25,33 +25,16 @@ export function AnonymousFeedbackFormPage() {
       />
 
       <Surface className="relative mx-auto max-w-[360px] p-8">
-        <div className="mb-6 text-center">
+        <div className="text-center">
           <Logo height={22} className="mx-auto" />
           <h1 className="mt-[22px] text-[20px] tracking-[-0.02em] text-foreground">
             Feedback anônimo
           </h1>
-          <p className="mt-[7px] text-[12px] text-muted-foreground">
-            Este envio é anônimo. Nenhuma informação sobre quem escreveu é registrada.
+          <p className="mt-[10px] text-[13px] leading-relaxed text-muted-foreground">
+            Este endereço não recebe mais envios diretamente. Peça à equipe de Gente e Gestão o
+            link do formulário oficial.
           </p>
         </div>
-
-        <FeatureStub
-          issue="ANON-001"
-          owner="Clara"
-          goal="Formulário externo de feedback anônimo"
-          steps={[
-            'Montar o formulário: sobre quem é (membro, subárea, diretoria ou CITi) e o texto.',
-            'Quando o alvo for um membro, oferecer a seleção; nos outros casos usar targetLabel.',
-            'Enviar com useSubmitAnonymousFeedback().',
-            'Depois do envio, mostrar uma tela de confirmação, nada mais.',
-          ]}
-          files={[
-            'src/features/anonymous-feedback/pages/AnonymousFeedbackFormPage.tsx  ← esta tela',
-          ]}
-          dataHooks={['useSubmitAnonymousFeedback()', 'ANONYMOUS_TARGET_LABEL']}
-          doNotTouch={['src/data/', 'src/app/']}
-          docs={['docs/PROJECT_CONTEXT.md']}
-        />
       </Surface>
     </>
   );

@@ -841,10 +841,25 @@ export interface AnonymousFeedback {
   moderationNote?: string | null;
 }
 
-/** O que o formulário externo envia. Repare: nenhum campo de identificação. */
-export type AnonymousFeedbackCreateInput = Pick<
-  AnonymousFeedback,
-  'content' | 'targetType' | 'targetMemberId' | 'targetLabel'
+/**
+ * Configuração PERMANENTE do canal de Feedback Anônimo via Google Forms
+ * (migration 0033). Mesmo padrão de `GoogleFormsIntakeConfig`, sem gestão nem
+ * campanha: o canal nunca tem período — é permanente por decisão de produto.
+ *
+ * ⚠️ `responderUrl` não é segredo: é o link público que a GG copia, distribui
+ * e transforma em QR na Administração. O que NUNCA aparece aqui é
+ * `ANONYMOUS_FEEDBACK_WEBHOOK_SECRET` — esse vive só nos secrets da Edge
+ * Function `anonymous-feedback-intake`.
+ */
+export interface AnonymousFeedbackIntakeConfig {
+  enabled: boolean;
+  formId: string | null;
+  responderUrl: string | null;
+  updatedAt: ISODate;
+}
+
+export type AnonymousFeedbackIntakeConfigInput = Partial<
+  Pick<AnonymousFeedbackIntakeConfig, 'enabled' | 'formId' | 'responderUrl'>
 >;
 
 /**

@@ -3,7 +3,6 @@ import { db } from './db';
 import { queryKeys } from './queryKeys';
 import type {
   AnonymousFeedback,
-  AnonymousFeedbackCreateInput,
   AnonymousFeedbackModeration,
   AnonymousFeedbackResolution,
   AnonymousFeedbackStatus,
@@ -17,8 +16,10 @@ import type {
  *
  * ⚠️ REGRAS DE PRODUTO QUE NÃO PODEM SER QUEBRADAS:
  *
- * 1. É um FLUXO INDEPENDENTE. Entra por um formulário externo, vai para
- *    moderação e permanece anônimo.
+ * 1. É um FLUXO INDEPENDENTE. Entra pelo Google Form permanente (Edge
+ *    Function `anonymous-feedback-intake`, migration 0033), vai para
+ *    moderação e permanece anônimo. Não existe mais `submit()` aqui — nem
+ *    `anon` nem `authenticated` têm INSERT direto na tabela.
  * 2. NÃO vira automaticamente Feedback Informal, Formal ou Carta de Ajuste.
  *    Não existe função de conversão neste arquivo — e não deve passar a
  *    existir. Se alguém pedir isso, é mudança de produto: fale com Clara/Cauan.
@@ -60,13 +61,6 @@ export function getAnonymousFeedbackById(id: ID): Promise<AnonymousFeedback | nu
   return db.anonymousFeedbacks.getById(id);
 }
 
-/** Envio pelo formulário externo. Não exige login. */
-export function submitAnonymousFeedback(
-  input: AnonymousFeedbackCreateInput,
-): Promise<AnonymousFeedback> {
-  return db.anonymousFeedbacks.submit(input);
-}
-
 /**
  * Registra a decisão humana da GG.
  *
@@ -96,10 +90,6 @@ export function useAnonymousFeedback(id: ID | undefined) {
     queryFn: () => getAnonymousFeedbackById(id as ID),
     enabled: Boolean(id),
   });
-}
-
-export function useSubmitAnonymousFeedback() {
-  return useMutation({ mutationFn: submitAnonymousFeedback });
 }
 
 export function useModerateAnonymousFeedback() {

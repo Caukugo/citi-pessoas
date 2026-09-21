@@ -1,5 +1,6 @@
 import type {
   AnonymousFeedback,
+  AnonymousFeedbackIntakeConfig,
   AuthUser,
   Feedback,
   Gestao,
@@ -15,6 +16,7 @@ import type {
 } from '../types';
 import { resetMockPrivateData } from './privateStore';
 import {
+  ANONYMOUS_FEEDBACK_INTAKE_CONFIG,
   ANONYMOUS_FEEDBACKS,
   FEEDBACKS,
   GESTOES,
@@ -53,6 +55,8 @@ export interface MockDatabase {
   googleFormsIntakeConfig: GoogleFormsIntakeConfig;
   /** Histórico de campanhas de entrada — no máximo uma com status `ativa`. */
   intakeCampaigns: IntakeCampaign[];
+  /** Canal permanente de Feedback Anônimo via Google Forms (migration 0033). */
+  anonymousFeedbackIntakeConfig: AnonymousFeedbackIntakeConfig;
   /** Sessão do modo mock. No Supabase quem cuida disso é a própria lib. */
   currentUser: AuthUser | null;
 }
@@ -96,6 +100,7 @@ function seed(): MockDatabase {
     intakeSubmissions: [],
     googleFormsIntakeConfig: structuredClone(GOOGLE_FORMS_INTAKE_CONFIG),
     intakeCampaigns: [],
+    anonymousFeedbackIntakeConfig: structuredClone(ANONYMOUS_FEEDBACK_INTAKE_CONFIG),
     currentUser: null,
   };
 }

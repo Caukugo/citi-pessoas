@@ -1,6 +1,7 @@
 import { PageHeader } from '@/components/ui';
 import { FeatureStub } from '@/app/components/FeatureStub';
 import { EntradaMembrosPanel } from '../components/EntradaMembrosPanel';
+import { AnonymousFeedbackIntakePanel } from '../components/AnonymousFeedbackIntakePanel';
 
 /**
  * EPIC 6 — ADMINISTRAÇÃO · Responsável: Bia (com apoio de Cauan)
@@ -19,6 +20,8 @@ export function AdminPage() {
 
       <div className="flex flex-col gap-6">
         <EntradaMembrosPanel />
+
+        <AnonymousFeedbackIntakePanel />
 
         <FeatureStub
           issue="ADM-001"

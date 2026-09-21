@@ -68,4 +68,7 @@ export const queryKeys = {
     submissionCount: (campaignId: ID) =>
       ['googleFormsIntake', 'submissionCount', campaignId] as const,
   },
+  anonymousFeedbackIntake: {
+    config: ['anonymousFeedbackIntake', 'config'] as const,
+  },
 } as const;

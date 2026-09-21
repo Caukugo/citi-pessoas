@@ -19,6 +19,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/env';
 import { safeFileName } from '../photoValidation';
 import { supabase } from './client';
 import {
+  fromAnonymousFeedbackIntakeConfigRow,
   fromAnonymousFeedbackRow,
   fromFeedbackRow,
   fromGestaoRow,
@@ -544,42 +545,9 @@ export const supabaseAdapter: DataAdapter = {
       return data ? fromAnonymousFeedbackRow(data) : null;
     },
 
-    async submit(input) {
-      // Inserção pública (sem login), e SÓ inserção.
-      //
-      // ⚠️ SEM `.select()`, de propósito. `anon` tem INSERT e mais nada: não
-      // existe policy nem grant de leitura nesta tabela para quem não é GG.
-      // Pedir a linha de volta fazia o PostgREST tentar um SELECT depois do
-      // INSERT e a requisição falhava por RLS — o formulário público quebrava
-      // depois de gravar, e a pessoa reenviava o relato achando que não foi.
-      //
-      // Ler o próprio envio também não é desejável: um relato anônimo devolvido
-      // ao remetente é uma confirmação que o fluxo não precisa dar.
-      const { error } = await supabase().from('anonymous_feedbacks').insert({
-        content: input.content,
-        target_type: input.targetType,
-        target_member_id: input.targetMemberId ?? null,
-        target_label: input.targetLabel ?? null,
-      });
-      if (error) fail(error, 'Erro ao enviar feedback');
-
-      // O que volta é o que a tela precisa para dizer "recebemos": não é uma
-      // leitura do banco, e não tem id — quem modera é que vai ver o registro.
-      return {
-        id: '',
-        content: input.content,
-        targetType: input.targetType,
-        targetMemberId: input.targetMemberId ?? null,
-        targetLabel: input.targetLabel ?? null,
-        status: 'pendente',
-        directedMemberId: null,
-        moderationNote: null,
-        moderatedById: null,
-        moderatedAt: null,
-        submittedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
-    },
+    // ⚠️ Migration 0033: NÃO existe mais `submit()` aqui. `anon`/`authenticated`
+    // perderam o INSERT direto (RLS + revoke) — a única porta de escrita agora
+    // é a Edge Function `anonymous-feedback-intake`, com `service_role`.
 
     async moderate(id, decision) {
       if (decision.resolution === 'direcionado' && !decision.directedMemberId) {
@@ -953,6 +921,37 @@ export const supabaseAdapter: DataAdapter = {
         .eq('campaign_id', campaignId);
       if (error) fail(error, 'Erro ao contar respostas da campanha');
       return count ?? 0;
+    },
+  },
+
+  anonymousFeedbackIntake: {
+    async getConfig() {
+      const { data, error } = await supabase()
+        .from('anonymous_feedback_intake_config')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      if (error) fail(error, 'Erro ao carregar a configuração do feedback anônimo');
+      if (!data) {
+        throw new DataError('not_found', 'Configuração do feedback anônimo não encontrada.');
+      }
+      return fromAnonymousFeedbackIntakeConfigRow(data);
+    },
+
+    async updateConfig(input) {
+      const row: Record<string, unknown> = {};
+      if (input.enabled !== undefined) row.enabled = input.enabled;
+      if (input.formId !== undefined) row.form_id = input.formId;
+      if (input.responderUrl !== undefined) row.responder_url = input.responderUrl;
+
+      const { data, error } = await supabase()
+        .from('anonymous_feedback_intake_config')
+        .update(row)
+        .eq('id', 1)
+        .select()
+        .single();
+      if (error) fail(error, 'Erro ao salvar a configuração do feedback anônimo');
+      return fromAnonymousFeedbackIntakeConfigRow(data);
     },
   },
 };

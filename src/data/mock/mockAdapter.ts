@@ -3,7 +3,6 @@ import { DataError } from '../errors';
 import { normalizeText } from '@/lib/format';
 import { FEEDBACK_TYPE_LABEL } from '../types';
 import type {
-  AnonymousFeedback,
   AnonymousFeedbackStatus,
   AuthUser,
   Feedback,
@@ -889,28 +888,9 @@ export const mockAdapter: DataAdapter = {
       return mockDb().anonymousFeedbacks.find((f) => f.id === id) ?? null;
     },
 
-    async submit(input) {
-      await delay();
-      const db = mockDb();
-      // Nenhum dado de quem enviou é criado aqui. Anonimato é por construção.
-      const feedback: AnonymousFeedback = {
-        id: mockId('anon'),
-        content: input.content,
-        targetType: input.targetType,
-        targetMemberId: input.targetMemberId ?? null,
-        targetLabel: input.targetLabel ?? null,
-        submittedAt: nowISO(),
-        status: 'pendente',
-        resolution: null,
-        directedMemberId: null,
-        moderatedById: null,
-        moderatedAt: null,
-        moderationNote: null,
-      };
-      db.anonymousFeedbacks.push(feedback);
-      commit();
-      return feedback;
-    },
+    // ⚠️ Migration 0033: NÃO existe mais `submit()` aqui — o modo mock espelha
+    // o real, que perdeu o INSERT direto de anon/authenticated. A única porta
+    // de escrita é a Edge Function `anonymous-feedback-intake`.
 
     async moderate(id, decision) {
       await delay();
@@ -1468,6 +1448,25 @@ export const mockAdapter: DataAdapter = {
     async countCampaignSubmissions(campaignId) {
       await delay();
       return mockDb().intakeSubmissions.filter((s) => s.campaignId === campaignId).length;
+    },
+  },
+
+  anonymousFeedbackIntake: {
+    async getConfig() {
+      await delay();
+      return mockDb().anonymousFeedbackIntakeConfig;
+    },
+
+    async updateConfig(input) {
+      await delay();
+      const db = mockDb();
+      db.anonymousFeedbackIntakeConfig = {
+        ...db.anonymousFeedbackIntakeConfig,
+        ...input,
+        updatedAt: nowISO(),
+      };
+      commit();
+      return db.anonymousFeedbackIntakeConfig;
     },
   },
 };
