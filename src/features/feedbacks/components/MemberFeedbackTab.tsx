@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { MessageSquarePlus, Plus } from 'lucide-react';
 import { Button, Chip, EmptyState, ErrorState, LoadingState, Surface } from '@/components/ui';
-import type { ID, Member } from '@/data';
+import type { Feedback, ID, Member } from '@/data';
 import {
   FEEDBACK_TYPES,
   FEEDBACK_TYPE_PLURAL,
   type FeedbackCounts,
 } from '../model/feedbacksOverview';
 import { filterByType, type MemberFeedbacksOverview } from '../hooks/useMemberFeedbacks';
+import { DeleteFeedbackDialog } from './DeleteFeedbackDialog';
+import { EditFeedbackDrawer } from './EditFeedbackDrawer';
 import { FeedbackHistoryItem } from './FeedbackHistoryItem';
 
 /**
@@ -26,6 +28,12 @@ import { FeedbackHistoryItem } from './FeedbackHistoryItem';
  * ⚠️ Feedback anônimo direcionado NÃO aparece aqui. São fluxos independentes:
  * direcionar um relato anônimo a alguém não cria registro de acompanhamento, e
  * misturá-los nesta lista faria a plataforma mentir sobre o que foi registrado.
+ *
+ * EDITAR E EXCLUIR vivem nesta aba porque é aqui que se lê um registro em
+ * contexto. Editar corrige o registro (não cria outro); excluir passa
+ * obrigatoriamente pela confirmação, que é quem conhece o registro inteiro.
+ * As duas ações carregam o feedback da linha — nenhuma delas age sobre "o
+ * último aberto" ou sobre índice de lista.
  */
 
 /** Chip de recorte com contador. Zero fica apagado e não clicável. */
@@ -67,6 +75,8 @@ export function MemberFeedbackTab({
   onRegister: () => void;
 }) {
   const [type, setType] = useState('');
+  const [editing, setEditing] = useState<Feedback | null>(null);
+  const [deleting, setDeleting] = useState<Feedback | null>(null);
 
   if (overview.isLoading) {
     return (
@@ -105,8 +115,14 @@ export function MemberFeedbackTab({
     );
   }
 
-  const visible = filterByType(overview.feedbacks, type);
   const counts: FeedbackCounts = overview.counts;
+
+  // O recorte ativo é DERIVADO, não guardado: um tipo que ficou sem registros
+  // (o último informal foi excluído, ou editado para outro tipo) deixa de ser
+  // recorte na hora. Sem isto, a aba mostraria uma lista vazia sem explicar
+  // por quê, com o chip aceso em um filtro que não existe mais.
+  const activeType = type && counts[type as keyof FeedbackCounts] > 0 ? type : '';
+  const visible = filterByType(overview.feedbacks, activeType);
 
   return (
     <Surface>
@@ -117,8 +133,7 @@ export function MemberFeedbackTab({
             <p className="mt-1 text-xs text-muted-foreground">
               {overview.total === 1
                 ? '1 registro, do mais recente para o mais antigo.'
-                : `${overview.total} registros, do mais recente para o mais antigo.`}{' '}
-              Cada um permanece como foi escrito.
+                : `${overview.total} registros, do mais recente para o mais antigo.`}
             </p>
           </div>
           <Button icon={<Plus size={15} />} onClick={onRegister}>
@@ -127,7 +142,7 @@ export function MemberFeedbackTab({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Chip active={type === ''} onClick={() => setType('')}>
+          <Chip active={activeType === ''} onClick={() => setType('')}>
             Todos {overview.total}
           </Chip>
           {FEEDBACK_TYPES.map((item) => (
@@ -135,9 +150,9 @@ export function MemberFeedbackTab({
               key={item}
               label={FEEDBACK_TYPE_PLURAL[item]}
               count={counts[item]}
-              active={type === item}
+              active={activeType === item}
               // Clicar no chip ativo volta para "Todos".
-              onClick={() => setType(type === item ? '' : item)}
+              onClick={() => setType(activeType === item ? '' : item)}
             />
           ))}
         </div>
@@ -145,9 +160,30 @@ export function MemberFeedbackTab({
 
       <ol className="flex flex-col">
         {visible.map((feedback) => (
-          <FeedbackHistoryItem key={feedback.id} feedback={feedback} directory={directory} />
+          <FeedbackHistoryItem
+            key={feedback.id}
+            feedback={feedback}
+            directory={directory}
+            onEdit={setEditing}
+            onDelete={setDeleting}
+          />
         ))}
       </ol>
+
+      <EditFeedbackDrawer
+        open={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        feedback={editing}
+        member={member}
+      />
+
+      {/* Clicar em "Excluir" abre ISTO. A exclusão só sai daqui de dentro. */}
+      <DeleteFeedbackDialog
+        open={Boolean(deleting)}
+        onClose={() => setDeleting(null)}
+        feedback={deleting}
+        member={member}
+      />
     </Surface>
   );
 }

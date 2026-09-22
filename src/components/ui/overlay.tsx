@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -53,8 +53,19 @@ function usePresence(open: boolean) {
   return { mounted, visible };
 }
 
-/** Comportamento comum a qualquer overlay aberto. */
-function useOverlayBehavior(open: boolean, onClose: () => void) {
+/**
+ * Comportamento comum a qualquer overlay aberto.
+ *
+ * `initialFocusRef` diz para onde o foco vai ao abrir. Sem ele o foco fica no
+ * próprio painel, que é o certo para a maioria dos casos. Um diálogo
+ * destrutivo passa a saída segura — quem confirma escolhe confirmar, e nunca
+ * apaga algo por ter aberto o diálogo com o dedo ainda no Enter.
+ */
+function useOverlayBehavior(
+  open: boolean,
+  onClose: () => void,
+  initialFocusRef?: RefObject<HTMLElement | null>,
+) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
@@ -98,14 +109,20 @@ function useOverlayBehavior(open: boolean, onClose: () => void) {
     document.body.style.overflow = 'hidden';
 
     // Move o foco para dentro do overlay para quem navega por teclado.
-    panelRef.current?.focus();
+    //
+    // Um quadro de atraso porque o painel entra no DOM depois deste efeito
+    // (é `usePresence` quem o monta): focar agora seria focar `null`.
+    const frame = requestAnimationFrame(() => {
+      (initialFocusRef?.current ?? panelRef.current)?.focus();
+    });
 
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open, onClose, initialFocusRef]);
 
   return panelRef;
 }
@@ -129,6 +146,11 @@ export interface ModalProps {
   footer?: ReactNode;
   size?: ModalSize;
   bodyClassName?: string;
+  /**
+   * Para onde o foco vai ao abrir. Padrão: o próprio painel.
+   * Use em diálogo destrutivo para começar no botão de cancelar.
+   */
+  initialFocusRef?: RefObject<HTMLElement | null>;
 }
 
 /**
@@ -151,8 +173,9 @@ export function Modal({
   footer,
   size = 'md',
   bodyClassName = 'p-6',
+  initialFocusRef,
 }: ModalProps) {
-  const panelRef = useOverlayBehavior(open, onClose);
+  const panelRef = useOverlayBehavior(open, onClose, initialFocusRef);
   const { mounted, visible } = usePresence(open);
   if (!mounted) return null;
 

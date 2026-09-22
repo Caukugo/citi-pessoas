@@ -87,7 +87,7 @@ Isto é o que a fundação entregou e já funciona.
   histórico — nada gravado, nada podendo divergir.
 - Estado "nenhum X1" tratado como marco (primeiro X1 pendente), não como erro.
 
-### EPIC 4 — Feedbacks de acompanhamento (FB-001 a FB-004, FB-006, FB-007)
+### EPIC 4 — Feedbacks de acompanhamento (FB-001 a FB-007)
 
 - `/feedbacks` → aba **Acompanhamento**: uma linha por membro com a contagem de
   Informais, Formais e Cartas de Ajuste, e o último registro.
@@ -101,6 +101,11 @@ Isto é o que a fundação entregou e já funciona.
   Registrar alimenta tabela, gaveta, Perfil e timeline de uma vez só.
 - Quem saiu do CITi continua na tabela quando tem histórico: o passado não some
   junto com a pessoa.
+- **Editar e excluir** um registro, na aba do Perfil. Editar corrige o registro
+  no lugar — mesmo formulário, mesma validação, `id` inalterado — e guarda quem
+  editou sem tocar em quem registrou. Excluir passa **obrigatoriamente** por um
+  diálogo de confirmação que mostra tipo, data e trecho do registro; o clique na
+  lista não apaga nada. Ver ADR-024.
 
 ### EPIC 5 — Moderação de feedback anônimo (ANON-003 a ANON-006)
 
@@ -189,7 +194,7 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 | FB-002 | Persistir Feedback | ✅ Implementado |
 | FB-003 | Histórico | ✅ Implementado |
 | FB-004 | Visualização | ✅ Implementado (registro completo no histórico) |
-| FB-005 | Edição quando apropriado | Ready |
+| FB-005 | Edição quando apropriado | ✅ Implementado — com exclusão confirmada (ADR-024) |
 | FB-006 | Quadro consolidado | ✅ Implementado |
 | FB-007 | Integração com Perfil | ✅ Implementado |
 

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
@@ -34,6 +34,12 @@ const SIZES: Record<ButtonSize, string> = {
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /**
+   * O elemento `<button>` de verdade, para quem precisa mandar o foco para
+   * cá — diálogo destrutivo que começa no "Cancelar", por exemplo. No React 19
+   * `ref` é propriedade comum; ela viaja em `...rest` até o `<button>`.
+   */
+  ref?: Ref<HTMLButtonElement>;
   /** Mostra spinner e bloqueia cliques. Use durante salvamentos. */
   loading?: boolean;
   icon?: ReactNode;

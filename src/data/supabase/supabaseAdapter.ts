@@ -939,6 +939,25 @@ export const supabaseAdapter: DataAdapter = {
       if (error) fail(error, 'Erro ao atualizar feedback');
       return fromFeedbackRow(data);
     },
+
+    async remove(id) {
+      const { data, error } = await supabase()
+        .from('feedbacks')
+        .delete()
+        .eq('id', id)
+        .select('id');
+      if (error) fail(error, 'Erro ao excluir feedback');
+
+      // `.select()` no DELETE existe por causa da RLS: quem não é GG recebe
+      // sucesso com ZERO linhas afetadas, não erro. Sem conferir isso, a tela
+      // fecharia o diálogo e diria "excluído" com o registro ainda no banco.
+      if (!data || data.length === 0) {
+        throw new DataError(
+          'not_found',
+          'O feedback não foi encontrado, ou você não tem permissão para excluí-lo.',
+        );
+      }
+    },
   },
 
   anonymousFeedbacks: {

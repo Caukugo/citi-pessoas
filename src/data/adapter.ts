@@ -367,7 +367,30 @@ export interface FeedbacksRepository {
   listAll(): Promise<Feedback[]>;
   getById(id: ID): Promise<Feedback | null>;
   create(input: FeedbackCreateInput): Promise<Feedback>;
+  /**
+   * Corrige o registro. NUNCA cria uma cópia nem substitui outro feedback.
+   *
+   * Quem edita passa `updatedById`; `createdById` e `createdAt` ficam como
+   * estavam — corrigir o texto de um registro não transfere a autoria dele.
+   */
   update(id: ID, input: FeedbackUpdateInput): Promise<Feedback>;
+
+  /**
+   * Apaga UM registro, o de `id`, e nada mais.
+   *
+   * ⚠️ Por que aqui a exclusão é de verdade, e no Membro não: um membro
+   * desligado continua sendo parte da história do CITi, e por isso é
+   * ARQUIVADO. Um feedback registrado na pessoa errada, ou duplicado por um
+   * clique repetido, não é história de ninguém — é lixo, e mantê-lo visível
+   * no perfil de alguém é pior do que removê-lo. Não existe exclusão lógica
+   * para feedbacks (nenhuma coluna `deleted_at` e nenhuma leitura filtrando
+   * por ela), então inventar uma aqui faria os dois adapters divergirem.
+   *
+   * Quem pode excluir é a MESMA policy que já governa a tabela: no Postgres,
+   * `for all using (is_gg())` — quem não é GG não apaga linha nenhuma, e a
+   * tela não é a guarda.
+   */
+  remove(id: ID): Promise<void>;
 }
 
 /**

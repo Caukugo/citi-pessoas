@@ -1517,6 +1517,30 @@ export const mockAdapter: DataAdapter = {
       commit();
       return db.feedbacks[index];
     },
+
+    async remove(id) {
+      await delay();
+      const db = mockDb();
+      const index = db.feedbacks.findIndex((f) => f.id === id);
+      // Mesma recusa do Postgres quando o DELETE não encontra a linha (ou a
+      // RLS a esconde): a tela precisa poder dizer "este registro não existe
+      // mais" em vez de fingir que apagou.
+      if (index < 0) throw new DataError('not_found', 'Feedback não encontrado.');
+
+      db.feedbacks.splice(index, 1);
+
+      // O eco na atividade recente vai junto. Ele só existe no modo mock — no
+      // Postgres nenhum evento é criado para feedback (ver
+      // docs/BACKEND_HANDOFF_FEEDBACKS.md §3.2) — e deixá-lo aqui faria a
+      // Timeline anunciar um registro que ninguém mais consegue abrir.
+      // Isto NÃO abre exceção ao histórico do membro: entrada, cargo, subárea
+      // e desligamento continuam intocados.
+      db.memberEvents = db.memberEvents.filter(
+        (event) => !(event.type === 'feedback' && event.sourceId === id),
+      );
+
+      commit();
+    },
   },
 
   anonymousFeedbacks: {

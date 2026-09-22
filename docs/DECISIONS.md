@@ -1248,6 +1248,92 @@ e isso continua verdadeiro mesmo depois de Ousadia deixar de ser valor do CITi.
 
 ---
 
+## ADR-024 — Feedback pode ser excluído; Membro continua sendo arquivado
+
+- **Data:** 2026-09-22
+- **Status:** Aceita
+- **Substitui:** a instrução do FB-005 no `backlog.json` ("não implemente
+  exclusão de feedback")
+
+**Contexto.** O `PROJECT_CONTEXT.md` §17 registra "Exclusão → Arquivamento" como
+decisão do produto, e o FB-005 dizia, com todas as letras, para não implementar
+exclusão de feedback. A prática mostrou o outro lado: um feedback registrado na
+pessoa errada, ou duplicado por um clique repetido, fica visível no Perfil de
+alguém para sempre. Corrigir o texto não resolve — o registro inteiro não
+deveria existir. Sem exclusão, a saída era o SQL Editor, que é exatamente o
+caminho que a plataforma existe para eliminar.
+
+**Decisão.** Feedback de acompanhamento pode ser **excluído**, pela aba do
+Perfil, sempre atrás de um diálogo de confirmação que mostra o registro (tipo,
+data e trecho). A exclusão é **física**: a linha sai de `feedbacks`.
+
+O alcance é exatamente este, e nada mais:
+
+| O quê | Decisão |
+| --- | --- |
+| Feedback de acompanhamento | Excluível, com confirmação |
+| Membro | **Arquivado**, nunca apagado — §17 continua valendo |
+| `member_events` (entrada, cargo, subárea, desligamento) | Intocado |
+| X1 | Fora deste ADR: nenhuma exclusão foi criada |
+| Feedback anônimo | Fora deste ADR: fluxo independente, só moderação |
+
+**Por que isto não contradiz "Exclusão → Arquivamento".** Aquela decisão é sobre
+**pessoas**. Um membro desligado é parte da história do CITi, e por isso é
+arquivado: o passado dele continua respondendo perguntas. Um feedback lançado no
+perfil errado não é a história de ninguém — é lixo, e mantê-lo visível é pior do
+que removê-lo. A regra preservada é "não reescreva o passado"; apagar um
+registro que nunca deveria ter existido não reescreve passado nenhum.
+
+**Por que física, e não lógica.** Não existe exclusão lógica no projeto: nenhuma
+tabela tem `deleted_at`, nenhuma leitura filtra por isso. Criar a primeira aqui
+significaria uma coluna nova, um filtro em toda leitura de feedback (dois
+adapters) e um estado "existe mas não aparece" que a interface não sabe mostrar.
+Custo alto para guardar o que a decisão humana acabou de dizer que não deveria
+estar ali.
+
+**Autorização.** Nenhuma nova: a policy da `0001` já é
+`for all using (is_gg()) with check (is_gg())`, e `for all` cobre DELETE. A
+`0019` manteve o grant de `delete` para `authenticated` (revogou só `truncate`,
+`references` e `trigger`) e passou a conferir o **papel** em `citi_is_gg()`.
+**Nenhuma migration foi necessária.** Quem não é GG recebe zero linhas
+afetadas, não erro — por isso o adapter do Supabase usa `.select()` no DELETE e
+trata "zero linhas" como recusa, em vez de dizer "excluído" para quem não
+excluiu nada.
+
+**Alternativas consideradas.**
+
+- **Manter sem exclusão, só com edição.** Rejeitado pelo Cauan: não resolve o
+  registro na pessoa errada, que é o caso real que motivou o pedido.
+- **Coluna `deleted_at` (exclusão lógica).** Rejeitado: ver acima. Vale
+  reconsiderar se um dia aparecer a necessidade de auditar o que foi excluído.
+- **Arquivar o feedback, como se arquiva um membro.** Rejeitado: arquivo serve
+  para o que ainda responde perguntas. Ninguém vai consultar um feedback
+  lançado na pessoa errada.
+- **`window.confirm`.** Rejeitado: quebra a identidade visual, não cabe o resumo
+  do registro e não dá para controlar foco nem estado de "excluindo".
+
+**Consequências.**
+
+- ✅ A GG conserta o próprio erro sem abrir o banco.
+- ✅ Contagens, chips e estado vazio continuam derivados: excluir não precisou
+  de nenhum contador gravado (ADR-008 segue valendo).
+- ✅ Editar preserva `createdById`, `createdAt` e `gestaoId`; quem editou entra
+  em `updatedById`. Corrigir uma vírgula não transfere autoria nem muda a
+  gestão do registro.
+- ⚠️ **Não tem desfazer.** A confirmação é a única rede, e por isso ela mostra o
+  registro em vez de só perguntar "tem certeza?".
+- ⚠️ **Não existe trilha de auditoria da exclusão.** Depois do DELETE não sobra
+  linha nenhuma dizendo que aquele feedback existiu. Se a GG precisar responder
+  "quem apagou o quê", isso é trabalho novo — provavelmente a exclusão lógica
+  recusada aqui.
+- ⚠️ No modo mock, excluir também remove o eco do registro em `member_events`,
+  que só o mock cria (`BACKEND_HANDOFF_FEEDBACKS.md` §3.2). Se um dia o
+  Postgres ganhar o trigger `after insert on feedbacks` sugerido lá, ele
+  precisará de um `after delete` junto — senão a Timeline do modo real passa a
+  anunciar registros que ninguém consegue abrir.
+
+---
+
 ---
 
 ## Como registrar uma decisão nova

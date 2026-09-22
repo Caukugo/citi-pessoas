@@ -629,15 +629,26 @@ Detalhe completo, com quem registrou e quando.
 
 ---
 
-### FB-005 — Edição quando apropriado
+### FB-005 — Edição e exclusão de um registro
 
-- **Responsável:** Clara · **Reviewer:** Cauan · 🟡 assistida · Baixa · Ready
+- **Responsável:** Clara · **Reviewer:** Cauan · 🟡 assistida · Baixa · ✅ Done
 - **Dependências:** FB-004 · **Branch:** `feat/feedback-edit`
 
 **Critérios de aceite**
 
-- [ ] Salva com `useUpdateFeedback()`.
-- [ ] Editar corrige o registro; **não apaga histórico**.
+- [x] Salva com `useUpdateFeedback()`.
+- [x] Editar corrige o registro; **não cria uma cópia** e **não apaga histórico**.
+- [x] Autoria original preservada: `createdById` intacto, quem editou em
+      `updatedById`.
+- [x] Excluir abre **confirmação obrigatória** com tipo, data e trecho do
+      registro. O clique na lista não exclui nem envia requisição.
+- [x] Exclusão atinge só o registro do `id`; contagens, filtros e estado vazio
+      seguem derivados.
+
+> ⚠️ **Mudança de produto, decidida pelo Cauan em 2026-09-22.** Este item dizia
+> "não implemente exclusão de feedback". Passou a existir exclusão, com
+> confirmação. Motivo e limites: **ADR-024**. Isto NÃO afeta o Membro, que
+> continua sendo arquivado e nunca apagado, nem o histórico de `member_events`.
 
 ---
 

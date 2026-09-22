@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { FeedbackCreateInput, FeedbackType, ID } from '@/data';
+import type { Feedback, FeedbackCreateInput, FeedbackType, FeedbackUpdateInput, ID } from '@/data';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -101,5 +101,49 @@ export function toFeedbackCreateInput(
     // `registeredById` é quem DEU o feedback; `createdById` é quem registrou.
     createdById: context.authorId ?? null,
     updatedById: null,
+  };
+}
+
+/**
+ * O registro gravado, de volta no formato do formulário (FB-005).
+ *
+ * `null` vira `''` porque campo de texto não aceita `null` — e o caminho de
+ * volta (`orNull`) devolve `null` ao salvar. Sem isso, abrir e salvar sem
+ * mexer em nada trocaria "sem contexto adicional" por uma string vazia.
+ */
+export function feedbackFormValuesFrom(feedback: Feedback): FeedbackFormValues {
+  return {
+    memberId: feedback.memberId,
+    type: feedback.type,
+    givenAt: feedback.givenAt,
+    registeredById: feedback.registeredById ?? '',
+    content: feedback.content,
+    notes: feedback.notes ?? '',
+  };
+}
+
+/**
+ * Converte o formulário na CORREÇÃO de um registro que já existe.
+ *
+ * ⚠️ O que este objeto NÃO tem é tão importante quanto o que ele tem:
+ *
+ * • `memberId` — editar corrige o texto de um registro, não o transfere de
+ *   pessoa. O membro fica travado na tela, e não viaja daqui.
+ * • `createdById` — quem registrou o feedback continua sendo quem registrou.
+ *   Quem editou entra em `updatedById`, ao lado, e os dois ficam visíveis.
+ * • `gestaoId` — o carimbo é do dia do registro. Corrigir uma vírgula em 2027
+ *   não move para 2027 um feedback dado em 2026.
+ */
+export function toFeedbackUpdateInput(
+  values: FeedbackFormValues,
+  context: { editorId?: ID | null },
+): FeedbackUpdateInput {
+  return {
+    type: values.type,
+    content: values.content.trim(),
+    givenAt: values.givenAt,
+    registeredById: orNull(values.registeredById),
+    notes: orNull(values.notes),
+    updatedById: context.editorId ?? null,
   };
 }

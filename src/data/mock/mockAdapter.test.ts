@@ -112,6 +112,84 @@ describe('members', () => {
   });
 });
 
+describe('feedbacks de acompanhamento', () => {
+  it('editar corrige o registro sem criar um segundo', async () => {
+    const antes = await mockAdapter.feedbacks.listAll();
+    const alvo = antes[0];
+
+    const corrigido = await mockAdapter.feedbacks.update(alvo.id, {
+      content: 'Texto corrigido depois da conversa.',
+      updatedById: 'mbr-002',
+    });
+
+    const depois = await mockAdapter.feedbacks.listAll();
+    expect(depois.length).toBe(antes.length);
+    expect(corrigido.id).toBe(alvo.id);
+    expect(corrigido.content).toBe('Texto corrigido depois da conversa.');
+    // Rastreabilidade: quem editou fica ao lado de quem registrou, não no lugar.
+    expect(corrigido.updatedById).toBe('mbr-002');
+    expect(corrigido.registeredById).toBe(alvo.registeredById);
+    expect(corrigido.createdById).toBe(alvo.createdById);
+    expect(corrigido.createdAt).toBe(alvo.createdAt);
+
+    // E a correção sobrevive a recarregar a página: o mock grava no
+    // localStorage a cada escrita, como o Postgres grava no disco.
+    expect(localStorage.getItem('citi-pessoas:mock-db:v1')).toContain(
+      'Texto corrigido depois da conversa.',
+    );
+  });
+
+  it('excluir apaga SÓ o registro pedido', async () => {
+    const antes = await mockAdapter.feedbacks.listAll();
+    const alvo = antes.find((f) => f.memberId === 'mbr-006')!;
+    const irmaos = antes.filter((f) => f.memberId === 'mbr-006' && f.id !== alvo.id);
+
+    await mockAdapter.feedbacks.remove(alvo.id);
+
+    const depois = await mockAdapter.feedbacks.listAll();
+    expect(depois.length).toBe(antes.length - 1);
+    expect(await mockAdapter.feedbacks.getById(alvo.id)).toBeNull();
+    // Os outros registros da MESMA pessoa continuam inteiros.
+    const restantes = await mockAdapter.feedbacks.listByMember('mbr-006');
+    expect(restantes.map((f) => f.id).sort()).toEqual(irmaos.map((f) => f.id).sort());
+
+    // A exclusão também é gravada: recarregar não traz o registro de volta.
+    expect(localStorage.getItem('citi-pessoas:mock-db:v1')).not.toContain(alvo.content);
+  });
+
+  it('excluir leva junto o eco na atividade recente do membro', async () => {
+    const criado = await mockAdapter.feedbacks.create({
+      memberId: 'mbr-003',
+      type: 'informal',
+      content: 'Registro que será desfeito.',
+      givenAt: '2026-06-01',
+      registeredById: 'mbr-001',
+      notes: null,
+      gestaoId: null,
+      createdById: 'mbr-001',
+      updatedById: null,
+    });
+
+    const comEvento = await mockAdapter.members.listEvents('mbr-003');
+    expect(comEvento.some((e) => e.sourceId === criado.id)).toBe(true);
+
+    await mockAdapter.feedbacks.remove(criado.id);
+
+    // A Timeline não pode anunciar um registro que ninguém mais consegue abrir.
+    const semEvento = await mockAdapter.members.listEvents('mbr-003');
+    expect(semEvento.some((e) => e.sourceId === criado.id)).toBe(false);
+    // E o histórico de verdade do membro continua lá.
+    expect(semEvento.length).toBeGreaterThan(0);
+  });
+
+  it('excluir duas vezes recusa a segunda em vez de fingir que apagou', async () => {
+    const alvo = (await mockAdapter.feedbacks.listAll())[0];
+    await mockAdapter.feedbacks.remove(alvo.id);
+
+    await expect(mockAdapter.feedbacks.remove(alvo.id)).rejects.toThrow(/não encontrado/i);
+  });
+});
+
 describe('feedback anônimo', () => {
   it('não guarda nenhum dado de quem enviou', async () => {
     // Migration 0033 removeu `submit()`: a única porta de escrita agora é a

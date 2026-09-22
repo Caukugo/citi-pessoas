@@ -85,6 +85,11 @@ Duas saídas, e a segunda é a melhor:
 2. **Um trigger `after insert on feedbacks`** que escreve em `member_events`.
    Fica atômico e não depende de nenhum cliente lembrar de fazer.
 
+⚠️ **Se escolher o trigger, ele precisa de um par `after delete`.** Excluir um
+feedback passou a existir (ADR-024). O modo mock já remove o eco junto; sem o
+`after delete`, o modo real passaria a mostrar na Timeline registros que ninguém
+consegue abrir.
+
 O mesmo vale para X1, que tem o mesmo padrão.
 
 ### 3.3. RLS das colunas novas
@@ -109,7 +114,8 @@ só assinatura.
 | `listByMember(memberId)` | Idem, filtrado. `given_at` decrescente. |
 | `getById(id)` | `null` quando não existe — **não** lançar erro. |
 | `create(input)` | Devolve o registro criado, com `id`, `createdAt`, `updatedAt`. Dispara o evento de timeline (§3.2). |
-| `update(id, input)` | Corrige o registro; **nunca** apaga nem substitui outro. |
+| `update(id, input)` | Corrige o registro; **nunca** apaga nem substitui outro. Preserva `created_by_id`, `created_at` e `gestao_id` — quem edita chega só com `updated_by_id`. |
+| `remove(id)` | Apaga a linha de `id`, e só ela. DELETE de verdade (ver ADR-024). A policy `for all using (is_gg())` da `0001` já cobre — **não precisa de migration**. ⚠️ Com RLS, quem não é GG recebe **sucesso com zero linhas**, não erro: o adapter usa `.select()` no DELETE e trata zero linhas como recusa. |
 
 Regras que o backend não pode quebrar:
 

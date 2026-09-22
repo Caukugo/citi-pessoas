@@ -1211,22 +1211,25 @@
     {
       "id": "FB-005",
       "epic": "EPIC-4",
-      "title": "Edição quando apropriado",
-      "description": "Corrigir um feedback registrado.",
+      "title": "Edição e exclusão de um registro",
+      "description": "Corrigir um feedback registrado e, quando for o caso, excluí-lo com confirmação.",
       "owner": "Clara",
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Baixa",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [
         "FB-004"
       ],
       "branch": "feat/feedback-edit",
       "acceptanceCriteria": [
         "Salva com useUpdateFeedback()",
-        "Editar corrige o registro e não apaga histórico"
+        "Editar corrige o registro, não cria cópia e não apaga histórico",
+        "Autoria original preservada: createdById intacto, quem editou em updatedById",
+        "Excluir abre confirmação obrigatória com tipo, data e trecho; o clique na lista não exclui",
+        "Exclusão atinge só o registro do id; contagens, filtros e estado vazio seguem derivados"
       ],
-      "aiInstructions": "Não implemente exclusão de feedback. O histórico é preservado.",
+      "aiInstructions": "MUDANÇA DE PRODUTO (2026-09-22, Cauan): passou a existir exclusão de feedback, com confirmação obrigatória em diálogo. Ver ADR-024. Isto vale SÓ para feedback de acompanhamento: Membro continua arquivado e nunca apagado, e member_events não é reescrito. Nunca exclua sem passar pelo diálogo, e nunca use window.confirm.",
       "labels": [
         "area: feedback",
         "difficulty: assisted",

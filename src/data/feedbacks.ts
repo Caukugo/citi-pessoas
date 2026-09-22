@@ -40,6 +40,11 @@ export function updateFeedback(id: ID, input: FeedbackUpdateInput): Promise<Feed
   return db.feedbacks.update(id, input);
 }
 
+/** Apaga UM registro. A confirmação é da tela; a autorização é do banco. */
+export function deleteFeedback(id: ID): Promise<void> {
+  return db.feedbacks.remove(id);
+}
+
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useFeedbacksByMember(memberId: ID | undefined) {
@@ -90,6 +95,28 @@ export function useUpdateFeedback() {
         queryKey: queryKeys.feedbacks.byMember(feedback.memberId),
       });
       queryClient.invalidateQueries({ queryKey: queryKeys.feedbacks.detail(feedback.id) });
+    },
+  });
+}
+
+/**
+ * Exclui um feedback.
+ *
+ * `memberId` vem junto porque, depois do DELETE, não existe mais linha de onde
+ * tirá-lo — e sem ele o histórico do Perfil continuaria mostrando o registro
+ * apagado até alguém recarregar a página. Os mesmos caches do registro:
+ * quadro consolidado, histórico da pessoa, o detalhe e a atividade recente,
+ * que no modo mock ganha um evento quando o feedback é criado.
+ */
+export function useDeleteFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id }: { id: ID; memberId: ID }) => deleteFeedback(id),
+    onSuccess: (_result, { id, memberId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedbacks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.feedbacks.byMember(memberId) });
+      queryClient.removeQueries({ queryKey: queryKeys.feedbacks.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.events(memberId) });
     },
   });
 }
