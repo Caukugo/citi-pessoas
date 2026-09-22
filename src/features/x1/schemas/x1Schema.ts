@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CITI_VALUES, type ID, type X1CreateInput, type X1ValueRating } from '@/data';
+import type { CitiValueSetting, ID, X1CreateInput, X1ValueRating } from '@/data';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -52,7 +52,12 @@ export const x1FormSchema = z
     topics: z.array(lineSchema),
     followUps: z.array(lineSchema),
 
-    /** `{ [valor do CITi]: '1'..'4' | '' }`. Vazio = não avaliado nesta conversa. */
+    /**
+     * `{ [id do valor do CITi]: '1'..'4' | '' }`. Vazio = não avaliado.
+     *
+     * Chaveado pelo ID, nunca pelo rótulo: a lista é editável (ADM-004) e o
+     * rótulo é só o que se mostra, não a identidade do valor.
+     */
     citiValues: z.record(z.string()),
 
     comments: z.string().trim(),
@@ -103,7 +108,10 @@ export const x1FormSchema = z
 
 export type X1FormValues = z.infer<typeof x1FormSchema>;
 
-export function emptyX1Form(defaultConductedById?: ID | null): X1FormValues {
+export function emptyX1Form(
+  defaultConductedById?: ID | null,
+  activeValues: CitiValueSetting[] = [],
+): X1FormValues {
   return {
     occurredAt: new Date().toISOString().slice(0, 10),
     conductedById: defaultConductedById ?? '',
@@ -114,7 +122,7 @@ export function emptyX1Form(defaultConductedById?: ID | null): X1FormValues {
     desiredSkills: [],
     topics: [{ text: '' }],
     followUps: [{ text: '' }],
-    citiValues: Object.fromEntries(CITI_VALUES.map((value) => [value, ''])),
+    citiValues: Object.fromEntries(activeValues.map((value) => [value.id, ''])),
     comments: '',
   };
 }
@@ -134,13 +142,23 @@ function orNull(value: string): string | null {
  * Valor não avaliado NÃO vira zero nem "neutro": ele simplesmente não entra no
  * registro. "Não conversamos sobre isso" e "conversamos e está fraco" são
  * coisas diferentes, e transformar uma na outra seria inventar percepção.
+ *
+ * ⚠️ O RÓTULO É CONGELADO AQUI, junto com o id. O registro guarda o nome que o
+ * valor tinha no dia da conversa — é isso que faz aposentar um valor mais
+ * tarde não reescrever este X1. Ver ADR-023.
  */
-export function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
-  return CITI_VALUES.filter((value) => raw[value]).map((value) => ({
-    value,
-    rating: Number(raw[value]),
-    note: null,
-  }));
+export function toCitiValues(
+  raw: Record<string, string>,
+  activeValues: CitiValueSetting[],
+): X1ValueRating[] {
+  return activeValues
+    .filter((value) => raw[value.id])
+    .map((value) => ({
+      valueId: value.id,
+      value: value.label,
+      rating: Number(raw[value.id]),
+      note: null,
+    }));
 }
 
 /**
@@ -152,7 +170,13 @@ export function toCitiValues(raw: Record<string, string>): X1ValueRating[] {
  */
 export function toX1CreateInput(
   values: X1FormValues,
-  context: { memberId: ID; gestaoId?: ID | null; authorId?: ID | null },
+  context: {
+    memberId: ID;
+    gestaoId?: ID | null;
+    authorId?: ID | null;
+    /** Os valores em circulação — `activeCitiValues(settings)`. */
+    citiValues: CitiValueSetting[];
+  },
 ): X1CreateInput {
   const followUps = usedLines(values.followUps);
 
@@ -174,7 +198,7 @@ export function toX1CreateInput(
     softSkills: values.softSkills,
     desiredSkills: values.desiredSkills,
 
-    citiValues: toCitiValues(values.citiValues),
+    citiValues: toCitiValues(values.citiValues, context.citiValues),
     comments: orNull(values.comments),
 
     // Carimbo de gestão: uma regra de hoje não pode reinterpretar o passado.

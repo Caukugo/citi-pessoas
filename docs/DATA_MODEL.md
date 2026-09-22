@@ -251,14 +251,37 @@ O documento de contexto define o que um X1 registra. Todos existem no modelo:
 classificação de engajamento dela na Fase 1 — engScore é Fase 2 e configurável
 por gestão.
 
-Os quatro valores estão em `CITI_VALUES`: *Eu sou o CITi · Obcecados por
-aprender · Obcecados por vencer · Obcecados por entregar*.
+### Os valores do CITi são editáveis (ADM-004)
+
+A lista viva é `settings.citiValues` — `[{ id, label, retiredAt }]` — e a
+Administração acrescenta e aposenta itens nela (renomear não existe). `CITI_VALUES` continua no código, mas só como **semente**
+de 2026 (migration 0038 e fixtures): ler dela em tempo de execução mostra a
+lista errada. Use `activeCitiValues(settings)`.
+
+⚠️ **A avaliação gravada num X1 é um SNAPSHOT, não uma referência.**
+
+```ts
+citiValues: [{ valueId: 'ae3a…', value: 'Eu sou o CITi', rating: 4, note: null }]
+```
+
+`value` guarda o rótulo **do dia da conversa**. É isso que faz aposentar um
+valor não reescrever nenhum X1 antigo. `valueId` viaja ao lado só para ligar o
+registro ao valor atual quando ele ainda existe — é opcional, porque registro
+anterior à ADM-004 pode não ter.
+
+Um valor nunca é removido da lista: ele é **aposentado** (`retiredAt`), some do
+formulário de X1 novo e continua legível no histórico. Ver ADR-023.
 
 ### Periodicidade
 
-- Padrão: `settings.defaultX1PeriodicityDays` (o CITi usa **30**).
+- Padrão: `settings.defaultX1PeriodicityDays` (o CITi usa **30**), editável na
+  Administração (ADM-001).
 - Exceção por membro: `settings.x1PeriodicityByMember[memberId]`.
 - Use `x1PeriodicityFor(memberId, settings)` — ele já resolve a precedência.
+
+⚠️ Mudar o padrão vale **na hora e para o passado também**: a situação de X1 é
+derivada, então ela é sempre "segundo a regra de hoje". Nenhum X1 gravado muda.
+É o outro lado da ADR-023 — regra viva aqui, snapshot nos valores.
 
 ---
 

@@ -1175,6 +1175,78 @@ Documento de identidade defasado é pior que ausente: ele é lido como requisito
 
 ---
 
+## ADR-023 — Configuração que muda o futuro: regra viva para a periodicidade, snapshot para os valores
+
+- **Data:** 2026-09-22
+- **Status:** Aceita
+
+**Contexto.** A Administração passou a editar duas coisas que estavam presas no
+código: a periodicidade padrão de X1 (ADM-001) e a lista de valores do CITi
+(ADM-004). As duas são "regra configurável", e o `PROJECT_CONTEXT.md` §11 é
+taxativo sobre isso:
+
+> Uma regra configurável não deve apagar a interpretação do passado. Se uma
+> gestão alterar pesos ou critérios, resultados históricos devem continuar
+> associados à configuração usada quando foram calculados.
+
+O problema é que aplicar a mesma receita às duas daria errado. Elas não são a
+mesma coisa: uma descreve **um estado de agora**, a outra descreve **o que
+alguém observou num dia específico**.
+
+**Decisão.** Tratamentos diferentes, pelo mesmo princípio.
+
+- **Periodicidade é REGRA VIVA.** `getMemberX1Status()` sempre lê o valor
+  corrente. Mudar de 30 para 45 dias muda, na hora, quem aparece como atrasado
+  — inclusive relendo conversas antigas. Nada é versionado e nada é carimbado.
+- **Valor do CITi é SNAPSHOT.** Cada X1 grava o **rótulo do dia da conversa**
+  (`X1ValueRating.value`), com o `valueId` ao lado. Aposentar um valor não toca
+  em registro nenhum. Remover de vez não existe: aposenta-se. Renomear também
+  não existe — o nome de um valor é decisão de cultura, não ajuste de tela.
+
+**Por que isso não viola §11.** Porque "atrasado" não é um resultado histórico
+— é um estado derivado, que o `ARCHITECTURE.md` §4.1 proíbe explicitamente de
+ser gravado. Dizer "esta pessoa está atrasada" é uma afirmação sobre hoje, com a
+regra de hoje; ninguém vai a um X1 de março para descobrir se, naquele dia, a
+pessoa estava atrasada segundo a regra de março. Já a avaliação de um valor **é**
+um resultado histórico: alguém escreveu "Ousadia apareceu pouco nesta conversa",
+e isso continua verdadeiro mesmo depois de Ousadia deixar de ser valor do CITi.
+
+**Alternativas consideradas.**
+
+- **Versionar a configuração por gestão** (tabela de configurações com
+  `gestao_id` e vigência). Rejeitado: resolveria a periodicidade com um custo
+  alto — toda leitura de status passaria a precisar saber "qual gestão estava
+  valendo naquela data" — e não resolveria nada dos valores, que o snapshot já
+  resolve melhor. Seria também o começo do módulo de gestões, que o ADR-012
+  adiou de propósito.
+- **Congelar a periodicidade junto com cada X1.** Rejeitado: criaria campo
+  derivado gravado, exatamente o que o §4.1 proíbe, e faria duas telas
+  discordarem sobre quem está atrasado.
+- **Tabela `citi_values` própria, com FK a partir do X1.** Rejeitado para a
+  Fase 1: são meia dúzia de itens editados algumas vezes por gestão, e a FK
+  ainda obrigaria a manter a linha do valor extinto viva para sempre — que é o
+  que o snapshot já faz, sem repositório, RLS e mapper novos.
+- **Apagar valor de verdade.** Rejeitado: deixaria X1 antigos apontando para um
+  id inexistente. É reinterpretar o passado, literalmente.
+
+**Consequências.**
+
+- ✅ Mudar a periodicidade é reversível e óbvio: voltar para 30 devolve todo
+  mundo ao estado anterior, porque nada foi gravado.
+- ✅ Um X1 de 2026 continua legível em 2029, com os nomes que os valores tinham
+  em 2026, mesmo que a lista inteira tenha sido trocada.
+- ✅ Não precisou de tabela nova: `settings.citi_values` é uma coluna `jsonb` na
+  linha única que já existia, com as policies que já existiam.
+- ⚠️ `toCitiValues()` só grava valores que estão na lista passada. Uma chave de
+  valor fora de circulação é descartada na gravação — de propósito, mas é
+  preciso lembrar disso ao construir uma tela de EDIÇÃO de X1 antigo (X1-005):
+  ela precisa passar a lista incluindo os aposentados daquele registro.
+- ⚠️ `x1PeriodicityByMember` e `citiValues` são jsonb lidos e reescritos pelo
+  cliente. Duas pessoas editando ao mesmo tempo: a última ganha. Aceitável para
+  configuração editada por uma pessoa por vez; não replique o padrão em dado
+  operacional.
+
+---
 
 ---
 

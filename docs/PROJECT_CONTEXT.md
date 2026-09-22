@@ -264,11 +264,18 @@ Informação passa a compor o contexto apropriado
 Existe para impedir que a plataforma fique presa às regras de uma única gestão.
 Qualquer pessoa de GG autenticada pode usá-la.
 
-**Na Fase 1 apenas:** periodicidade padrão de X1 e exceção por membro.
+**Na Fase 1:** periodicidade padrão de X1, exceção por membro e os valores do
+CITi.
 
-Configurações previstas para fases seguintes: subáreas, cargos, valores do CITi,
-componentes e pesos do engScore, faixas de classificação, notificações, períodos
-de gestão, periodicidade e perguntas de PCCO, parâmetros de alertas e período de
+> Os valores entraram na Fase 1 depois (ADM-004), e não na fase seguinte como
+> este documento previa: a lista precisava ser editável antes da primeira
+> passagem de gestão, senão 2027 herdaria os valores de 2026 sem ter como mexer.
+> Acrescentar ou aposentar um valor não reescreve X1 antigos — cada registro
+> guarda o rótulo do dia da conversa. Ver ADR-023.
+
+Configurações previstas para fases seguintes: subáreas, cargos, componentes e
+pesos do engScore, faixas de classificação, notificações, períodos de gestão,
+periodicidade e perguntas de PCCO, parâmetros de alertas e período de
 retenção.
 
 Nenhuma configuração deve ser apenas decorativa.

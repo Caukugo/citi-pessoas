@@ -1018,6 +1018,9 @@ export const supabaseAdapter: DataAdapter = {
       if (input.x1PeriodicityByMember !== undefined) {
         row.x1_periodicity_by_member = input.x1PeriodicityByMember;
       }
+      if (input.citiValues !== undefined) {
+        row.citi_values = input.citiValues;
+      }
       if (input.currentGestaoId !== undefined) {
         row.current_gestao_id = input.currentGestaoId;
       }

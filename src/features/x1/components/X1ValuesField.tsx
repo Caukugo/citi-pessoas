@@ -1,8 +1,8 @@
-import { CITI_VALUES } from '@/data';
+import type { CitiValueSetting } from '@/data';
 import { cn } from '@/lib/cn';
 
 /**
- * Avaliação dos quatro valores do CITi dentro de um X1.
+ * Avaliação dos valores do CITi dentro de um X1.
  *
  * ⚠️ ESTA É A PARTE MAIS FÁCIL DE ERRAR DA FEATURE.
  *
@@ -15,6 +15,10 @@ import { cn } from '@/lib/cn';
  * estado inicial e continua sendo uma resposta válida. Um valor sem marcação
  * não vira zero — simplesmente não entrou na conversa, e inventar um número ali
  * seria inventar percepção que ninguém teve.
+ *
+ * A lista vem por prop, de `activeCitiValues(settings)` (ADM-004): quantos e
+ * quais valores existem é decisão da gestão corrente, não do código. O estado
+ * é chaveado pelo ID do valor, nunca pelo rótulo.
  */
 
 const LEVELS = [
@@ -27,14 +31,16 @@ const LEVELS = [
 export function X1ValuesField({
   value,
   onChange,
+  citiValues,
 }: {
   value: Record<string, string>;
   onChange: (next: Record<string, string>) => void;
+  citiValues: CitiValueSetting[];
 }) {
-  const set = (citiValue: string, level: string) => {
+  const set = (valueId: string, level: string) => {
     // Clicar de novo no mesmo nível desmarca: dá para voltar a "não avaliado"
     // sem ter que recarregar o formulário.
-    onChange({ ...value, [citiValue]: value[citiValue] === level ? '' : level });
+    onChange({ ...value, [valueId]: value[valueId] === level ? '' : level });
   };
 
   return (
@@ -45,19 +51,19 @@ export function X1ValuesField({
       </p>
 
       <ul className="flex flex-col gap-2">
-        {CITI_VALUES.map((citiValue) => {
-          const selected = value[citiValue] ?? '';
+        {citiValues.map(({ id, label }) => {
+          const selected = value[id] ?? '';
 
           return (
             <li
-              key={citiValue}
+              key={id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border bg-foreground/[0.02] px-3 py-2.5"
             >
-              <span className="text-sm font-semibold text-foreground-secondary">{citiValue}</span>
+              <span className="text-sm font-semibold text-foreground-secondary">{label}</span>
 
               <div
                 role="radiogroup"
-                aria-label={`${citiValue}: o quanto apareceu na conversa`}
+                aria-label={`${label}: o quanto apareceu na conversa`}
                 className="flex items-center gap-1"
               >
                 {LEVELS.map((level) => {
@@ -68,8 +74,8 @@ export function X1ValuesField({
                       type="button"
                       role="radio"
                       aria-checked={active}
-                      aria-label={`${citiValue}: ${level.label}`}
-                      onClick={() => set(citiValue, level.value)}
+                      aria-label={`${label}: ${level.label}`}
+                      onClick={() => set(id, level.value)}
                       className={cn(
                         'h-8 w-8 rounded-control border text-xs font-semibold transition-colors',
                         active
@@ -84,7 +90,7 @@ export function X1ValuesField({
 
                 <button
                   type="button"
-                  onClick={() => set(citiValue, selected)}
+                  onClick={() => set(id, selected)}
                   disabled={selected === ''}
                   className="ml-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-0"
                 >

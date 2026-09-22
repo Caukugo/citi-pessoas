@@ -6,8 +6,10 @@ import { ptBR } from 'date-fns/locale';
 import { ClipboardCheck, Lock } from 'lucide-react';
 import { Avatar, Badge, Button, Drawer, useToast } from '@/components/ui';
 import {
+  activeCitiValues,
   messageFor,
   useRecordX1Appointment,
+  useSettings,
   type Member,
   type X1Appointment,
 } from '@/data';
@@ -55,12 +57,16 @@ export function RecordConversationDrawer({
   onRecorded?: () => void;
 }) {
   const { showToast } = useToast();
+  const { data: settings } = useSettings();
   const recordAppointment = useRecordX1Appointment();
+
+  // Lista viva dos valores do CITi (ADM-004), não a constante do código.
+  const citiValues = settings ? activeCitiValues(settings) : [];
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<X1FormValues>({
     resolver: zodResolver(x1FormSchema),
-    defaultValues: emptyX1Form(),
+    defaultValues: emptyX1Form(undefined, citiValues),
   });
 
   useEffect(() => {
@@ -73,11 +79,13 @@ export function RecordConversationDrawer({
       (appointment.startsAt ? format(new Date(appointment.startsAt), 'yyyy-MM-dd') : undefined);
 
     form.reset({
-      ...emptyX1Form(appointment.conductedById ?? undefined),
+      ...emptyX1Form(appointment.conductedById ?? undefined, citiValues),
       ...(dia ? { occurredAt: dia } : {}),
     });
     setSubmitError(null);
-  }, [open, appointment, form]);
+    // `citiValues` deriva de `settings`; reagir a ele reconstrói o formulário
+    // se a configuração chegar depois da gaveta abrir.
+  }, [open, appointment, form, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!appointment) return null;
 
@@ -109,7 +117,7 @@ export function RecordConversationDrawer({
           hardSkills: values.hardSkills,
           softSkills: values.softSkills,
           desiredSkills: values.desiredSkills,
-          citiValues: toCitiValues(values.citiValues),
+          citiValues: toCitiValues(values.citiValues, citiValues),
           comments: values.comments.trim() || null,
         },
       });
@@ -180,7 +188,7 @@ export function RecordConversationDrawer({
 
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
         {/* O formulário REAL de X1, inteiro. */}
-        <X1Form form={form} conductors={conductors} />
+        <X1Form form={form} conductors={conductors} citiValues={citiValues} />
 
         <p className="mt-5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Lock size={12} aria-hidden />

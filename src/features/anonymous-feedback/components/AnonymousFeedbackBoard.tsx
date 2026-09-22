@@ -21,9 +21,9 @@ import { ModerationDrawer } from './ModerationDrawer';
  * Consequência boa: o quadro funciona igual com teclado e leitor de tela, sem
  * nenhuma acessibilidade paralela para arrastar.
  *
- * Este componente é usado em dois lugares — na aba "Feedback Anônimo" de
- * /feedbacks e na página /moderacao. É o mesmo quadro lendo a mesma fonte, não
- * duas implementações.
+ * Este componente é usado em dois lugares — na aba "Ouvidoria" de /feedbacks
+ * (a entrada pela navegação) e na página /moderacao, que sobrevive como link
+ * direto. É o mesmo quadro lendo a mesma fonte, não duas implementações.
  */
 export function AnonymousFeedbackBoard() {
   const { filters, setFilter, clear } = useModerationFilters();

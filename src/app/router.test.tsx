@@ -65,7 +65,10 @@ describe('app shell', () => {
       // A navegação de todas as features da Fase 1 já está registrada.
       expect(screen.getByRole('link', { name: /^X1$/ })).toBeVisible();
       expect(screen.getByRole('link', { name: /feedbacks/i })).toBeVisible();
-      expect(screen.getByRole('link', { name: /moderação/i })).toBeVisible();
+
+      // A moderação NÃO tem item próprio: entra por Feedbacks → Ouvidoria, que
+      // mostra o mesmo quadro. A rota /moderacao continua viva como link direto.
+      expect(screen.queryByRole('link', { name: /moderação/i })).toBeNull();
     },
     // `asyncUtilTimeout` (src/test/setup.ts) foi elevado para 5000ms por causa
     // da latência simulada do adapter mock sob máquina ocupada — mas o timeout

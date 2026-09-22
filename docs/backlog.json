@@ -1,7 +1,7 @@
 {
   "project": "CITi Pessoas",
   "phase": "Fase 1 — Fundação da Jornada Individual",
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-22",
   "note": "Fonte legível por humanos: docs/BACKLOG.md. Mantenha os dois em sincronia.",
   "legend": {
     "status": [
@@ -958,7 +958,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "assistida",
       "priority": "Média",
-      "status": "In Progress",
+      "status": "Done",
       "dependencies": [
         "ADM-001"
       ],
@@ -973,7 +973,7 @@
         "difficulty: assisted",
         "priority: normal"
       ],
-      "note": "Periodicidade já é respeitada e exibida no Perfil; falta a tela de Administração (ADM-001)."
+      "note": "Periodicidade respeitada por x1PeriodicityFor(), exibida no resumo do Perfil e editável na Administração desde ADM-001."
     },
     {
       "id": "X1-008",
@@ -1423,15 +1423,15 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Alta",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/admin-x1-periodicity",
       "acceptanceCriteria": [
         "Campo numérico em dias, lendo de useSettings()",
         "Salva com useUpdateSettings() e confirma o sucesso",
-        "Não aceita zero nem número negativo"
+        "Não aceita zero nem número negativo (faixa 7–365, a mesma da exceção por membro)"
       ],
-      "aiInstructions": "Desbloqueia X1-007. O padrão do CITi é 30 dias.",
+      "aiInstructions": "Feita. O padrão do CITi é 30 dias. Mudar o padrão NÃO mexe em quem tem exceção: x1PeriodicityFor() resolve 'exceção ?? padrão'. A situação de X1 é derivada e sempre usa a regra de hoje — isso é proposital, ver ADR-023.",
       "labels": [
         "area: admin",
         "difficulty: guided",
@@ -1461,7 +1461,8 @@
         "area: admin",
         "difficulty: assisted",
         "priority: normal"
-      ]
+      ],
+      "note": "A exceção só pode ser definida no cadastro do membro (MemberForm); não há como editar nem remover depois. O painel de ADM-001 já mostra quantas pessoas têm exceção."
     },
     {
       "id": "ADM-003",
@@ -1472,7 +1473,7 @@
       "reviewer": "Cauan/Sofia",
       "difficulty": "guiada",
       "priority": "Média",
-      "status": "Ready",
+      "status": "Done",
       "dependencies": [],
       "branch": "feat/admin-structure",
       "acceptanceCriteria": [
@@ -1484,6 +1485,35 @@
         "area: admin",
         "difficulty: guided",
         "priority: normal"
+      ]
+    },
+    {
+      "id": "ADM-004",
+      "epic": "EPIC-6",
+      "title": "Valores do CITi configuráveis",
+      "description": "Acrescentar e aposentar os valores do CITi pela Administração. Eram constante em src/data/types.ts; agora vivem em settings.citi_values (migration 0038).",
+      "owner": "Cauan",
+      "reviewer": "Sofia",
+      "difficulty": "complexa",
+      "priority": "Média",
+      "status": "Done",
+      "dependencies": [
+        "ADM-003"
+      ],
+      "branch": "feat/admin-citi-values",
+      "acceptanceCriteria": [
+        "Acrescentar e aposentar valores pela Administração (renomear não existe: o nome de um valor é decisão de cultura, não ajuste de tela)",
+        "Aposentar não apaga: o valor sai do formulário de X1 novo e continua legível em todo X1 que já o avaliou",
+        "Recusa nome vazio e repetido, inclusive igual ao de um valor aposentado",
+        "Recusa aposentar o último valor em circulação",
+        "O formulário de X1 lê a lista viva (activeCitiValues), chaveado por id e não por rótulo",
+        "Migration com backfill de valueId nos X1 já existentes"
+      ],
+      "aiInstructions": "NUNCA remova um valor da lista — aposente (retiredAt). Cada X1 guarda o RÓTULO do dia da conversa, então aposentar não reescreve o passado. Renomear não faz parte do escopo. Estava previsto como fase posterior no PROJECT_CONTEXT §10; a antecipação está registrada lá e na ADR-023.",
+      "labels": [
+        "area: admin",
+        "difficulty: complex",
+        "priority: medium"
       ]
     },
     {

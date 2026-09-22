@@ -11,15 +11,18 @@ import { AnonymousFeedbackBoard } from '../components/AnonymousFeedbackBoard';
  *    criar nenhum campo desse tipo.
  * 3. A decisão é humana: tomar ciência ou direcionar é ação de uma pessoa.
  *
- * Esta página e a aba "Feedback Anônimo" de /feedbacks mostram o MESMO quadro,
- * pelo mesmo componente. Não é duplicação: a barra lateral leva direto ao
- * trabalho mais repetido do dia, e /feedbacks reúne os dois fluxos para quem
- * chega pela visão geral. As duas leem a mesma fonte e nunca podem divergir.
+ * Esta página e a aba "Ouvidoria" de /feedbacks mostram o MESMO quadro, pelo
+ * mesmo componente, lendo a mesma fonte — nunca podem divergir.
+ *
+ * A entrada pela navegação é /feedbacks → Ouvidoria: justamente por mostrarem a
+ * mesma coisa, a moderação deixou de ter item na barra lateral. Esta rota
+ * continua registrada porque links e favoritos para /moderacao já existem, e
+ * quebrá-los não traria nada.
  */
 export function ModerationPage() {
   return (
     <>
-      {/* /moderacao renderiza o MESMO quadro da aba "Feedback Anônimo". Com a
+      {/* /moderacao renderiza o MESMO quadro da aba "Ouvidoria". Com a
           barra de filtros já na linguagem nova, deixar só o cabeçalho para
           trás faria a tela parecer meio migrada. São as mesmas três linhas de
           Membros e Feedbacks — não é um redesenho desta página. */}
