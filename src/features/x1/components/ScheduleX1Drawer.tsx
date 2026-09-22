@@ -17,6 +17,7 @@ import {
   Textarea,
   useToast,
 } from '@/components/ui';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   X1_APPOINTMENT_DURATIONS,
   messageFor,
@@ -283,11 +284,7 @@ export function ScheduleX1Drawer({
 
             {selectedMember && (
               <div className="glass mt-3 flex items-start gap-3 rounded-control border border-border p-3">
-                <Avatar
-                  name={selectedMember.fullName}
-                  photoUrl={selectedMember.photoUrl}
-                  size="md"
-                />
+                <MemberAvatar member={selectedMember} size="md" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium text-foreground">
                     {selectedMember.fullName}
@@ -563,7 +560,11 @@ function ReviewStep({
       </p>
 
       <div className="glass flex items-center gap-3 rounded-surface border border-border p-4">
-        <Avatar name={member?.fullName ?? '—'} photoUrl={member?.photoUrl} size="lg" />
+        {member ? (
+          <MemberAvatar member={member} size="lg" />
+        ) : (
+          <Avatar name="—" photoUrl={null} size="lg" />
+        )}
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-foreground">
             {member?.fullName}

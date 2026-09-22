@@ -63,6 +63,8 @@ export function ImportPage() {
     <>
       <PageHeader
         eyebrow="Administração"
+        backTo={ROUTES.admin}
+        backLabel="Voltar para Administração"
         title="Importação"
         subtitle="Carga da base CITi Pessoas por planilha, com prévia obrigatória antes de gravar."
         actions={

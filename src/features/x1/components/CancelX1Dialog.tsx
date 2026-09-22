@@ -3,6 +3,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarX2, Info } from 'lucide-react';
 import { Avatar, Button, FormField, Modal, Textarea, useToast } from '@/components/ui';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import { messageFor, useCancelX1Appointment, type Member, type X1Appointment } from '@/data';
 import { hasUndefinedTime } from '../model/appointmentState';
 import { timeInZone } from '../model/timeZone';
@@ -105,7 +106,11 @@ export function CancelX1Dialog({
       }
     >
       <div className="glass flex items-center gap-3 rounded-control border border-border p-3">
-        <Avatar name={member?.fullName ?? '—'} photoUrl={member?.photoUrl} size="md" />
+        {member ? (
+          <MemberAvatar member={member} size="md" />
+        ) : (
+          <Avatar name="—" photoUrl={null} size="md" />
+        )}
         <div className="min-w-0">
           <p className="truncate text-[13px] font-medium text-foreground">
             {member?.fullName}

@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ClipboardCheck, Lock } from 'lucide-react';
 import { Avatar, Badge, Button, Drawer, useToast } from '@/components/ui';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   activeCitiValues,
   messageFor,
@@ -165,7 +166,11 @@ export function RecordConversationDrawer({
       }
     >
       <div className="glass mb-5 flex items-start gap-3 rounded-surface border border-border p-4">
-        <Avatar name={member?.fullName ?? '—'} photoUrl={member?.photoUrl} size="md" />
+        {member ? (
+          <MemberAvatar member={member} size="md" />
+        ) : (
+          <Avatar name="—" photoUrl={null} size="md" />
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold tracking-[0.1em] text-muted-foreground uppercase">
             Agendamento vinculado

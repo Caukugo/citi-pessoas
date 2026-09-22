@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/ui';
 import { EntradaMembrosPanel } from '../components/EntradaMembrosPanel';
+import { ImportacaoManualPanel } from '../components/ImportacaoManualPanel';
 import { AnonymousFeedbackIntakePanel } from '../components/AnonymousFeedbackIntakePanel';
 import { X1PeriodicityPanel } from '../components/X1PeriodicityPanel';
 import { CitiValuesPanel } from '../components/CitiValuesPanel';
@@ -31,6 +32,8 @@ export function AdminPage() {
         <CitiValuesPanel />
 
         <EntradaMembrosPanel />
+
+        <ImportacaoManualPanel />
 
         <AnonymousFeedbackIntakePanel />
       </div>

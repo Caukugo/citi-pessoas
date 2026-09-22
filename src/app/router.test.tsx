@@ -65,10 +65,17 @@ describe('app shell', () => {
       // A navegação de todas as features da Fase 1 já está registrada.
       expect(screen.getByRole('link', { name: /^X1$/ })).toBeVisible();
       expect(screen.getByRole('link', { name: /feedbacks/i })).toBeVisible();
+      expect(screen.getByRole('link', { name: /administração/i })).toBeVisible();
 
       // A moderação NÃO tem item próprio: entra por Feedbacks → Ouvidoria, que
       // mostra o mesmo quadro. A rota /moderacao continua viva como link direto.
       expect(screen.queryByRole('link', { name: /moderação/i })).toBeNull();
+
+      // Importação: contingência dentro de Administração, não item da barra.
+      expect(screen.queryByRole('link', { name: /^Importação$/i })).toBeNull();
+
+      // Design System: catálogo técnico, nunca um link visível para a GG.
+      expect(screen.queryByRole('link', { name: /design system/i })).toBeNull();
     },
     // `asyncUtilTimeout` (src/test/setup.ts) foi elevado para 5000ms por causa
     // da latência simulada do adapter mock sob máquina ocupada — mas o timeout
@@ -99,5 +106,62 @@ describe('app shell', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: /feedback anônimo/i }),
     ).toBeVisible();
+  });
+
+  it('Administração tem um painel de importação manual que abre /importacao', async () => {
+    const user = userEvent.setup();
+    renderAt(ROUTES.login);
+
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
+    await screen.findByRole('heading', { name: 'Membros' });
+
+    await user.click(screen.getByRole('link', { name: /administração/i }));
+    await screen.findByRole('heading', { name: 'Administração' });
+
+    expect(screen.getByText('Importação manual')).toBeVisible();
+    expect(screen.getByText(/alternativa de contingência/i)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: /abrir importação manual/i }));
+
+    // A rota /importacao continua funcionando, autenticada, com a mesma tela.
+    expect(await screen.findByRole('heading', { name: 'Importação' })).toBeVisible();
+    // Eyebrow "Administração" preservado (junto do link de navegação de mesmo nome).
+    expect(screen.getAllByText('Administração').length).toBeGreaterThan(0);
+  });
+
+  it('a rota direta /importacao continua funcionando autenticada', async () => {
+    const user = userEvent.setup();
+    renderAt(ROUTES.login);
+
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
+    await screen.findByRole('heading', { name: 'Membros' });
+
+    render(
+      <MemoryRouter initialEntries={[ROUTES.import]}>
+        <Providers>
+          <AppRouter />
+        </Providers>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Importação' })).toBeVisible();
+  });
+
+  it('⚠️ o Design System não tem link na navegação, mas a rota direta segue acessível em desenvolvimento', async () => {
+    renderAt(ROUTES.designSystem);
+
+    // Sem login, cai no login como qualquer rota protegida.
+    await screen.findByRole('heading', { name: /o mundo começa aqui/i });
+
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/usuário/i), 'gg@citi.org.br{Enter}');
+    await user.type(await screen.findByLabelText(/senha/i), 'citi123{Enter}');
+
+    // Acessando a rota diretamente (comportamento de DEV), a página abre.
+    expect(await screen.findByRole('heading', { level: 1, name: /design system/i })).toBeVisible();
+    // Mas não existe nenhum link para ela em lugar nenhum da interface.
+    expect(screen.queryByRole('link', { name: /design system/i })).toBeNull();
   });
 });

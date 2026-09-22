@@ -1,4 +1,4 @@
-import { ClipboardList, MessageSquare, Settings, Upload, Users, type LucideIcon } from 'lucide-react';
+import { ClipboardList, MessageSquare, Settings, Users, type LucideIcon } from 'lucide-react';
 import { ROUTES } from './routes';
 
 /**
@@ -25,6 +25,5 @@ export const NAV_ITEMS: NavItem[] = [
   { to: ROUTES.members, label: 'Membros', icon: Users, owner: 'Gabi' },
   { to: ROUTES.x1, label: 'X1', icon: ClipboardList, owner: 'Bia' },
   { to: ROUTES.feedbacks, label: 'Feedbacks', icon: MessageSquare, owner: 'Clara' },
-  { to: ROUTES.import, label: 'Importação', icon: Upload, owner: 'Sofia' },
   { to: ROUTES.admin, label: 'Administração', icon: Settings, owner: 'Bia / Cauan' },
 ];
