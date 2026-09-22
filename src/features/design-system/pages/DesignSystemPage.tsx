@@ -374,7 +374,7 @@ function OverlaysSection() {
         onClose={() => setConfirm(false)}
         onConfirm={() => setConfirm(false)}
         title="Desligar membro?"
-        description="O ciclo é interrompido antes do fim previsto. O histórico é preservado — nada é apagado."
+        description="O ciclo é interrompido antes do fim previsto. O histórico é preservado, nada é apagado."
         confirmLabel="Desligar"
         destructive
       />

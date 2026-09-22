@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LEGACY_SUBAREA_NAMES, type LegacySubareaName, type MemberCreateInput } from '@/data';
+import { resolveMemberPosition, type MemberCreateInput, type OrgCatalog } from '@/data';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -12,6 +12,15 @@ import { LEGACY_SUBAREA_NAMES, type LegacySubareaName, type MemberCreateInput } 
  * Por que não deixar o formulário montar o objeto direto: campo vazio de HTML
  * é `''`, e `''` não é a mesma coisa que "não informado". Misturar os dois é
  * como um `semester: 0` aparece no banco sem ninguém perceber.
+ *
+ * ⚠️ LOTAÇÃO E CARGO (MEM-006): `areaId`/`subareaId`/`positionId` substituem o
+ * antigo `role` (texto livre) + `area` (lista fixa `LEGACY_SUBAREA_NAMES`).
+ * `subareaId` guia só a UI em cascata (filtra quais cargos aparecem) — quem
+ * decide o que é GRAVADO é `resolveMemberPosition()`, a mesma regra da
+ * correção de cadastro (PERFIL-006) e da importação (`citi_import_member`,
+ * migration 0014): o CARGO manda. Cargo de área inteira grava `subareaId`
+ * nulo sempre, mesmo que uma subárea tenha sido escolhida antes de trocar de
+ * cargo — nunca o texto "Área inteira" é gravado como se fosse subárea.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -27,34 +36,16 @@ function optionalInteger(min: number, max: number, message: string) {
     }, message);
 }
 
-/**
- * O schema depende de uma pergunta: já existe alguém de Gente e Gestão para
- * escolher?
- *
- * ⚠️ ISTO NÃO É FRESCURA DE VALIDAÇÃO — é um impasse real. "GG responsável" é
- * obrigatório e as opções saem dos membros já cadastrados. Em uma base vazia
- * (Supabase recém-criado, primeira gestão a usar a plataforma) não haveria
- * nenhuma opção, e o primeiro membro simplesmente não poderia ser criado.
- *
- * O modelo já aceita `ggResponsibleId` nulo. Então: obrigatório quando há quem
- * escolher, opcional quando ainda não há ninguém.
- */
-export function makeMemberFormSchema({ requireGgResponsible }: { requireGgResponsible: boolean }) {
-  return baseMemberFormSchema.extend({
-    ggResponsibleId: requireGgResponsible
-      ? z.string().min(1, 'Escolha quem acompanha esta pessoa')
-      : z.string(),
-  });
-}
-
 const baseMemberFormSchema = z.object({
   // Informações básicas
   fullName: z.string().trim().min(3, 'Informe o nome completo'),
-  role: z.string().trim().min(2, 'Informe o cargo'),
-  area: z.enum(LEGACY_SUBAREA_NAMES as [LegacySubareaName, ...LegacySubareaName[]], {
-    errorMap: () => ({ message: 'Escolha a subárea' }),
-  }),
   joinedAt: z.string().min(1, 'Informe a data de entrada'),
+
+  // Lotação e cargo — ver nota no topo do arquivo.
+  areaId: z.string(),
+  /** Vazio é legítimo: cargo de área inteira não mora em subárea nenhuma. */
+  subareaId: z.string(),
+  positionId: z.string(),
 
   // Acompanhamento
   ggResponsibleId: z.string(),
@@ -77,12 +68,75 @@ const baseMemberFormSchema = z.object({
 
 export type MemberFormValues = z.infer<typeof baseMemberFormSchema>;
 
+/**
+ * O schema depende de duas perguntas:
+ *
+ *   1. Já existe alguém de Gente e Gestão para escolher? Base vazia (Supabase
+ *      recém-criado) não teria opção nenhuma, e o primeiro membro simplesmente
+ *      não poderia ser criado. O modelo já aceita `ggResponsibleId` nulo.
+ *
+ *   2. O cargo escolhido é mesmo válido para a área escolhida, com itens
+ *      ATIVOS do catálogo? Isto não dá pra checar com `z.enum`/`.min()`
+ *      isolados — depende de cruzar `positionId` × `areaId` × o catálogo
+ *      carregado, e é exatamente o que `resolveMemberPosition()` faz. Sem o
+ *      catálogo (ainda carregando), a validação de lotação fica pendente: a
+ *      tela desabilita o envio nesse meio-tempo, então nunca se depende só do
+ *      Zod para isso.
+ */
+export function makeMemberFormSchema({
+  requireGgResponsible,
+  catalog,
+}: {
+  requireGgResponsible: boolean;
+  catalog: OrgCatalog | null | undefined;
+}) {
+  return baseMemberFormSchema
+    .extend({
+      ggResponsibleId: requireGgResponsible
+        ? z.string().min(1, 'Escolha quem acompanha esta pessoa')
+        : z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (!values.areaId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['areaId'], message: 'Escolha a área' });
+      }
+      if (!values.positionId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['positionId'],
+          message: 'Escolha o cargo',
+        });
+        return;
+      }
+      if (!values.areaId) return;
+
+      const resolved = resolveMemberPosition(values.positionId, values.areaId, catalog);
+      if (!resolved) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['positionId'],
+          message: 'Este cargo não é válido para a área escolhida.',
+        });
+        return;
+      }
+
+      if (!resolved.isAreaWide && !values.subareaId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['subareaId'],
+          message: 'Escolha a subárea',
+        });
+      }
+    });
+}
+
 /** Estado inicial do formulário. Entrada já vem preenchida com hoje. */
 export function emptyMemberForm(): MemberFormValues {
   return {
     fullName: '',
-    role: '',
-    area: 'Desenvolvimento',
+    areaId: '',
+    subareaId: '',
+    positionId: '',
     joinedAt: new Date().toISOString().slice(0, 10),
     ggResponsibleId: '',
     x1PeriodicityDays: '',
@@ -102,11 +156,24 @@ function orNull(value: string): string | null {
 /**
  * Converte o formulário validado no que a camada de dados espera.
  *
+ * `catalog` resolve a lotação a partir do CARGO (nunca do texto legado) — ver
+ * `resolveMemberPosition()`. Se ele devolver `null` aqui, é porque o schema
+ * deveria ter recusado o envio antes: o formulário nunca chama isto sem o
+ * catálogo carregado e uma combinação válida já confirmada pelo `superRefine`.
+ *
  * O que o sistema preenche sozinho e o formulário não pergunta:
  * `status` nasce sempre `ativo`, e `managerId` fica vazio até a pessoa ser
  * alocada em uma squad — mudança que depois vira evento no histórico.
  */
-export function toMemberCreateInput(values: MemberFormValues): MemberCreateInput {
+export function toMemberCreateInput(
+  values: MemberFormValues,
+  catalog: OrgCatalog | null | undefined,
+): MemberCreateInput {
+  const resolved = resolveMemberPosition(values.positionId, values.areaId, catalog);
+  if (!resolved) {
+    throw new Error('Cargo inválido para a área selecionada.');
+  }
+
   return {
     fullName: values.fullName.trim(),
     email: values.email.trim().toLowerCase(),
@@ -114,8 +181,13 @@ export function toMemberCreateInput(values: MemberFormValues): MemberCreateInput
     phone: orNull(values.phone),
     photoUrl: null,
 
-    role: values.role.trim(),
-    area: values.area,
+    // Texto legado (`role`/`area`) preenchido a partir do catálogo, nunca
+    // digitado à mão — DATA-007 é quem aposenta a coluna, não este item.
+    role: resolved.role,
+    area: resolved.area,
+    areaId: resolved.areaId,
+    subareaId: resolved.subareaId,
+    positionId: resolved.positionId,
     squad: null,
     managerId: null,
     // Vazio vira null, não string vazia: "ainda não tem GG responsável" é uma

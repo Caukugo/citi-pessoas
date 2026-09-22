@@ -1,8 +1,13 @@
-import type { UseFormReturn } from 'react-hook-form';
-import { FormField, FormSection, Input, Select, Textarea } from '@/components/ui';
+import { Controller, type UseFormReturn } from 'react-hook-form';
+import { FormField, FormSection, Input, SearchableSelect, Select, Textarea } from '@/components/ui';
 import type { Member } from '@/data';
 import { FEEDBACK_TYPES, FEEDBACK_TYPE_FULL_LABEL } from '../model/feedbacksOverview';
 import type { FeedbackFormValues } from '../schemas/feedbackSchema';
+
+/** Cargo e área — o mínimo para diferenciar duas pessoas com o mesmo nome. */
+function memberOrgHint(member: Member): string | undefined {
+  return [member.role, member.area].filter(Boolean).join(' · ') || undefined;
+}
 
 /**
  * Campos do registro de feedback.
@@ -26,8 +31,14 @@ export function FeedbackForm({
   /** Quando aberto pelo Perfil, a pessoa já está definida e não muda aqui. */
   lockedMember?: Member;
 }) {
-  const { register, formState } = form;
+  const { register, control, formState } = form;
   const errors = formState.errors;
+
+  const memberOptions = members.map((member) => ({
+    value: member.id,
+    label: member.fullName,
+    description: memberOrgHint(member),
+  }));
 
   return (
     <div className="flex flex-col gap-7">
@@ -52,14 +63,21 @@ export function FeedbackForm({
         ) : (
           <FormField label="Membro" error={errors.memberId?.message} required>
             {(field) => (
-              <Select
-                {...field}
-                {...register('memberId')}
-                placeholder="Escolha o membro"
-                options={members.map((member) => ({
-                  value: member.id,
-                  label: member.fullName,
-                }))}
+              <Controller
+                control={control}
+                name="memberId"
+                render={({ field: memberField }) => (
+                  <SearchableSelect
+                    {...field}
+                    value={memberField.value}
+                    onChange={memberField.onChange}
+                    onBlur={memberField.onBlur}
+                    placeholder="Escolha o membro"
+                    searchPlaceholder="Buscar por nome…"
+                    emptyMessage="Nenhum membro encontrado"
+                    options={memberOptions}
+                  />
+                )}
               />
             )}
           </FormField>

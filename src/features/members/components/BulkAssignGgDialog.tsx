@@ -118,8 +118,8 @@ export function BulkAssignGgDialog({
         {jaAtribuidos.length > 0 && (
           <p role="alert" className="text-sm text-bad">
             {jaAtribuidos.length === 1
-              ? '1 membro selecionado já tem responsável de GG. Remova-o da seleção — esta ação não reatribui, só atribui quem está sem responsável. Para trocar um responsável já definido, use a tela de perfil da pessoa.'
-              : `${jaAtribuidos.length} membros selecionados já têm responsável de GG. Remova-os da seleção — esta ação não reatribui, só atribui quem está sem responsável. Para trocar um responsável já definido, use a tela de perfil de cada pessoa.`}
+              ? '1 membro selecionado já tem responsável de GG. Remova-o da seleção: esta ação não reatribui, só atribui quem está sem responsável. Para trocar um responsável já definido, use a tela de perfil da pessoa.'
+              : `${jaAtribuidos.length} membros selecionados já têm responsável de GG. Remova-os da seleção: esta ação não reatribui, só atribui quem está sem responsável. Para trocar um responsável já definido, use a tela de perfil de cada pessoa.`}
           </p>
         )}
 

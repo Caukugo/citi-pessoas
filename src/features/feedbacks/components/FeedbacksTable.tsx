@@ -10,8 +10,8 @@ import {
 } from '@/data';
 import { cn } from '@/lib/cn';
 import { formatDate, relativeDays } from '@/lib/format';
-import { ROUTES } from '@/app/routes';
 import { memberNameById } from '@/features/members/model/membersList';
+import { memberProfileLinkFrom } from '@/lib/profileNavigation';
 import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   FEEDBACK_TYPES,
@@ -109,10 +109,13 @@ function CountCell({
 export function FeedbacksTable({
   rows,
   directory,
+  returnQuery,
   onOpenHistory,
 }: {
   rows: MemberFeedbackRow[];
   directory: Map<ID, Member>;
+  /** Query atual de Feedbacks (sem `?`) — viaja no link para o Perfil voltar aqui. */
+  returnQuery: string;
   onOpenHistory: (memberId: ID, type: FeedbackType) => void;
 }) {
   const orgLabel = useMemberOrgLabels();
@@ -153,7 +156,7 @@ export function FeedbacksTable({
                   />
                   <div className="min-w-0">
                     <Link
-                      to={ROUTES.memberProfile(member.id)}
+                      to={memberProfileLinkFrom(member.id, 'feedbacks', returnQuery)}
                       className="block truncate text-[13px] font-semibold text-foreground transition-colors hover:text-accent"
                     >
                       {member.fullName}

@@ -98,6 +98,69 @@ export function useMemberOrgLabels(): (member: MemberOrgKeys) => MemberOrgLabels
   return useMemo(() => (member: MemberOrgKeys) => memberOrgLabels(member, data), [data]);
 }
 
+/** O que sobra depois de resolver um cargo do catálogo para gravação. */
+export interface ResolvedMemberPosition {
+  role: string;
+  area: string;
+  areaId: ID;
+  subareaId: ID | null;
+  positionId: ID;
+  isAreaWide: boolean;
+}
+
+/**
+ * Resolve um cargo do catálogo para o que o CADASTRO grava — texto legado
+ * (`role`/`area`, enquanto a coluna não sai — DATA-007) e a lotação
+ * normalizada (`areaId`/`subareaId`/`positionId`).
+ *
+ * MESMA REGRA usada pela correção de cadastro (PERFIL-006) e pela importação
+ * de planilha (`citi_import_member`, migration 0014): quem manda é o CARGO.
+ * Cargo de área inteira (`subareaId` nulo no catálogo) grava `subareaId` nulo
+ * SEMPRE — mesmo que uma subárea tenha sido escolhida antes de trocar para
+ * ele — e a área/texto legado vêm do cargo, nunca de uma subárea que ele não
+ * pertence de verdade.
+ *
+ * `null` quando o cargo não existe, está inativo, não pertence à área
+ * informada, ou (para cargo de subárea) a subárea dele não existe/está
+ * inativa — nunca inventa uma lotação "parecida" com o que foi pedido. Espelha
+ * as mesmas checagens de `citi_import_member` (migration 0014), para o
+ * cadastro manual nunca aceitar uma combinação que a importação recusaria.
+ */
+export function resolveMemberPosition(
+  positionId: string,
+  areaId: string,
+  catalog: OrgCatalog | null | undefined,
+): ResolvedMemberPosition | null {
+  const position = catalog?.positions.find((item) => item.id === positionId) ?? null;
+  if (!position || !position.isActive || position.areaId !== areaId) return null;
+
+  const areaItem = catalog?.areas.find((item) => item.id === position.areaId) ?? null;
+  if (!areaItem || !areaItem.isActive) return null;
+
+  if (!position.subareaId) {
+    return {
+      role: position.name,
+      area: areaItem.name,
+      areaId: areaItem.id,
+      subareaId: null,
+      positionId: position.id,
+      isAreaWide: true,
+    };
+  }
+
+  const subareaItem = catalog?.subareas.find((item) => item.id === position.subareaId) ?? null;
+  if (!subareaItem || !subareaItem.isActive || subareaItem.areaId !== areaItem.id) return null;
+
+  return {
+    role: position.name,
+    area: subareaItem.name,
+    areaId: areaItem.id,
+    subareaId: subareaItem.id,
+    positionId: position.id,
+    isAreaWide: false,
+  };
+}
+
 /**
  * Traduz o slug que veio da URL no id que o filtro usa.
  *

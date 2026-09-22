@@ -1,14 +1,18 @@
 import {
   forwardRef,
+  useEffect,
   useId,
+  useMemo,
+  useRef,
   useState,
+  type FocusEvent,
   type InputHTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { ChevronDown, Loader2, Plus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { normalizeText } from '@/lib/format';
 
@@ -167,6 +171,272 @@ export const Select = forwardRef<
         </option>
       ))}
     </select>
+  );
+});
+
+/** Colapsa espaços internos extras antes de comparar — "Ana   B" ainda acha "Ana B". */
+function normalizeForSearch(value: string): string {
+  return normalizeText(value).replace(/\s+/g, ' ');
+}
+
+export interface SearchableSelectOption {
+  value: string;
+  label: string;
+  /** Contexto para diferenciar rótulos iguais (ex.: cargo, área) — nunca dado privado. */
+  description?: string;
+}
+
+/**
+ * Select com busca — para listas longas em que rolar não é o jeito certo de
+ * achar alguém. Segue o padrão ARIA de combobox com listbox popup: um campo de
+ * texto (`role="combobox"`) controla uma lista (`role="listbox"`) que filtra
+ * conforme digita.
+ *
+ * A filtragem é sempre LOCAL e memoizada sobre `options` — este componente
+ * nunca busca dado sozinho. Quem usa decide o que entra em `options` (ex.:
+ * só membros ativos) e este componente só ajuda a achar dentro disso.
+ *
+ * ⚠️ Abrir o campo LIMPA o texto para uma busca nova (o rótulo já escolhido
+ * volta a aparecer ao fechar sem selecionar outra coisa) — é o mesmo
+ * comportamento de um combobox de sistema operacional, não uma perda de valor:
+ * `value`/`onChange` só mudam quando uma opção é de fato escolhida.
+ */
+export const SearchableSelect = forwardRef<
+  HTMLInputElement,
+  FieldSlot & {
+    id?: string;
+    value: string;
+    onChange: (value: string) => void;
+    onBlur?: () => void;
+    options: SearchableSelectOption[];
+    placeholder?: string;
+    searchPlaceholder?: string;
+    emptyMessage?: string;
+    isLoading?: boolean;
+    loadingMessage?: string;
+    /** Falha ao CARREGAR as opções (não confundir com erro de validação do campo). */
+    errorMessage?: string;
+    disabled?: boolean;
+    className?: string;
+  }
+>(function SearchableSelect(
+  {
+    id,
+    value,
+    onChange,
+    onBlur,
+    options,
+    placeholder = 'Selecione',
+    searchPlaceholder = 'Buscar…',
+    emptyMessage = 'Nenhum resultado encontrado',
+    isLoading = false,
+    loadingMessage = 'Carregando…',
+    errorMessage,
+    disabled,
+    describedBy,
+    invalid,
+    className,
+  },
+  ref,
+) {
+  const generatedId = useId();
+  const baseId = id ?? generatedId;
+  const listboxId = `${baseId}-listbox`;
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const selected = options.find((option) => option.value === value) ?? null;
+
+  const filtered = useMemo(() => {
+    const needle = normalizeForSearch(query);
+    if (!needle) return options;
+    return options.filter((option) => normalizeForSearch(option.label).includes(needle));
+  }, [options, query]);
+
+  // A opção ativa sempre acompanha o que a filtragem atual permite realçar.
+  useEffect(() => {
+    setActiveIndex(filtered.length > 0 ? 0 : -1);
+  }, [filtered]);
+
+  useEffect(() => {
+    // `scrollIntoView` não existe no jsdom (ambiente de teste) — opcional
+    // também na chamada, não só no acesso ao elemento.
+    if (open) optionRefs.current[activeIndex]?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeIndex, open]);
+
+  const openList = () => {
+    if (disabled || isLoading) return;
+    setOpen(true);
+    setQuery('');
+  };
+
+  const closeList = () => {
+    setOpen(false);
+    setQuery('');
+  };
+
+  const selectOption = (option: SearchableSelectOption) => {
+    onChange(option.value);
+    closeList();
+    inputRef.current?.focus();
+  };
+
+  const handleContainerBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!containerRef.current?.contains(event.relatedTarget as Node | null)) {
+      closeList();
+      onBlur?.();
+    }
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!open) return openList();
+      setActiveIndex((i) => (filtered.length === 0 ? -1 : (i + 1) % filtered.length));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!open) return openList();
+      setActiveIndex((i) => (filtered.length === 0 ? -1 : (i - 1 + filtered.length) % filtered.length));
+    } else if (event.key === 'Enter') {
+      if (open && activeIndex >= 0 && filtered[activeIndex]) {
+        event.preventDefault();
+        selectOption(filtered[activeIndex]);
+      }
+    } else if (event.key === 'Escape') {
+      if (open) {
+        event.preventDefault();
+        closeList();
+      }
+    }
+    // Tab: sem tratamento especial — sai do campo normalmente, e o `onBlur`
+    // do contêiner fecha a lista sozinho.
+  };
+
+  const activeOptionId =
+    open && activeIndex >= 0 && filtered[activeIndex] ? `${baseId}-option-${activeIndex}` : undefined;
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn('relative', className)}
+      onBlur={handleContainerBlur}
+    >
+      <div className="relative">
+        <Search
+          size={16}
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          ref={(node) => {
+            inputRef.current = node;
+            if (typeof ref === 'function') ref(node);
+            else if (ref) ref.current = node;
+          }}
+          id={baseId}
+          type="text"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
+          aria-activedescendant={activeOptionId}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          disabled={disabled || isLoading}
+          value={open ? query : (selected?.label ?? '')}
+          placeholder={isLoading ? loadingMessage : open ? searchPlaceholder : placeholder}
+          onFocus={openList}
+          onClick={openList}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            if (!open) setOpen(true);
+          }}
+          onKeyDown={onKeyDown}
+          autoComplete="off"
+          className={cn(CONTROL, 'h-10 pr-16 pl-9', invalid && CONTROL_ERROR)}
+        />
+        <div className="absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center gap-1">
+          {isLoading && (
+            <Loader2 size={14} className="animate-spin text-muted-foreground" aria-hidden />
+          )}
+          {!isLoading && selected && !open && (
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange('');
+                inputRef.current?.focus();
+              }}
+              aria-label="Limpar seleção"
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X size={14} />
+            </button>
+          )}
+          <ChevronDown size={14} aria-hidden className="text-muted-foreground" />
+        </div>
+      </div>
+
+      {open && (
+        <ul
+          id={listboxId}
+          role="listbox"
+          aria-label={placeholder}
+          className={cn(
+            'absolute z-20 mt-1.5 max-h-60 w-full overflow-y-auto rounded-control border border-border',
+            'bg-popover p-1 shadow-lg',
+          )}
+        >
+          {errorMessage ? (
+            <li className="px-3 py-2.5 text-sm text-bad" role="alert">
+              {errorMessage}
+            </li>
+          ) : isLoading ? (
+            <li className="px-3 py-2.5 text-sm text-muted-foreground">{loadingMessage}</li>
+          ) : filtered.length === 0 ? (
+            <li className="px-3 py-2.5 text-sm text-muted-foreground">{emptyMessage}</li>
+          ) : (
+            filtered.map((option, index) => (
+              <li key={option.value} role="presentation">
+                <button
+                  ref={(node) => {
+                    optionRefs.current[index] = node;
+                  }}
+                  id={`${baseId}-option-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={option.value === value}
+                  // Nome acessível explícito: rótulo e descrição são nós irmãos, e o
+                  // nome de um botão concatena os filhos sem espaço entre eles — sem
+                  // isto, o leitor de tela anunciaria "Tarcísio AmorimMembro".
+                  aria-label={option.description ? `${option.label}, ${option.description}` : undefined}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => selectOption(option)}
+                  className={cn(
+                    'flex w-full flex-col items-start gap-0.5 rounded-[10px] px-3 py-2 text-left text-sm',
+                    index === activeIndex ? 'bg-accent/[0.14] text-accent' : 'text-foreground',
+                  )}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {option.description && (
+                    <span className="truncate text-xs text-muted-foreground">
+                      {option.description}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </div>
   );
 });
 

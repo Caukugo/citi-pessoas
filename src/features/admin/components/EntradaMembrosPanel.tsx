@@ -152,14 +152,14 @@ export function EntradaMembrosPanel() {
 
     if (gestaoExistente) {
       if (gestaoExistente.status !== 'planejada') {
-        return `Gestão "${labelDigitado}" está com status ${gestaoExistente.status} — só gestão planejada pode receber campanha.`;
+        return `Gestão "${labelDigitado}" está com status ${gestaoExistente.status}: só gestão planejada pode receber campanha.`;
       }
     } else if (!isWithinHorizon(periodoPrevisto.startDate, hoje)) {
       return `Gestão "${labelDigitado}" está além do horizonte permitido (5 anos). Confira o ano digitado.`;
     }
 
     if (periodoPrevisto.startDate <= hoje) {
-      return `Gestão "${labelDigitado}" já começou — não pode receber uma nova campanha.`;
+      return `Gestão "${labelDigitado}" já começou, e não pode receber uma nova campanha.`;
     }
     if (!entryDate) return 'Informe a data oficial de entrada.';
     if (entryDate < periodoPrevisto.startDate || entryDate > periodoPrevisto.endDate) {
@@ -263,7 +263,7 @@ export function EntradaMembrosPanel() {
   return (
     <Panel
       title="Entrada de membros"
-      subtitle="O formulário do Google é permanente. A cada gestão, abra uma campanha nova aqui — o link não muda."
+      subtitle="O formulário do Google é permanente. A cada gestão, abra uma campanha nova aqui: o link não muda."
     >
       <div className="flex flex-col gap-6">
         {/* ── Status e link permanente ── */}
@@ -347,13 +347,13 @@ export function EntradaMembrosPanel() {
             <div className="flex flex-col gap-3 rounded-md border border-dashed border-border p-3">
               <p className="text-sm text-muted-foreground">
                 Nenhuma campanha ativa agora. Enquanto isso, o formulário recusa criar
-                membro novo — respostas ficam registradas (sem campanha) até uma ser iniciada.
+                membro novo. As respostas ficam registradas (sem campanha) até uma ser iniciada.
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">
-                    Gestão — escolha uma sugerida ou digite uma nova (AAAA.1 ou AAAA.2)
+                    Gestão: escolha uma sugerida ou digite uma nova (AAAA.1 ou AAAA.2)
                   </span>
                   <input
                     list="gestoes-sugeridas-entrada"
@@ -385,7 +385,7 @@ export function EntradaMembrosPanel() {
 
                 <label className="flex flex-col gap-1 sm:col-span-2">
                   <span className="text-xs text-muted-foreground">
-                    Prazo — data e hora limite para respostas ({RECIFE_TZ_LABEL})
+                    Prazo: data e hora limite para respostas ({RECIFE_TZ_LABEL})
                   </span>
                   <input
                     type="datetime-local"
@@ -412,7 +412,7 @@ export function EntradaMembrosPanel() {
 
               {!cfg.enabled && (
                 <p className="text-xs text-muted-foreground">
-                  A integração está desabilitada — habilite-a (ver setup) antes de iniciar uma campanha.
+                  A integração está desabilitada. Habilite-a (ver setup) antes de iniciar uma campanha.
                 </p>
               )}
             </div>
