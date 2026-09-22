@@ -3,7 +3,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ClipboardCheck } from 'lucide-react';
 import { Button, Drawer, useToast } from '@/components/ui';
-import { messageFor, useCreateX1, useCurrentGestao, type ID, type Member } from '@/data';
+import {
+  activeCitiValues,
+  messageFor,
+  useCreateX1,
+  useCurrentGestao,
+  useSettings,
+  type ID,
+  type Member,
+} from '@/data';
 import { useAuth } from '@/features/auth/useAuth';
 import { emptyX1Form, toX1CreateInput, x1FormSchema, type X1FormValues } from '../schemas/x1Schema';
 import { X1Form } from './X1Form';
@@ -39,20 +47,29 @@ export function CreateX1Drawer({
   const { user } = useAuth();
   const { showToast } = useToast();
   const { data: gestao } = useCurrentGestao();
+  const { data: settings } = useSettings();
   const createX1 = useCreateX1();
+
+  // Os valores que a gestão corrente usa hoje (ADM-004). Enquanto a
+  // configuração não chegou, a seção nasce vazia em vez de mostrar a lista
+  // de 2026 congelada no código.
+  const citiValues = settings ? activeCitiValues(settings) : [];
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<X1FormValues>({
     resolver: zodResolver(x1FormSchema),
-    defaultValues: emptyX1Form(user?.memberId),
+    defaultValues: emptyX1Form(user?.memberId, citiValues),
   });
 
   useEffect(() => {
     if (open) {
-      form.reset(emptyX1Form(user?.memberId));
+      form.reset(emptyX1Form(user?.memberId, citiValues));
       setSubmitError(null);
     }
-  }, [open, form, user?.memberId]);
+    // `citiValues` é derivado de `settings` e só muda quando a configuração
+    // muda — reagir a ele mantém o formulário coerente se a lista carregar
+    // depois da gaveta abrir.
+  }, [open, form, user?.memberId, settings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = async (values: X1FormValues) => {
     setSubmitError(null);
@@ -62,6 +79,7 @@ export function CreateX1Drawer({
           memberId,
           gestaoId: gestao?.id ?? null,
           authorId: user?.memberId ?? null,
+          citiValues,
         }),
       );
 
@@ -102,7 +120,7 @@ export function CreateX1Drawer({
       }
     >
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        <X1Form form={form} conductors={conductors} />
+        <X1Form form={form} conductors={conductors} citiValues={citiValues} />
 
         {submitError && (
           <p

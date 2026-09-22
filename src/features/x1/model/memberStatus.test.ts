@@ -36,6 +36,7 @@ const MEMBRO: Member = {
 const SETTINGS: Settings = {
   defaultX1PeriodicityDays: 30,
   x1PeriodicityByMember: {},
+  citiValues: [],
   currentGestaoId: 'gst-000',
   updatedAt: '2026-01-10T12:00:00.000Z',
 };

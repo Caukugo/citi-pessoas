@@ -55,7 +55,7 @@ async function signIn(user: ReturnType<typeof userEvent.setup>, route: string) {
   await screen.findByRole('heading', { level: 1, name: 'Feedbacks' });
 
   if (route === 'anonimo') {
-    await user.click(screen.getByRole('tab', { name: /feedback anônimo/i }));
+    await user.click(screen.getByRole('tab', { name: /ouvidoria/i }));
   }
 }
 
@@ -257,7 +257,7 @@ describe('Feedbacks → Feedback Anônimo', () => {
 
       // ⚠️ A REGRA MAIS IMPORTANTE DOS DOIS FLUXOS: direcionar leva CONTEXTO a
       // uma pessoa. Não vira Informal, Formal nem Carta de Ajuste.
-      await user.click(screen.getByRole('tab', { name: /acompanhamento/i }));
+      await user.click(screen.getByRole('tab', { name: /feedbacks críticos/i }));
       const helena = await rowFor('Helena Vasconcelos');
       expect(helena.getByRole('button', { name: /1 informais/i })).toBeVisible();
       expect(helena.getByRole('button', { name: /1 formais/i })).toBeVisible();

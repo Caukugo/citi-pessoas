@@ -1,14 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from './db';
 import { queryKeys } from './queryKeys';
-import type { ID, Settings } from './types';
+import type { CitiValueSetting, ID, Settings } from './types';
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * CONFIGURAÇÕES ADMINISTRATIVAS (EPIC 6).
  *
- * Hoje guarda apenas o que a Fase 1 precisa: a periodicidade do X1, padrão
- * (ADM-001) e por membro (ADM-002).
+ * Guarda o que a Fase 1 precisa: a periodicidade do X1, padrão (ADM-001) e por
+ * membro (ADM-002), e a lista de valores do CITi (ADM-004).
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -29,6 +29,24 @@ export async function setMemberX1Periodicity(memberId: ID, days: number | null):
   else next[memberId] = days;
 
   return updateSettings({ x1PeriodicityByMember: next });
+}
+
+/**
+ * Os valores em circulação hoje — o que um X1 novo pode avaliar.
+ *
+ * ⚠️ Use SEMPRE isto no formulário de X1, nunca a constante `CITI_VALUES`: ela
+ * é só a semente de 2026. Aqui vive a lista da gestão corrente.
+ *
+ * O histórico é o contrário: ele exibe o rótulo gravado em cada registro, e não
+ * esta lista — é o que faz aposentar um valor não reescrever o passado.
+ */
+export function activeCitiValues(settings: Settings): CitiValueSetting[] {
+  return settings.citiValues.filter((value) => !value.retiredAt);
+}
+
+/** Ids dos valores que saíram de circulação — usado para marcar o histórico. */
+export function retiredCitiValueIds(settings: Settings): Set<ID> {
+  return new Set(settings.citiValues.filter((value) => value.retiredAt).map((value) => value.id));
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────

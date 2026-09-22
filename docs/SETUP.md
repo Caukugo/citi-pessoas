@@ -167,7 +167,8 @@ Depois de entrar você cai na tela **Membros**, com a barra lateral à esquerda.
 
 Está tudo certo se:
 
-- ✅ a barra lateral mostra Membros, X1, Feedbacks, Moderação, Importação, Administração;
+- ✅ a barra lateral mostra Membros, X1, Feedbacks, Importação, Administração
+  (a moderação não tem item próprio: entra por **Feedbacks → Ouvidoria**);
 - ✅ existe um aviso amarelo escrito **"Dados fictícios"**;
 - ✅ a tela abre sem erro vermelho.
 

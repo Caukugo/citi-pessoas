@@ -176,7 +176,7 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 | X1-004 | Visualizar X1 | ✅ Implementado (detalhe expansível no histórico) |
 | X1-005 | Editar X1 | Ready — o formulário já é reaproveitável |
 | X1-006 | Status do X1 | ✅ Implementado |
-| X1-007 | Periodicidade | Parcial — já é respeitada e exibida; falta a tela de Administração (ADM-001) |
+| X1-007 | Periodicidade | ✅ Implementado — respeitada, exibida no Perfil e editável na Administração (ADM-001) |
 | X1-008 | Integração com Perfil | ✅ Implementado |
 | X1-009 | Agenda de X1 | ✅ Implementado — migrations aplicadas e validadas em teste, ADR-019 |
 | X1-010 | Integração com Google Calendar | ✅ Implementado e homologado contra o Google (conectar, criar, Meet, cancelar, resposta ao convite). Reagendar e registrar conversa ainda não exercitados — ADR-021 |
@@ -208,9 +208,13 @@ hooks de dados já estão prontos. Detalhes em [BACKLOG.md](BACKLOG.md).
 
 | ID | Item | Status |
 | --- | --- | --- |
-| ADM-001 | Periodicidade padrão de X1 | Ready |
-| ADM-002 | Periodicidade específica por membro | Ready |
-| ADM-003 | Estrutura inicial da Administração | Ready |
+| ADM-001 | Periodicidade padrão de X1 | ✅ Implementado |
+| ADM-002 | Periodicidade específica por membro | Ready — hoje a exceção só se define no cadastro do membro |
+| ADM-003 | Estrutura inicial da Administração | ✅ Implementado |
+| ADM-004 | Valores do CITi configuráveis | ✅ Implementado — acrescentar e aposentar, migration 0038, ADR-023 |
+
+Painéis que a Administração já tem: periodicidade de X1, valores do CITi,
+campanha de entrada de membros pelo Google Forms e canal de feedback anônimo.
 
 ### EPIC 7 — Importação · Sofia
 

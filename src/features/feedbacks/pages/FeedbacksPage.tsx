@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { ClipboardList, MessageSquare, Plus } from 'lucide-react';
 import { Button, PageDecor, PageHeader, Tabs, tabPanelProps, type TabItem } from '@/components/ui';
 import { useAnonymousFeedbacks } from '@/data';
 import { useMemberDirectory } from '@/features/members/hooks/useMembersList';
@@ -15,11 +15,13 @@ import { CreateFeedbackDrawer } from '../components/CreateFeedbackDrawer';
  * ⚠️ AS DUAS ABAS SÃO FLUXOS INDEPENDENTES, e estar na mesma página não as
  * mistura:
  *
- *   Acompanhamento   registro criado por GG sobre um membro, com autoria.
- *                    Informal, Formal e Carta de Ajuste são TIPOS, não etapas.
+ *   Feedbacks críticos  (id `acompanhamento`) registro criado por GG sobre um
+ *                       membro, com autoria. Informal, Formal e Carta de Ajuste
+ *                       são TIPOS, não etapas.
  *
- *   Feedback Anônimo relato que chega de fora, sem identificação, e passa por
- *                    moderação humana. NUNCA vira um registro de acompanhamento.
+ *   Ouvidoria           (id `anonimo`) relato que chega de fora, sem
+ *                       identificação, e passa por moderação humana. NUNCA vira
+ *                       um registro de acompanhamento.
  *
  * Elas convivem aqui porque a GG pergunta as duas coisas na mesma sessão — mas
  * nenhuma linha de código lê de uma para escrever na outra, e não deve passar a
@@ -28,7 +30,7 @@ import { CreateFeedbackDrawer } from '../components/CreateFeedbackDrawer';
  *
  * A AÇÃO PRINCIPAL mora aqui, na linha das abas, e não mais dentro do painel da
  * tabela: é o mesmo lugar em que Membros põe "Novo Membro". Ela só existe na
- * aba de Acompanhamento — não se registra um feedback anônimo, ele chega.
+ * aba de Feedbacks críticos — não se registra um relato da Ouvidoria, ele chega.
  */
 
 type TabId = 'acompanhamento' | 'anonimo';
@@ -61,10 +63,21 @@ export function FeedbacksPage() {
     setSearchParams(params, { replace: true });
   };
 
+  // Os ids são os de sempre (`acompanhamento` / `anonimo`) e continuam sendo o
+  // que vai para a URL: só os RÓTULOS mudaram, para o vocabulário que a GG usa.
   const tabs: TabItem<TabId>[] = [
-    { id: 'acompanhamento', label: 'Acompanhamento' },
+    {
+      id: 'acompanhamento',
+      label: 'Feedbacks críticos',
+      icon: <ClipboardList size={14} aria-hidden />,
+    },
     // O número só aparece quando há o que moderar — `Tabs` esconde o zero.
-    { id: 'anonimo', label: 'Feedback Anônimo', count: pending },
+    {
+      id: 'anonimo',
+      label: 'Ouvidoria',
+      count: pending,
+      icon: <MessageSquare size={14} aria-hidden />,
+    },
   ];
 
   return (
@@ -90,7 +103,8 @@ export function FeedbacksPage() {
           onChange={setTab}
           idPrefix={TAB_PREFIX}
           label="Tipos de feedback"
-          className="min-w-0 flex-1 border-0"
+          variant="pill"
+          className="min-w-0"
         />
 
         {activeTab === 'acompanhamento' && (

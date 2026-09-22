@@ -24,6 +24,7 @@ const NOW = new Date('2026-08-20T12:00:00Z');
 const settings: Settings = {
   defaultX1PeriodicityDays: 30,
   x1PeriodicityByMember: { 'mbr-excecao': 60 },
+  citiValues: [],
   updatedAt: NOW.toISOString(),
 };
 

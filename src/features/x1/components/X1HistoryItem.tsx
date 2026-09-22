@@ -64,10 +64,17 @@ export function X1HistoryItem({
   x1,
   directory,
   defaultOpen = false,
+  retiredValueIds,
 }: {
   x1: X1;
   directory: Map<ID, Member>;
   defaultOpen?: boolean;
+  /**
+   * Valores que saíram de circulação (ADM-004). Só marca o que já está na
+   * tela — a avaliação continua sendo exibida na íntegra, com o rótulo do dia
+   * da conversa. Nada é escondido por ter sido aposentado.
+   */
+  retiredValueIds?: Set<ID>;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -196,8 +203,11 @@ export function X1HistoryItem({
                   não é score, e a interface não pode sugerir que seja. */}
               <ul className="mt-1.5 flex flex-col gap-1.5">
                 {ratedValues.map((entry) => (
-                  <li key={entry.value} className="flex flex-wrap items-center gap-2">
+                  <li key={entry.valueId ?? entry.value} className="flex flex-wrap items-center gap-2">
                     <Badge tone="neutral">{entry.value}</Badge>
+                    {entry.valueId && retiredValueIds?.has(entry.valueId) && (
+                      <Badge tone="neutral">aposentado</Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       apareceu {entry.rating}/4 nesta conversa
                     </span>

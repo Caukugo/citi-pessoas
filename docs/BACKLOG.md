@@ -458,17 +458,17 @@ pontos e encaminhamentos.
 
 ### X1-007 — Periodicidade
 
-- **Responsável:** Bia · **Reviewer:** Sofia · 🟡 assistida · Média · **Parcial**
+- **Responsável:** Bia · **Reviewer:** Sofia · 🟡 assistida · Média · **Done**
 - **Dependências:** ADM-001 · **Branch:** `feat/x1-periodicity`
 
-> A periodicidade já é respeitada (`x1PeriodicityFor`) e exibida no resumo de X1
-> do Perfil, com aviso quando o membro tem exceção. Falta só a tela da
-> Administração para editá-la (ADM-001).
+> A periodicidade é respeitada (`x1PeriodicityFor`), exibida no resumo de X1 do
+> Perfil com aviso quando o membro tem exceção, e editável na Administração
+> desde ADM-001.
 
 **Critérios de aceite**
 
-- [ ] Usa `x1PeriodicityFor()` — respeita a exceção do membro.
-- [ ] O Perfil mostra qual periodicidade vale para aquele membro.
+- [x] Usa `x1PeriodicityFor()` — respeita a exceção do membro.
+- [x] O Perfil mostra qual periodicidade vale para aquele membro.
 
 ---
 
@@ -768,23 +768,29 @@ informação de quem enviou — ela não existe.
 
 ### ADM-001 — Periodicidade padrão de X1
 
-- **Responsável:** Bia · **Reviewer:** Sofia · 🟢 guiada · Alta · Ready
+- **Responsável:** Bia · **Reviewer:** Sofia · 🟢 guiada · Alta · **Done**
 - **Dependências:** nenhuma · **Branch:** `feat/admin-x1-periodicity`
 
 **Critérios de aceite**
 
-- [ ] Campo numérico em dias, lendo de `useSettings()`.
-- [ ] Salva com `useUpdateSettings()` e confirma o sucesso.
-- [ ] Não aceita zero nem número negativo.
+- [x] Campo numérico em dias, lendo de `useSettings()`.
+- [x] Salva com `useUpdateSettings()` e confirma o sucesso.
+- [x] Não aceita zero nem número negativo (faixa 7–365, a mesma da exceção).
 
-> ⚠️ Desbloqueia X1-007.
+> Mudar o padrão NÃO mexe em quem tem exceção — `x1PeriodicityFor()` resolve
+> `exceção ?? padrão`, e o painel avisa quantas pessoas estão fora do padrão
+> antes de confirmar. Desbloqueou X1-007. Ver ADR-023.
 
 ---
 
 ### ADM-002 — Periodicidade específica por membro
 
 - **Responsável:** Bia · **Reviewer:** Sofia · 🟡 assistida · Média · Ready
-- **Dependências:** ADM-001 · **Branch:** `feat/admin-x1-member-periodicity`
+- **Dependências:** ADM-001 (feita) · **Branch:** `feat/admin-x1-member-periodicity`
+
+> Hoje a exceção só pode ser definida no CADASTRO do membro (`MemberForm`), e
+> não há como editá-la ou removê-la depois. O painel de ADM-001 já mostra
+> quantas pessoas têm exceção; falta poder mexer nelas.
 
 **Critérios de aceite**
 
@@ -795,13 +801,38 @@ informação de quem enviou — ela não existe.
 
 ### ADM-003 — Estrutura inicial da Administração
 
-- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Média · Ready
+- **Responsável:** Bia · **Reviewer:** Cauan · 🟢 guiada · Média · **Done**
 - **Dependências:** nenhuma · **Branch:** `feat/admin-structure`
 
 **Critérios de aceite**
 
-- [ ] Página organizada em seções, pronta para receber mais configurações.
-- [ ] **Não** cria configuração fora do escopo da Fase 1.
+- [x] Página organizada em seções, pronta para receber mais configurações.
+- [x] **Não** cria configuração fora do escopo da Fase 1.
+
+---
+
+### ADM-004 — Valores do CITi configuráveis
+
+- **Responsável:** Cauan · **Reviewer:** Sofia · 🔴 complexa · Média · **Done**
+- **Dependências:** ADM-003 · **Branch:** `feat/admin-citi-values`
+
+> Os valores eram constante em `src/data/types.ts`. Mudá-los exigia deploy — ou
+> seja, a gestão seguinte herdava os valores da anterior sem ter como mexer.
+> Agora vivem em `settings.citi_values` (migration 0038).
+>
+> ⚠️ Estava previsto como fase posterior no PROJECT_CONTEXT §10. A antecipação
+> está registrada lá e na ADR-023.
+
+**Critérios de aceite**
+
+- [x] Acrescentar e aposentar valores pela Administração (renomear não existe:
+      o nome de um valor é decisão de cultura, não ajuste de tela).
+- [x] Aposentar NÃO apaga: o valor sai do formulário de X1 novo e continua
+      legível em todo X1 que já o avaliou, marcado como aposentado.
+- [x] Recusa nome vazio e repetido — inclusive igual ao de um aposentado.
+- [x] Recusa aposentar o último valor em circulação.
+- [x] O formulário de X1 lê a lista viva (`activeCitiValues`), chaveado por id.
+- [x] Migration com backfill de `valueId` nos X1 já existentes.
 
 ---
 

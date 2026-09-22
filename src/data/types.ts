@@ -617,11 +617,13 @@ export interface StartIntakeCampaignInput {
 // ─── Cultura ──────────────────────────────────────────────────────────────────
 
 /**
- * Os quatro valores do CITi.
+ * Os quatro valores com que o CITi nasceu na plataforma.
  *
- * Ficam como constante na Fase 1. A Administração passa a permitir editá-los em
- * fase posterior — quando isso acontecer, registros antigos precisam continuar
- * associados à versão vigente na época.
+ * ⚠️ ISTO É SEMENTE, NÃO É A LISTA VIVA. Desde ADM-004 a lista fica em
+ * `Settings.citiValues` e a Administração a edita. Esta constante sobrevive
+ * para semear o banco (migration 0038) e o modo mock — quem ler daqui em
+ * tempo de execução vai mostrar a lista de 2026, não a da gestão corrente.
+ * Use `activeCitiValues(settings)`.
  */
 export const CITI_VALUES = [
   'Eu sou o CITi',
@@ -632,8 +634,36 @@ export const CITI_VALUES = [
 
 export type CITiValue = (typeof CITI_VALUES)[number];
 
-/** Avaliação de um valor do CITi dentro de um X1. */
+/**
+ * Um valor do CITi na lista viva da Administração (ADM-004).
+ *
+ * O `id` é estável para sempre: é ele que liga um X1 de 2026 ao valor, mesmo
+ * depois de ele sair de circulação numa gestão seguinte.
+ */
+export interface CitiValueSetting {
+  id: ID;
+  label: string;
+  /**
+   * Quando saiu de circulação. `null` = em uso.
+   *
+   * Aposentar NUNCA apaga: o valor some do formulário de X1 novo e continua
+   * legível em todo X1 que já o avaliou. Ver ADR-023.
+   */
+  retiredAt?: ISODate | null;
+}
+
+/**
+ * Avaliação de um valor do CITi dentro de um X1.
+ *
+ * ⚠️ É UM SNAPSHOT, de propósito. `value` guarda o rótulo **do dia da
+ * conversa**, não uma referência viva: é o que faz aposentar um valor não
+ * reescrever o passado. O `valueId` existe ao lado só para ligar o registro ao
+ * valor atual quando ele ainda existe.
+ */
 export interface X1ValueRating {
+  /** Id do valor na época. Ausente em registro anterior à ADM-004. */
+  valueId?: ID | null;
+  /** Rótulo congelado no momento da gravação. É o que o histórico exibe. */
   value: string;
   /** Nota de 1 a 4. Opcional: nem todo X1 avalia valores. */
   rating?: number | null;
@@ -1265,6 +1295,11 @@ export interface Settings {
   defaultX1PeriodicityDays: number;
   /** Exceções por membro: `{ [memberId]: dias }`. Vazio = usa o padrão. */
   x1PeriodicityByMember: Record<ID, number>;
+  /**
+   * Os valores do CITi (ADM-004). A ordem do array é a ordem de exibição, e
+   * a lista inclui os aposentados — filtre com `activeCitiValues()`.
+   */
+  citiValues: CitiValueSetting[];
   /** Gestão corrente — usada para carimbar registros novos. */
   currentGestaoId?: ID | null;
   updatedAt: ISODate;

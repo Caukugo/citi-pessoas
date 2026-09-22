@@ -14,6 +14,8 @@ const NOW = new Date('2026-08-17T12:00:00Z');
 const settings: Settings = {
   defaultX1PeriodicityDays: 30,
   x1PeriodicityByMember: { 'mbr-especial': 60 },
+  // Irrelevante para periodicidade — está aqui só porque o tipo exige.
+  citiValues: [],
   updatedAt: NOW.toISOString(),
 };
 

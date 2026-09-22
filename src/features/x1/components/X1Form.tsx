@@ -1,6 +1,6 @@
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { FormField, FormSection, Input, Select, TagInput, Textarea } from '@/components/ui';
-import type { Member } from '@/data';
+import type { CitiValueSetting, Member } from '@/data';
 import type { X1FormValues } from '../schemas/x1Schema';
 import { X1LineList } from './X1LineList';
 import { X1ValuesField } from './X1ValuesField';
@@ -20,10 +20,13 @@ const CITI_VALUES_LABEL_ID = 'x1-citi-values-label';
 export function X1Form({
   form,
   conductors,
+  citiValues,
 }: {
   form: UseFormReturn<X1FormValues>;
   /** Quem pode ter conduzido: gerentes e pessoas de GG. */
   conductors: Member[];
+  /** Valores em circulação hoje — `activeCitiValues(settings)` (ADM-004). */
+  citiValues: CitiValueSetting[];
 }) {
   const {
     register,
@@ -190,9 +193,9 @@ export function X1Form({
       </FormSection>
 
       <FormSection title="Valores do CITi">
-        {/* Não é um campo, são quatro grupos de opção — por isso `role="group"`
-            com rótulo próprio, e não um `<FormField>` cujo `<label>` não teria
-            um controle único para apontar. */}
+        {/* Não é um campo, é um grupo de opção por valor — por isso
+            `role="group"` com rótulo próprio, e não um `<FormField>` cujo
+            `<label>` não teria um controle único para apontar. */}
         <div role="group" aria-labelledby={CITI_VALUES_LABEL_ID}>
           <p
             id={CITI_VALUES_LABEL_ID}
@@ -203,7 +206,13 @@ export function X1Form({
           <Controller
             control={control}
             name="citiValues"
-            render={({ field }) => <X1ValuesField value={field.value} onChange={field.onChange} />}
+            render={({ field }) => (
+              <X1ValuesField
+                value={field.value}
+                onChange={field.onChange}
+                citiValues={citiValues}
+              />
+            )}
           />
         </div>
       </FormSection>

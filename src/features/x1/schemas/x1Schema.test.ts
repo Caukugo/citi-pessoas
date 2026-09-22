@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { emptyX1Form, splitFollowUps, toX1CreateInput, x1FormSchema } from './x1Schema';
+import { emptyX1Form, splitFollowUps, toCitiValues, toX1CreateInput, x1FormSchema } from './x1Schema';
+import type { CitiValueSetting } from '@/data';
 
 /**
  * Testes do registro de X1.
@@ -10,9 +11,22 @@ import { emptyX1Form, splitFollowUps, toX1CreateInput, x1FormSchema } from './x1
  * percepção que ninguém teve.
  */
 
+/**
+ * Os valores em circulação nesta gestão fictícia (ADM-004).
+ *
+ * O formulário é chaveado pelo ID, não pelo rótulo — o rótulo é só o que se
+ * mostra, e o id é o que liga a avaliação ao valor.
+ */
+const VALORES: CitiValueSetting[] = [
+  { id: 'val-1', label: 'Eu sou o CITi', retiredAt: null },
+  { id: 'val-2', label: 'Obcecados por aprender', retiredAt: null },
+  { id: 'val-3', label: 'Obcecados por vencer', retiredAt: null },
+  { id: 'val-4', label: 'Obcecados por entregar', retiredAt: null },
+];
+
 function validForm() {
   return {
-    ...emptyX1Form('mbr-gg'),
+    ...emptyX1Form('mbr-gg', VALORES),
     occurredAt: '2026-08-10',
     summary: 'Conversa tranquila sobre a adaptação ao squad.',
   };
@@ -73,7 +87,7 @@ describe('x1FormSchema', () => {
     it.each(['1', '2', '3', '4', ''])('aceita nota válida "%s"', (rating) => {
       const result = x1FormSchema.safeParse({
         ...validForm(),
-        citiValues: { ...validForm().citiValues, 'Eu sou o CITi': rating },
+        citiValues: { ...validForm().citiValues, 'val-1': rating },
       });
       expect(result.success).toBe(true);
     });
@@ -83,7 +97,7 @@ describe('x1FormSchema', () => {
       (rating) => {
         const result = x1FormSchema.safeParse({
           ...validForm(),
-          citiValues: { ...validForm().citiValues, 'Eu sou o CITi': rating },
+          citiValues: { ...validForm().citiValues, 'val-1': rating },
         });
         expect(result.success).toBe(false);
       },
@@ -92,7 +106,12 @@ describe('x1FormSchema', () => {
 });
 
 describe('toX1CreateInput', () => {
-  const context = { memberId: 'mbr-003', gestaoId: 'gst-2026-2', authorId: 'mbr-001' };
+  const context = {
+    memberId: 'mbr-003',
+    gestaoId: 'gst-2026-2',
+    authorId: 'mbr-001',
+    citiValues: VALORES,
+  };
 
   it('registra sempre como realizado e carimba gestão e autoria', () => {
     const input = toX1CreateInput(validForm(), context);
@@ -140,19 +159,38 @@ describe('toX1CreateInput', () => {
     const input = toX1CreateInput(
       {
         ...validForm(),
-        citiValues: {
-          'Eu sou o CITi': '3',
-          'Obcecados por aprender': '',
-          'Obcecados por vencer': '',
-          'Obcecados por entregar': '4',
-        },
+        citiValues: { 'val-1': '3', 'val-2': '', 'val-3': '', 'val-4': '4' },
       },
       context,
     );
 
     expect(input.citiValues).toEqual([
-      { value: 'Eu sou o CITi', rating: 3, note: null },
-      { value: 'Obcecados por entregar', rating: 4, note: null },
+      { valueId: 'val-1', value: 'Eu sou o CITi', rating: 3, note: null },
+      { valueId: 'val-4', value: 'Obcecados por entregar', rating: 4, note: null },
+    ]);
+  });
+
+  it('congela o RÓTULO do valor no registro, não uma referência viva', () => {
+    // É o que faz uma gestão futura aposentar um valor sem reescrever o que
+    // foi observado nesta conversa (ADR-023).
+    const input = toX1CreateInput({ ...validForm(), citiValues: { 'val-1': '4' } }, context);
+
+    expect(input.citiValues).toEqual([
+      { valueId: 'val-1', value: 'Eu sou o CITi', rating: 4, note: null },
+    ]);
+  });
+
+  it('ignora nota de valor que não está mais em circulação', () => {
+    // A gaveta só oferece os valores ativos. Uma chave de valor aposentado só
+    // chega aqui por formulário reaproveitado ou estado velho — e inventar uma
+    // avaliação nova para um valor que saiu de cena seria pior que descartar.
+    const input = toX1CreateInput(
+      { ...validForm(), citiValues: { 'val-1': '3', 'val-aposentado': '4' } },
+      context,
+    );
+
+    expect(input.citiValues).toEqual([
+      { valueId: 'val-1', value: 'Eu sou o CITi', rating: 3, note: null },
     ]);
   });
 
@@ -172,5 +210,21 @@ describe('splitFollowUps', () => {
 
   it('ignora linhas em branco no meio do texto', () => {
     expect(splitFollowUps('Primeiro\n\n  \nSegundo')).toEqual(['Primeiro', 'Segundo']);
+  });
+});
+
+describe('toCitiValues e o histórico', () => {
+  it('um valor aposentado continua avaliável enquanto estiver na lista passada', () => {
+    // O histórico NÃO depende desta função: ele lê o rótulo gravado no X1. Mas
+    // quem passar uma lista que inclua um aposentado (ex.: reabrir para
+    // corrigir um registro antigo) não pode perder a avaliação em silêncio.
+    const comAposentado: CitiValueSetting[] = [
+      ...VALORES,
+      { id: 'val-9', label: 'Ousadia', retiredAt: '2026-08-01T00:00:00.000Z' },
+    ];
+
+    expect(toCitiValues({ 'val-9': '2' }, comAposentado)).toEqual([
+      { valueId: 'val-9', value: 'Ousadia', rating: 2, note: null },
+    ]);
   });
 });

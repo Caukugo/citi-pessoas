@@ -93,6 +93,7 @@ export function X1Tab({
                 key={x1.id}
                 x1={x1}
                 directory={directory}
+                retiredValueIds={overview.retiredValueIds}
                 // O mais recente já vem aberto: é o que a pessoa veio ler.
                 defaultOpen={index === 0 && x1.status === 'realizado'}
               />

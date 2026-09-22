@@ -203,6 +203,7 @@ export function fromSettingsRow(row: Row): Settings {
   return {
     defaultX1PeriodicityDays: row.default_x1_periodicity_days,
     x1PeriodicityByMember: row.x1_periodicity_by_member ?? {},
+    citiValues: row.citi_values ?? [],
     currentGestaoId: row.current_gestao_id,
     updatedAt: row.updated_at,
   };

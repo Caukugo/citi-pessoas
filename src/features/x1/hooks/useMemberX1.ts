@@ -4,6 +4,7 @@ import {
   memberX1StatusFrom,
   nextRecommendedX1Date,
   nextScheduledX1,
+  retiredCitiValueIds,
   useSettings,
   useX1sByMember,
   x1PeriodicityFor,
@@ -42,6 +43,8 @@ export interface MemberX1Overview {
   periodicityDays: number;
   /** Tem exceção de periodicidade configurada? Muda o texto na tela. */
   hasPeriodicityException: boolean;
+  /** Valores do CITi já fora de circulação — o histórico os marca (ADM-004). */
+  retiredValueIds: Set<ID>;
   status: MemberX1Status;
   isLoading: boolean;
   isError: boolean;
@@ -70,6 +73,7 @@ export function useMemberX1(memberId: ID | undefined): MemberX1Overview {
         settings && memberId && settings.x1PeriodicityByMember[memberId] !== undefined,
       ),
       status: memberX1StatusFrom(lastX1, periodicityDays),
+      retiredValueIds: settings ? retiredCitiValueIds(settings) : new Set<ID>(),
     };
   }, [x1Query.data, settingsQuery.data, memberId]);
 
