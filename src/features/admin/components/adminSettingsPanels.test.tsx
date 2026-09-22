@@ -95,6 +95,17 @@ describe('CitiValuesPanel (ADM-004)', () => {
     expect(screen.queryByText('Fora de circulação')).not.toBeInTheDocument();
   });
 
+  it('banco sem a migration: avisa qual é, em vez de só falhar ao salvar', async () => {
+    // Foi exatamente o que aconteceu em produção: coluna ausente, lista vazia,
+    // X1 sem seção de valores e um erro de PostgREST que não diz o que fazer.
+    await mockAdapter.settings.update({ citiValues: [] });
+
+    renderPanel(<CitiValuesPanel />);
+
+    expect(await screen.findByText(/falta aplicar a migration/i)).toBeInTheDocument();
+    expect(screen.getByText(/0038_valores_citi_configuraveis\.sql/)).toBeInTheDocument();
+  });
+
   it('não oferece renomear — a lista só aceita acrescentar e aposentar', async () => {
     renderPanel(<CitiValuesPanel />);
 

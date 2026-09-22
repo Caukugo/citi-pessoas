@@ -11,6 +11,7 @@ import type {
   X1,
   X1Appointment,
 } from '../types';
+import { CITI_VALUE_IDS, CITI_VALUE_SEED } from '../types';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
 
 /**
@@ -101,17 +102,6 @@ export const GESTOES: Gestao[] = [
 
 export const CURRENT_GESTAO_ID = 'gst-2026-2';
 
-// ─── Valores do CITi ──────────────────────────────────────────────────────────
-//
-// Os MESMOS ids da migration 0038. Não são sorteados: é o id que liga um X1
-// antigo ao valor depois que o rótulo for reescrito, então mock e banco real
-// precisam concordar — senão o histórico do modo mock conta outra história.
-export const CITI_VALUE_IDS = {
-  euSouOCiti: 'ae3a14a0-9d42-4c04-855d-83244a0d2203',
-  aprender: '8feacfaf-126f-4227-9ba1-18dc8b45e009',
-  vencer: 'd5c0837e-3a10-4850-974b-70d787933089',
-  entregar: '15878374-6868-4e96-93d1-d2d54221cbcb',
-} as const;
 
 // ─── Membros ──────────────────────────────────────────────────────────────────
 
@@ -1292,14 +1282,9 @@ export const SETTINGS: Settings = {
   defaultX1PeriodicityDays: 30,
   // Exceção por membro (ADM-002): Edmundo está de saída e é acompanhado a cada 60 dias.
   x1PeriodicityByMember: { 'mbr-009': 60 },
-  // Valores do CITi (ADM-004). Os ids são os mesmos da migration 0038 de
-  // propósito: mock e banco real precisam casar com o mesmo histórico.
-  citiValues: [
-    { id: CITI_VALUE_IDS.euSouOCiti, label: 'Eu sou o CITi', retiredAt: null },
-    { id: CITI_VALUE_IDS.aprender, label: 'Obcecados por aprender', retiredAt: null },
-    { id: CITI_VALUE_IDS.vencer, label: 'Obcecados por vencer', retiredAt: null },
-    { id: CITI_VALUE_IDS.entregar, label: 'Obcecados por entregar', retiredAt: null },
-  ],
+  // Valores do CITi (ADM-004) — a mesma semente da migration 0038, para que
+  // mock e banco real casem com o mesmo histórico.
+  citiValues: CITI_VALUE_SEED.map((value) => ({ ...value })),
   currentGestaoId: CURRENT_GESTAO_ID,
   updatedAt: NOW,
 };

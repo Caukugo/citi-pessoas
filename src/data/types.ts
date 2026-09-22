@@ -653,6 +653,36 @@ export interface CitiValueSetting {
 }
 
 /**
+ * Ids estáveis dos quatro valores fundadores.
+ *
+ * São os MESMOS literais da migration 0038 e das fixtures do modo mock, e não
+ * podem mudar: é o id que liga um X1 antigo ao valor. Se cada lugar sorteasse
+ * o seu, o histórico do mock contaria uma história e o do banco outra.
+ */
+export const CITI_VALUE_IDS = {
+  euSouOCiti: 'ae3a14a0-9d42-4c04-855d-83244a0d2203',
+  aprender: '8feacfaf-126f-4227-9ba1-18dc8b45e009',
+  vencer: 'd5c0837e-3a10-4850-974b-70d787933089',
+  entregar: '15878374-6868-4e96-93d1-d2d54221cbcb',
+} as const;
+
+/**
+ * A lista com que o CITi começa, quando ainda não há nenhuma configurada.
+ *
+ * Serve de SEMENTE em três lugares que precisam concordar: a migration 0038,
+ * as fixtures do mock, e `activeCitiValues()` — que cai aqui enquanto o banco
+ * não tiver a coluna `citi_values` preenchida. Ficar sem valor nenhum no
+ * formulário de X1 seria pior e mais silencioso do que mostrar os quatro
+ * fundadores.
+ */
+export const CITI_VALUE_SEED: CitiValueSetting[] = [
+  { id: CITI_VALUE_IDS.euSouOCiti, label: 'Eu sou o CITi', retiredAt: null },
+  { id: CITI_VALUE_IDS.aprender, label: 'Obcecados por aprender', retiredAt: null },
+  { id: CITI_VALUE_IDS.vencer, label: 'Obcecados por vencer', retiredAt: null },
+  { id: CITI_VALUE_IDS.entregar, label: 'Obcecados por entregar', retiredAt: null },
+];
+
+/**
  * Avaliação de um valor do CITi dentro de um X1.
  *
  * ⚠️ É UM SNAPSHOT, de propósito. `value` guarda o rótulo **do dia da

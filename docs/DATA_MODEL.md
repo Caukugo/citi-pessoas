@@ -254,7 +254,12 @@ por gestão.
 ### Os valores do CITi são editáveis (ADM-004)
 
 A lista viva é `settings.citiValues` — `[{ id, label, retiredAt }]` — e a
-Administração acrescenta e aposenta itens nela (renomear não existe). `CITI_VALUES` continua no código, mas só como **semente**
+Administração acrescenta e aposenta itens nela (renomear não existe).
+
+Sem nenhuma lista configurada, `activeCitiValues()` devolve `CITI_VALUE_SEED` —
+os quatro fundadores, com os ids que a 0038 grava. É a rede para o banco que
+ainda não recebeu a migration: melhor mostrar os quatro do que deixar o X1 sem
+seção de valores, que é uma falha silenciosa. `CITI_VALUES` continua no código, mas só como **semente**
 de 2026 (migration 0038 e fixtures): ler dela em tempo de execução mostra a
 lista errada. Use `activeCitiValues(settings)`.
 

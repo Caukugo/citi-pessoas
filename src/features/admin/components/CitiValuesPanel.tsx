@@ -72,6 +72,12 @@ export function CitiValuesPanel() {
   const ativos = activeOnes(lista);
   const aposentados = retiredOnes(lista);
 
+  // Lista vazia = o banco não tem `citi_values` preenchida, quase sempre porque
+  // a migration 0038 não rodou ali. O X1 segue funcionando com os quatro
+  // fundadores (`activeCitiValues`), mas gravar daqui vai falhar — e o erro que
+  // o Postgres devolve ("could not find the column") não diz o que fazer.
+  const semConfiguracao = lista.length === 0;
+
   /** Toda gravação passa por aqui: lista nova inteira, como o modelo devolve. */
   const salvar = async (citiValues: CitiValueSetting[], mensagem: string) => {
     setErro(null);
@@ -124,6 +130,14 @@ export function CitiValuesPanel() {
       subtitle="O que o X1 pergunta sobre cultura. Cada gestão ajusta a sua lista."
     >
       <div className="flex flex-col gap-5">
+        {semConfiguracao && (
+          <p className="rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-sm text-foreground-secondary">
+            A lista ainda não existe neste banco: falta aplicar a migration{' '}
+            <code>0038_valores_citi_configuraveis.sql</code>. Até lá o X1 usa os quatro valores
+            fundadores, e salvar mudanças aqui não vai funcionar.
+          </p>
+        )}
+
         <ul className="flex flex-col gap-2">
           {ativos.map((valor) => (
             <li
