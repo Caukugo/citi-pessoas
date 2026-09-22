@@ -2,6 +2,13 @@
 
 > **Catálogo visual:** rode `npm run dev` e acesse **`/design-system`**.
 > Lá você vê todos os componentes funcionando, com todos os estados.
+>
+> Este catálogo é documentação interna de desenvolvimento — não um recurso da
+> plataforma. Por isso ele não tem link na Sidebar, nem em modo de
+> desenvolvimento: a rota existe **só sob `IS_DEV`** (`src/app/router.tsx`),
+> não é registrada em build de produção, e ninguém da GG deveria encontrá-la
+> navegando pela interface. Se você é pessoa desenvolvedora, acesse o endereço
+> direto pela URL.
 
 ---
 

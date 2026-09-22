@@ -1,12 +1,11 @@
 import { NavLink } from 'react-router-dom';
-import { LogOut, RotateCcw, Sparkles } from 'lucide-react';
+import { LogOut, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/cn';
-import { IS_DEV, IS_MOCK } from '@/lib/env';
+import { IS_MOCK } from '@/lib/env';
 import { Avatar, Logo } from '@/components/ui';
 import { resetMockData } from '@/data/mock/store';
 import { useAuth } from '@/features/auth/useAuth';
 import { NAV_ITEMS } from '../navigation';
-import { ROUTES } from '../routes';
 
 /**
  * Barra lateral da área interna.
@@ -18,8 +17,8 @@ import { ROUTES } from '../routes';
  * ORÇAMENTO DE ALTURA. A navegação inteira tem que caber sem rolagem em uma
  * janela de 693px, que é a altura útil de um notebook com a barra do sistema:
  *
- *   marca 48 + 6 itens × 42 = 252 + atalho de dev 50 + aviso de mock 44
- *   + rodapé 66  ≈  460px
+ *   marca 48 + 4 itens × 42 = 168 + aviso de mock 44
+ *   + rodapé 66  ≈  330px
  *
  * O `<nav>` NÃO tem rolagem própria, de propósito: barra de rolagem aqui é
  * sintoma de que a conta acima estourou, não solução. Se você adicionar um
@@ -69,16 +68,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             </li>
           ))}
         </ul>
-
-        {IS_DEV && (
-          <>
-            <hr className="my-[10px] border-divider" />
-            <NavLink to={ROUTES.designSystem} onClick={onNavigate} className={navLink}>
-              <Sparkles size={17} aria-hidden />
-              Design System
-            </NavLink>
-          </>
-        )}
       </nav>
 
       {/* Aviso de dados fictícios — impossível confundir mock com produção.

@@ -10,6 +10,7 @@ import {
   Video,
 } from 'lucide-react';
 import { Avatar, Badge, Button, EmptyState, Panel } from '@/components/ui';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import type { ID, Member, X1Appointment } from '@/data';
 import { X1_INVITE_RESPONSE_LABEL } from '@/data';
 import { cn } from '@/lib/cn';
@@ -182,7 +183,11 @@ function AgendaMeetingCard({
           )}
         </span>
 
-        <Avatar name={member?.fullName ?? '—'} photoUrl={member?.photoUrl} size="md" />
+        {member ? (
+          <MemberAvatar member={member} size="md" />
+        ) : (
+          <Avatar name="—" photoUrl={null} size="md" />
+        )}
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-semibold text-foreground">

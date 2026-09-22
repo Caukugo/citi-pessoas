@@ -13,6 +13,7 @@ import {
   Video,
 } from 'lucide-react';
 import { Avatar, Badge, Button, Drawer } from '@/components/ui';
+import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import { ROUTES } from '@/app/routes';
 import {
   X1_INVITE_RESPONSE_LABEL,
@@ -138,7 +139,11 @@ export function AppointmentDetailsDrawer({
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3">
-          <Avatar name={member?.fullName ?? '—'} photoUrl={member?.photoUrl} size="xl" />
+          {member ? (
+            <MemberAvatar member={member} size="xl" />
+          ) : (
+            <Avatar name="—" photoUrl={null} size="xl" />
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-[20px] font-semibold text-foreground">
               {member?.fullName ?? 'Membro removido'}
