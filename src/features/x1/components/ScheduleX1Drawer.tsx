@@ -13,6 +13,7 @@ import {
   FormField,
   FormSection,
   Input,
+  SearchableSelect,
   Select,
   Textarea,
   useToast,
@@ -139,6 +140,16 @@ export function ScheduleX1Drawer({
         .filter((member) => member.status === 'ativo')
         .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR')),
     [members],
+  );
+
+  const memberOptions = useMemo(
+    () =>
+      activeMembers.map((member) => ({
+        value: member.id,
+        label: member.fullName,
+        description: [member.role, member.area].filter(Boolean).join(' · ') || undefined,
+      })),
+    [activeMembers],
   );
 
   const ggResponsible = selectedMember?.ggResponsibleId
@@ -268,16 +279,23 @@ export function ScheduleX1Drawer({
           <FormSection title="Quem">
             <FormField label="Membro" error={form.formState.errors.memberId?.message} required>
               {(field) => (
-                <Select
-                  {...field}
-                  {...form.register('memberId')}
-                  // Reagendar não troca de pessoa: isso seria outro X1.
-                  disabled={isReschedule}
-                  placeholder="Escolha o membro"
-                  options={activeMembers.map((member) => ({
-                    value: member.id,
-                    label: `${member.fullName} · ${member.role}`,
-                  }))}
+                <Controller
+                  control={form.control}
+                  name="memberId"
+                  render={({ field: memberField }) => (
+                    <SearchableSelect
+                      {...field}
+                      value={memberField.value}
+                      onChange={memberField.onChange}
+                      onBlur={memberField.onBlur}
+                      // Reagendar não troca de pessoa: isso seria outro X1.
+                      disabled={isReschedule}
+                      placeholder="Escolha o membro"
+                      searchPlaceholder="Buscar por nome…"
+                      emptyMessage="Nenhum membro encontrado"
+                      options={memberOptions}
+                    />
+                  )}
                 />
               )}
             </FormField>
