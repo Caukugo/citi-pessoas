@@ -252,17 +252,61 @@ describe('autorização', () => {
 });
 
 describe('retornoSeguro', () => {
+  it('aceita caminho relativo simples', () => {
+    expect(retornoSeguro('/x1')).toBe('/x1');
+    expect(retornoSeguro('/x1/agenda')).toBe('/x1/agenda');
+  });
+
+  it('⚠️ descarta query — nunca preserva, mesmo válida (era o bug do 502)', () => {
+    // A constraint `google_oauth_state_retorno_relativo` só aceita pathname
+    // puro. Preservar a query aqui é o que mandava um `retorno` inválido para
+    // o banco e devolvia `502 falha_interna` toda vez que a agenda tinha
+    // filtro na URL.
+    expect(retornoSeguro('/x1?status=pendente')).toBe('/x1');
+    expect(retornoSeguro('/x1?status=pendente&view=agenda#topo')).toBe('/x1');
+  });
+
+  it('descarta fragment', () => {
+    expect(retornoSeguro('/x1#topo')).toBe('/x1');
+  });
+
   it('⚠️ recusa URL absoluta — o callback não vira redirecionador aberto', () => {
     expect(retornoSeguro('https://site-de-outra-pessoa.invalid/roubar')).toBe('/x1');
-    expect(retornoSeguro('//site-de-outra-pessoa.invalid')).toBe('/x1');
     expect(retornoSeguro('javascript:alert(1)')).toBe('/x1');
   });
 
-  it('aceita caminho relativo, com query', () => {
-    expect(retornoSeguro('/x1?mes=2026-09')).toBe('/x1?mes=2026-09');
+  it('⚠️ recusa `//host` — o navegador lê como "protocolo atual + outro host"', () => {
+    expect(retornoSeguro('//evil.example/x1')).toBe('/x1');
+    expect(retornoSeguro('//site-de-outra-pessoa.invalid')).toBe('/x1');
   });
 
-  it('cai para o padrão quando vazio', () => {
+  it('⚠️ recusa barra invertida — normalizada pelo navegador, vira `//host`', () => {
+    expect(retornoSeguro('/\\evil.example')).toBe('/x1');
+    expect(retornoSeguro('/x1\\..\\admin')).toBe('/x1');
+  });
+
+  it('⚠️ recusa segmento de travessia `.` e `..`, mesmo com o resto válido', () => {
+    expect(retornoSeguro('/x1/../admin')).toBe('/x1');
+    expect(retornoSeguro('/./x1')).toBe('/x1');
+    expect(retornoSeguro('/..')).toBe('/x1');
+  });
+
+  it('recusa caractere fora da allowlist — não tenta aproveitar parte do valor', () => {
+    expect(retornoSeguro('/x1<script>')).toBe('/x1');
+    expect(retornoSeguro('/x1 com espaço')).toBe('/x1');
+  });
+
+  it('⚠️ não decodifica percent-encoding antes de validar', () => {
+    // `%2e%2e%2f` é uma travessia codificada; `%` não está na allowlist, e
+    // decodificar antes de checar reabriria a mesma brecha por outro caminho.
+    expect(retornoSeguro('/x1%2f..%2fadmin')).toBe('/x1');
+    expect(retornoSeguro('/%5cevil.example')).toBe('/x1');
+  });
+
+  it('cai para o padrão quando vazio, nulo ou não começa com uma única barra', () => {
     expect(retornoSeguro(null)).toBe('/x1');
+    expect(retornoSeguro(undefined)).toBe('/x1');
+    expect(retornoSeguro('')).toBe('/x1');
+    expect(retornoSeguro('x1')).toBe('/x1');
   });
 });
