@@ -163,6 +163,75 @@ uma tabela, com o essencial para decidir quem precisa de atenção.
 
 ---
 
+### MEM-006 — Migrar cadastro manual de membros para o catálogo organizacional
+
+- **Responsável:** Gabi · **Reviewer:** Cauan · 🟡 assistida · Média · **In Progress**
+- **Dependências:** nenhuma · **Branch:** `fix/feedback-cadastro-e-textos`
+
+> Código implementado e testado (856 testes verdes, `npm run check` limpo).
+> Status fica **In Progress**, não Done, até o merge — nesta branch ainda não
+> houve commit.
+
+**Contexto.** O cadastro manual de um membro novo (`CreateMemberDrawer.tsx` →
+`MemberForm.tsx` → `memberSchema.ts`) pedia cargo como **texto livre** e área
+por uma **lista fixa** (`LEGACY_SUBAREA_NAMES`) — não tinha `positionId`,
+`areaId` nem `subareaId`. A tela de **Editar cadastro** (PERFIL-006) já
+resolvia tudo isso pelo catálogo organizacional, incluindo cargo de diretoria
+com "Área inteira". O cadastro de criação nunca tinha sido migrado para o
+mesmo desenho, então não existia como escolher "Área inteira" ao **criar** um
+membro de diretoria — só ao editar um que já existia.
+
+Este item é parte do que **DATA-007** já lista como dependência ("o cadastro
+manual passar a gravar `area_id`, `subarea_id` e `position_id` a partir do
+catálogo") — aqui ele ganhou critério de aceite próprio, focado na regra de
+"Área inteira" para diretoria.
+
+**Objetivo.** Cadastro e edição de membro seguem exatamente a mesma regra de
+lotação e cargo.
+
+**Solução implementada.** `resolveMemberPosition()` (`src/data/org.ts`), nova
+função pura que espelha a regra já usada por `citi_import_member` (migration
+0014) e pela correção de cadastro (PERFIL-006): o CARGO decide `role`/`area`
+(texto legado), `areaId` e `subareaId` — nunca o inverso. `memberSchema.ts`
+passou a exigir `areaId`/`subareaId`/`positionId` (com `superRefine`
+validando cargo ativo, pertencente à área, e subárea pertencente ao cargo) em
+vez de `role` (texto) + `area` (enum fixo). `MemberForm.tsx` ganhou a mesma
+cascata Área → Subárea/"Área inteira" → Cargo de `EditMemberDrawer.tsx`
+(catálogo, loading, erro com retry, limpeza de subárea/cargo incompatível ao
+trocar de área).
+
+**Critérios de aceite**
+
+- [x] Cadastro escolhe cargo pelo catálogo (não mais texto livre).
+- [x] Cargo de diretoria: `area_id` preenchido, `subarea_id = null`, interface
+      mostra "Área inteira" — nunca um select vazio parecendo formulário
+      incompleto, e nunca o texto "Área inteira" gravado como se fosse
+      subárea.
+- [x] Cargo comum continua exigindo e preservando uma subárea real.
+- [x] Trocar a área limpa uma subárea/cargo que não pertence a ela.
+- [x] Criação e edição derivam a regra do mesmo lugar (`resolveMemberPosition`
+      é a fonte única da lógica; `EditMemberDrawer`/`memberCorrectionSchema`
+      não foram tocados, e continuam com o comportamento próprio de diff).
+- [x] Testes cobrindo: criação com diretoria/área inteira, criação com cargo
+      comum, edição (fluxo já existente, sem regressão), troca de área,
+      subárea de outra área recusada, cargo/subárea inativos recusados.
+- [x] Nenhuma migration necessária — `Member.areaId/subareaId/positionId` e o
+      mapeamento em `mappers.ts`/`mockAdapter.ts` já existiam e já eram usados
+      pela edição; só o formulário de criação mudou.
+- [ ] Paridade mock/Supabase para o `INSERT` de criação **não foi confirmada
+      contra o Supabase de teste real** (só por leitura de código) — ver
+      relatório da implementação.
+
+**Instruções**
+
+Copie o padrão já validado de `EditMemberDrawer.tsx` +
+`memberCorrectionSchema.ts` (mesmo `useOrgCatalog()`, mesma derivação
+`isAreaWide = Boolean(selectedPosition && !selectedPosition.subareaId)`). Se
+uma constraint de banco real bloquear algo que hoje parece já aceito, pare e
+reporte antes de criar migration.
+
+---
+
 ## EPIC 2 — Perfil do Membro · Feature Owner: Gabi
 
 ### PERFIL-001 — Estrutura do Perfil

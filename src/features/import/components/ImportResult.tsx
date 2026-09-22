@@ -59,7 +59,7 @@ const REVIEW: Record<MemberIntakeReviewReason, { label: string; fix: string }> =
   },
   cpf_missing: {
     label: 'CPF não informado',
-    fix: 'Preencher pelo perfil, em Editar cadastro. Reimportar com o CPF também resolve — a importação não sobrescreve CPF já gravado.',
+    fix: 'Preencher pelo perfil, em Editar cadastro. Reimportar com o CPF também resolve, pois a importação não sobrescreve CPF já gravado.',
   },
   invalid_cpf: {
     label: 'CPF não confere',
@@ -71,7 +71,7 @@ const REVIEW: Record<MemberIntakeReviewReason, { label: string; fix: string }> =
   },
   cpf_duplicado: {
     label: 'Este CPF já pertence a outro membro',
-    fix: 'Não é falha técnica — reimportar ou reprocessar sozinho não resolve. Conferir com a pessoa qual é o CPF correto e decidir qual cadastro está certo antes de corrigir pelo perfil.',
+    fix: 'Não é falha técnica: reimportar ou reprocessar sozinho não resolve. Conferir com a pessoa qual é o CPF correto e decidir qual cadastro está certo antes de corrigir pelo perfil.',
   },
 };
 
@@ -102,7 +102,7 @@ export function ImportResult({ report }: { report: ImportReport }) {
   const titulo = temFalha
     ? 'Importação concluída com falhas'
     : precisaRevisao
-      ? 'Importação concluída — revisão necessária'
+      ? 'Importação concluída: revisão necessária'
       : 'Importação concluída';
 
   return (

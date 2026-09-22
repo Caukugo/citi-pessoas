@@ -23,13 +23,14 @@ export {
   Input,
   Textarea,
   Select,
+  SearchableSelect,
   Checkbox,
   Radio,
   SearchInput,
   TagInput,
   Toggle,
 } from './form';
-export type { FormFieldProps, SelectOption } from './form';
+export type { FormFieldProps, SelectOption, SearchableSelectOption } from './form';
 
 export { Modal, Drawer, ConfirmDialog } from './overlay';
 export type { ModalProps, ModalSize, DrawerSize } from './overlay';

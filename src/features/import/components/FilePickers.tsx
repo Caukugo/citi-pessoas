@@ -124,7 +124,7 @@ export function FilePickers({
         />
         <FileSlot
           id="import-zip"
-          label="Fotos (.zip) — opcional"
+          label="Fotos (.zip, opcional)"
           hint="Cada arquivo é localizado pelo valor da coluna Foto Arquivo. JPEG, PNG ou WebP, até 5 MB cada."
           accept=".zip,application/zip"
           icon={<FileArchive size={18} />}

@@ -127,7 +127,12 @@ describe('Feedbacks → Acompanhamento', () => {
       await user.click(screen.getByRole('button', { name: /^registrar feedback$/i }));
 
       const drawer = within(await screen.findByRole('dialog'));
-      await user.selectOptions(drawer.getByLabelText(/membro/i), 'mbr-005');
+      // O seletor de membro agora é pesquisável: digita parte do nome e clica
+      // no resultado, em vez de `selectOptions` (nativo, não se aplica mais).
+      const memberField = drawer.getByLabelText(/membro/i);
+      await user.click(memberField);
+      await user.type(memberField, 'tarc');
+      await user.click(await drawer.findByRole('option', { name: /tarcísio amorim/i }));
       await user.selectOptions(drawer.getByLabelText(/^tipo/i), 'informal');
       await user.type(
         drawer.getByLabelText(/^feedback/i),

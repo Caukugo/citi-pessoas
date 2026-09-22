@@ -140,7 +140,7 @@ export function ImportPage() {
             {phase === 'importando' && plan && (
               <>
                 <LoadingState
-                  label={`Importando ${progress.done} de ${progress.total} — não feche esta aba.`}
+                  label={`Importando ${progress.done} de ${progress.total}. Não feche esta aba.`}
                 />
                 <ImportPreview plan={plan} />
               </>

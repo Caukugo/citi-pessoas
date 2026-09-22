@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MessageSquarePlus, Plus, SearchX } from 'lucide-react';
 import { Button, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import type { FeedbackType, ID } from '@/data';
@@ -40,6 +41,12 @@ export function FeedbacksOverviewTab({ onRegister }: { onRegister: () => void })
   const { filters, setFilter, clear } = useFeedbacksFilters();
   const { rows, summary, byMember, isLoading, isError, refetch } = useFeedbacksOverview(filters);
   const directory = useMemberDirectory();
+  const location = useLocation();
+
+  // Exatamente a URL de Feedbacks no momento do clique (aba + filtros), para
+  // "Voltar para Feedbacks" cair no mesmo recorte — nunca um caminho, só a
+  // query que `resolveProfileBackLink` acrescenta ao `/feedbacks` fixo.
+  const returnQuery = location.search.replace(/^\?/, '');
 
   const [history, setHistory] = useState<HistoryTarget | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -108,6 +115,7 @@ export function FeedbacksOverviewTab({ onRegister }: { onRegister: () => void })
                 <FeedbacksTable
                   rows={rows}
                   directory={directory.byId}
+                  returnQuery={returnQuery}
                   onOpenHistory={(memberId, type) => setHistory({ memberId, type })}
                 />
               </div>
@@ -116,6 +124,7 @@ export function FeedbacksOverviewTab({ onRegister }: { onRegister: () => void })
                   <MemberFeedbackCard
                     key={row.member.id}
                     row={row}
+                    returnQuery={returnQuery}
                     onOpenHistory={(memberId, type) => setHistory({ memberId, type })}
                   />
                 ))}
@@ -142,6 +151,7 @@ export function FeedbacksOverviewTab({ onRegister }: { onRegister: () => void })
         type={history?.type}
         feedbacks={history ? (byMember.get(history.memberId) ?? []) : []}
         directory={directory.byId}
+        returnQuery={returnQuery}
         onRegister={openRegister}
       />
     </div>

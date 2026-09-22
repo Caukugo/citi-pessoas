@@ -8,7 +8,7 @@ import {
   type ID,
 } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
-import { ROUTES } from '@/app/routes';
+import { memberProfileLinkFrom } from '@/lib/profileNavigation';
 import { MemberAvatar } from '@/features/members/components/MemberAvatar';
 import {
   FEEDBACK_TYPES,
@@ -28,9 +28,12 @@ const DASH = '·';
 
 export function MemberFeedbackCard({
   row,
+  returnQuery,
   onOpenHistory,
 }: {
   row: MemberFeedbackRow;
+  /** Query atual de Feedbacks (sem `?`) — viaja no link para o Perfil voltar aqui. */
+  returnQuery: string;
   onOpenHistory: (memberId: ID, type: FeedbackType) => void;
 }) {
   const { member, counts, lastFeedback } = row;
@@ -47,7 +50,7 @@ export function MemberFeedbackCard({
         />
         <div className="min-w-0 flex-1">
           <Link
-            to={ROUTES.memberProfile(member.id)}
+            to={memberProfileLinkFrom(member.id, 'feedbacks', returnQuery)}
             className="block truncate text-[13px] font-semibold text-foreground"
           >
             {member.fullName}
