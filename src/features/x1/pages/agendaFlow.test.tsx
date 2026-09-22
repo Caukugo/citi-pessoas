@@ -263,11 +263,7 @@ describe('Agenda de X1', () => {
 
       const gaveta = within(await screen.findByRole('dialog'));
       const membro = await gaveta.findByLabelText(/membro/i);
-      await waitFor(() =>
-        expect((membro as HTMLSelectElement).selectedOptions[0].textContent).toMatch(
-          /Helena Vasconcelos/,
-        ),
-      );
+      await waitFor(() => expect(membro).toHaveValue('Helena Vasconcelos'));
     },
     TIMEOUT,
   );
