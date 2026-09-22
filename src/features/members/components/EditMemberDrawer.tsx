@@ -274,7 +274,7 @@ export function EditMemberDrawer({
               ))}
             </ul>
             <p className="mt-2 text-xs text-muted-foreground">
-              Corrigir o campo aqui resolve a pendência correspondente — e só ela.
+              Corrigir o campo aqui resolve a pendência correspondente, e só ela.
             </p>
           </div>
         )}
@@ -344,7 +344,7 @@ export function EditMemberDrawer({
             não apenas o que está escrito sobre ela. */}
         <FormSection
           title="Lotação e cargo"
-          description="Corrige onde a pessoa está. Promoção e troca de time com data de vigência são outra história — aqui é conserto de cadastro."
+          description="Corrige onde a pessoa está. Promoção e troca de time com data de vigência são outra história: aqui é conserto de cadastro."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Área" error={form.formState.errors.areaId?.message} required>
@@ -405,7 +405,7 @@ export function EditMemberDrawer({
 
         <FormSection
           title="Foto institucional"
-          description="JPEG, PNG ou WebP, até 5 MB. O arquivo vai para um bucket privado — a exibição usa link temporário."
+          description="JPEG, PNG ou WebP, até 5 MB. O arquivo vai para um bucket privado, e a exibição usa link temporário."
         >
           <div className="flex items-center gap-4">
             <MemberAvatar member={member} size="lg" />
@@ -427,7 +427,7 @@ export function EditMemberDrawer({
               </Button>
               {photoFile && (
                 <span className="text-xs text-foreground-secondary">
-                  {photoFile.name} — será enviada ao salvar.
+                  {photoFile.name} será enviada ao salvar.
                 </span>
               )}
               {photoError && (

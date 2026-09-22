@@ -631,6 +631,36 @@
       ]
     },
     {
+      "id": "MEM-006",
+      "epic": "EPIC-1",
+      "title": "Migrar cadastro manual de membros para o catálogo organizacional",
+      "description": "O cadastro de criação de membro pedia cargo como texto livre e área por lista fixa (LEGACY_SUBAREA_NAMES) - nao tinha positionId/areaId/subareaId. A edicao (PERFIL-006) ja usava o catalogo organizacional, incluindo cargo de diretoria com 'Area inteira'. Implementado: resolveMemberPosition() (src/data/org.ts) deriva role/area/areaId/subareaId a partir do cargo escolhido, mesma regra de citi_import_member (migration 0014) e da correcao de cadastro. memberSchema.ts e MemberForm.tsx migrados para a mesma cascata Area/Subarea/Cargo de EditMemberDrawer.tsx. Codigo implementado e testado nesta branch, ainda sem commit - status fica In Progress ate o merge. Paridade mock/Supabase nao foi confirmada contra o Supabase de teste real, so por leitura de codigo.",
+      "owner": "Gabi",
+      "reviewer": "Cauan",
+      "difficulty": "assistida",
+      "priority": "Média",
+      "status": "In Progress",
+      "dependencies": [],
+      "branch": "fix/feedback-cadastro-e-textos",
+      "acceptanceCriteria": [
+        "Cadastro escolhe cargo pelo catálogo, não mais texto livre",
+        "Cargo de diretoria: area_id preenchido, subarea_id = null, UI mostra 'Área inteira'",
+        "'Área inteira' nunca é gravada como texto no lugar de subárea",
+        "Cargo comum continua exigindo e preservando uma subárea real",
+        "Trocar a área limpa subárea/cargo incompatível",
+        "Criação e edição compartilham a mesma regra de derivação de área/subárea",
+        "Testes: criação com diretoria/área inteira, criação com cargo comum, edição sem regressão, troca de área",
+        "Nenhuma migration necessária - schema já aceitava subarea_id=null",
+        "Pendente: confirmar paridade mock/Supabase do INSERT de criação contra o Supabase de teste real"
+      ],
+      "aiInstructions": "Padrão já validado de EditMemberDrawer.tsx + memberCorrectionSchema.ts (useOrgCatalog(), isAreaWide = Boolean(selectedPosition && !selectedPosition.subareaId)) foi reaproveitado via resolveMemberPosition() em src/data/org.ts, usado só por memberSchema.ts (criação) - EditMemberDrawer/memberCorrectionSchema não foram tocados.",
+      "labels": [
+        "area: members",
+        "difficulty: assisted",
+        "priority: normal"
+      ]
+    },
+    {
       "id": "PERFIL-001",
       "epic": "EPIC-2",
       "title": "Estrutura do Perfil",

@@ -38,7 +38,12 @@ function renderTable(member: Member) {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <FeedbacksTable rows={[row(member)]} directory={new Map()} onOpenHistory={() => {}} />
+        <FeedbacksTable
+          rows={[row(member)]}
+          directory={new Map()}
+          returnQuery=""
+          onOpenHistory={() => {}}
+        />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -49,7 +54,7 @@ function renderCard(member: Member) {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <MemberFeedbackCard row={row(member)} onOpenHistory={() => {}} />
+        <MemberFeedbackCard row={row(member)} returnQuery="" onOpenHistory={() => {}} />
       </QueryClientProvider>
     </MemoryRouter>,
   );

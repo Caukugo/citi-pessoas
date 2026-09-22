@@ -86,7 +86,7 @@ export function DeactivateMemberDialog({
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-foreground-secondary">
-          O ciclo em andamento é interrompido antes do fim previsto — diferente de quem conclui o
+          O ciclo em andamento é interrompido antes do fim previsto, diferente de quem conclui o
           ciclo normalmente, que fica <strong>inativo</strong>. O histórico é preservado; nada é
           apagado.
         </p>

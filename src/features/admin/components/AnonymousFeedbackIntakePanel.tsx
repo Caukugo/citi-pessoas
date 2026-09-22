@@ -201,7 +201,7 @@ export function AnonymousFeedbackIntakePanel() {
   return (
     <Panel
       title="Feedback anônimo"
-      subtitle="O Google Form é permanente — sem campanha, sem prazo. O link não muda."
+      subtitle="O Google Form é permanente: sem campanha, sem prazo. O link não muda."
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">

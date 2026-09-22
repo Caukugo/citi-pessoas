@@ -21,6 +21,7 @@ import { CreateFeedbackDrawer } from '@/features/feedbacks/components/CreateFeed
 import { MemberFeedbackTab } from '@/features/feedbacks/components/MemberFeedbackTab';
 import { useMemberFeedbacks } from '@/features/feedbacks/hooks/useMemberFeedbacks';
 import { useMemberDirectory } from '../hooks/useMembersList';
+import { resolveProfileBackLink } from '@/lib/profileNavigation';
 import { EditMemberDrawer } from '../components/EditMemberDrawer';
 import { GgResponsibleField } from '../components/GgResponsibleField';
 import { MemberCpfField } from '../components/MemberCpfField';
@@ -64,6 +65,10 @@ export function MemberProfilePage() {
   const rawTab = searchParams.get('aba') as TabId | null;
   const activeTab: TabId = rawTab && VALID_TABS.includes(rawTab) ? rawTab : 'visao-geral';
 
+  // De onde a navegação começou (`?origem=`) decide o "voltar" — nunca um
+  // caminho arbitrário, sempre um dos dois fixos de `resolveProfileBackLink`.
+  const backLink = resolveProfileBackLink(searchParams.get('origem'), searchParams.get('retorno'));
+
   const setTab = (tab: TabId) => {
     const params = new URLSearchParams(searchParams);
     if (tab === 'visao-geral') params.delete('aba');
@@ -94,11 +99,7 @@ export function MemberProfilePage() {
   if (memberQuery.isError) {
     return (
       <>
-        <PageHeader
-          title="Perfil do Membro"
-          backTo={ROUTES.members}
-          backLabel="Voltar para Membros"
-        />
+        <PageHeader title="Perfil do Membro" backTo={backLink.to} backLabel={backLink.label} />
         <Surface>
           <ErrorState
             title="Não foi possível carregar este perfil"
@@ -115,19 +116,15 @@ export function MemberProfilePage() {
   if (!memberQuery.data) {
     return (
       <>
-        <PageHeader
-          title="Membro não encontrado"
-          backTo={ROUTES.members}
-          backLabel="Voltar para Membros"
-        />
+        <PageHeader title="Membro não encontrado" backTo={backLink.to} backLabel={backLink.label} />
         <Surface>
           <EmptyState
             icon={<UserX size={20} aria-hidden />}
             title="Este membro não existe"
-            description="O endereço pode estar errado. Lembre que membros nunca são apagados — confira se o link foi copiado certo."
+            description="O endereço pode estar errado. Lembre que membros nunca são apagados, então confira se o link foi copiado certo."
             action={
-              <Button variant="primary" onClick={() => navigate(ROUTES.members)}>
-                Voltar para Membros
+              <Button variant="primary" onClick={() => navigate(backLink.to)}>
+                {backLink.label}
               </Button>
             }
           />
@@ -152,6 +149,8 @@ export function MemberProfilePage() {
         directory={directory.byId}
         x1Status={overview.status}
         lastX1={overview.lastX1}
+        backTo={backLink.to}
+        backLabel={backLink.label}
         action={
           <div className="flex flex-wrap gap-2">
             {/* Corrigir cadastro é ação secundária: o que a GG faz no dia a dia

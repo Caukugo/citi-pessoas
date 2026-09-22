@@ -2,7 +2,7 @@ import { Plus, UserRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Drawer, EmptyState } from '@/components/ui';
 import type { Feedback, FeedbackType, ID, Member } from '@/data';
-import { ROUTES } from '@/app/routes';
+import { memberProfileLinkFrom } from '@/lib/profileNavigation';
 import { FEEDBACK_TYPE_PLURAL, selectMemberFeedbacks } from '../model/feedbacksOverview';
 import { FeedbackHistoryItem } from './FeedbackHistoryItem';
 
@@ -21,6 +21,7 @@ export function FeedbackHistoryDrawer({
   type,
   feedbacks,
   directory,
+  returnQuery,
   onRegister,
 }: {
   open: boolean;
@@ -30,6 +31,8 @@ export function FeedbackHistoryDrawer({
   type?: FeedbackType;
   feedbacks: Feedback[];
   directory: Map<ID, Member>;
+  /** Query atual de Feedbacks (sem `?`) — viaja no link para o Perfil voltar aqui. */
+  returnQuery: string;
   onRegister: () => void;
 }) {
   const navigate = useNavigate();
@@ -51,7 +54,7 @@ export function FeedbackHistoryDrawer({
             // "o quê", e o Perfil responde "quem é esta pessoa".
             <Button
               icon={<UserRound size={15} />}
-              onClick={() => navigate(ROUTES.memberProfile(member.id))}
+              onClick={() => navigate(memberProfileLinkFrom(member.id, 'feedbacks', returnQuery))}
             >
               Abrir perfil
             </Button>

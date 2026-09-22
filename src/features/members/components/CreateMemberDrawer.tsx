@@ -7,6 +7,7 @@ import { Button, Drawer, useToast } from '@/components/ui';
 import {
   messageFor,
   useCreateMember,
+  useOrgCatalog,
   useSetMemberX1Periodicity,
   useSettings,
   type Member,
@@ -45,6 +46,12 @@ export function CreateMemberDrawer({
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { data: settings } = useSettings();
+  const {
+    data: catalog,
+    isLoading: catalogLoading,
+    isError: catalogError,
+    refetch: refetchCatalog,
+  } = useOrgCatalog();
   const createMember = useCreateMember();
   const setPeriodicity = useSetMemberX1Periodicity();
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -52,8 +59,8 @@ export function CreateMemberDrawer({
   // Base sem ninguém de GG cadastrado: o campo deixa de ser obrigatório, senão
   // o primeiro membro da plataforma nunca poderia ser criado.
   const schema = useMemo(
-    () => makeMemberFormSchema({ requireGgResponsible: ggPeople.length > 0 }),
-    [ggPeople.length],
+    () => makeMemberFormSchema({ requireGgResponsible: ggPeople.length > 0, catalog }),
+    [ggPeople.length, catalog],
   );
 
   const form = useForm<MemberFormValues>({
@@ -73,7 +80,7 @@ export function CreateMemberDrawer({
   const onSubmit = async (values: MemberFormValues) => {
     setSubmitError(null);
     try {
-      const member = await createMember.mutateAsync(toMemberCreateInput(values));
+      const member = await createMember.mutateAsync(toMemberCreateInput(values, catalog));
 
       // Periodicidade é configuração, não atributo do membro — por isso é uma
       // segunda escrita, e só quando a pessoa foge do padrão.
@@ -116,6 +123,10 @@ export function CreateMemberDrawer({
             variant="primary"
             icon={<UserPlus size={15} />}
             loading={form.formState.isSubmitting}
+            // Sem catálogo carregado não há como resolver o cargo escolhido —
+            // o formulário não deixa a pessoa cadastrar contra um catálogo
+            // que ainda não chegou ou que falhou ao carregar.
+            disabled={catalogLoading || catalogError}
             onClick={form.handleSubmit(onSubmit)}
           >
             Cadastrar membro
@@ -128,6 +139,10 @@ export function CreateMemberDrawer({
           form={form}
           ggPeople={ggPeople}
           defaultPeriodicityDays={settings?.defaultX1PeriodicityDays ?? 30}
+          catalog={catalog}
+          catalogLoading={catalogLoading}
+          catalogError={catalogError}
+          onRetryCatalog={() => void refetchCatalog()}
         />
 
         {submitError && (

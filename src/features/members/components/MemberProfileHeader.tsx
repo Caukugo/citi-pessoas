@@ -11,7 +11,6 @@ import {
 } from '@/data';
 import type { X1 } from '@/data';
 import { formatDate, relativeDays } from '@/lib/format';
-import { ROUTES } from '@/app/routes';
 import { MemberX1StatusBadge } from '@/features/x1/components/MemberX1StatusBadge';
 import { memberNameById } from '../model/membersList';
 import { MemberAvatar } from './MemberAvatar';
@@ -35,12 +34,17 @@ export function MemberProfileHeader({
   x1Status,
   lastX1,
   action,
+  backTo,
+  backLabel,
 }: {
   member: Member;
   directory: Map<ID, Member>;
   x1Status: MemberX1Status;
   lastX1: X1 | null;
   action?: ReactNode;
+  /** Para onde "voltar" leva — decidido por `resolveProfileBackLink` na página. */
+  backTo: string;
+  backLabel: string;
 }) {
   const ggName = memberNameById(directory, member.ggResponsibleId);
   const orgLabel = useMemberOrgLabels();
@@ -49,13 +53,17 @@ export function MemberProfileHeader({
     <Surface className="p-6">
       {/* O caminho de volta fica dentro do cabeçalho porque este cartão é o
           topo da página: o Perfil não usa `PageHeader` para não ter o nome da
-          pessoa escrito duas vezes, uma acima da outra. */}
+          pessoa escrito duas vezes, uma acima da outra.
+
+          ⚠️ `backTo`/`backLabel` vêm de `resolveProfileBackLink` — nunca escreva
+          `ROUTES.members` fixo aqui de novo: é exatamente essa fixação que fazia
+          "Voltar para Membros" aparecer mesmo vindo de Feedbacks. */}
       <Link
-        to={ROUTES.members}
+        to={backTo}
         className="mb-4 inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
         <ChevronLeft size={14} aria-hidden />
-        Voltar para Membros
+        {backLabel}
       </Link>
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
