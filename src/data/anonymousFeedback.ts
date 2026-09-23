@@ -109,3 +109,43 @@ export function useModerateAnonymousFeedback() {
     },
   });
 }
+
+// ─── Arquivamento (migration 0040) ────────────────────────────────────────────
+
+/**
+ * Arquiva — para de aparecer na fila ativa, NUNCA apaga conteúdo, `source` nem
+ * `external_id`. Idempotente: arquivar de novo devolve como está, sem
+ * sobrescrever quem arquivou primeiro nem o motivo original. `reason` é
+ * obrigatório (o banco recusa vazio ou só espaço).
+ */
+export function archiveAnonymousFeedback(id: ID, reason: string): Promise<AnonymousFeedback> {
+  return db.anonymousFeedbacks.archive(id, reason);
+}
+
+/** Seção própria para GG — separada da fila ativa, nunca misturada a ela. */
+export function getArchivedAnonymousFeedbacks(): Promise<AnonymousFeedback[]> {
+  return db.anonymousFeedbacks.listArchived();
+}
+
+export function useArchivedAnonymousFeedbacks() {
+  return useQuery({
+    queryKey: queryKeys.anonymousFeedbacks.archived,
+    queryFn: getArchivedAnonymousFeedbacks,
+  });
+}
+
+export function useArchiveAnonymousFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: ID; reason: string }) => archiveAnonymousFeedback(id, reason),
+    onSuccess: (feedback) => {
+      // Sai da fila ativa e entra na seção de arquivados — as duas listas e o
+      // detalhe precisam refletir a mudança juntos.
+      queryClient.invalidateQueries({ queryKey: queryKeys.anonymousFeedbacks.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.anonymousFeedbacks.archived });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.anonymousFeedbacks.detail(feedback.id),
+      });
+    },
+  });
+}

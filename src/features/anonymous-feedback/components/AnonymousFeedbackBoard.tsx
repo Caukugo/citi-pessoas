@@ -7,6 +7,7 @@ import { hasActiveModerationFilters } from '../model/moderationBoard';
 import { useModerationBoard, useModerationFilters } from '../hooks/useModerationBoard';
 import { AnonymousFeedbackFilters } from './AnonymousFeedbackFilters';
 import { AnonymousFeedbackColumn } from './AnonymousFeedbackColumn';
+import { AnonymousFeedbackArchivedSection } from './AnonymousFeedbackArchivedSection';
 import { ModerationDrawer } from './ModerationDrawer';
 
 /**
@@ -92,6 +93,8 @@ export function AnonymousFeedbackBoard() {
           </div>
         </div>
       )}
+
+      <AnonymousFeedbackArchivedSection directory={directory.byId} onOpen={setSelected} />
 
       <ModerationDrawer
         feedback={selected}

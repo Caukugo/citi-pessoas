@@ -146,10 +146,27 @@ Na prática, `updateMember()` cria o evento automaticamente quando `area` ou
 | Status | Significado |
 | --- | --- |
 | `ativo` | Membro atual do CITi |
-| `desligado` | Saiu; histórico preservado |
-| `arquivado` | Fora das listagens; histórico preservado |
+| `inativo` | Concluiu NATURALMENTE o ciclo — pode ser reativado por continuação |
+| `desligado` | Saiu ANTES do fim previsto do ciclo — não é conclusão natural |
+| `arquivado` | Invisível em toda a plataforma; histórico preservado |
 
-**Não existe exclusão.** `archiveMember()` é a operação disponível.
+**Não existe exclusão.** Arquivar (migration `0039`, ADR-025) não é mais um
+`update()` direto de status — é uma elegibilidade CALCULADA (nunca gravada),
+igual em espírito a `getMemberX1Status`:
+
+- `desligado` → elegível quando hoje é depois do fim previsto do ciclo
+  interrompido;
+- `inativo` → elegível quando hoje é depois do fim da gestão SEGUINTE à
+  gestão em que o ciclo terminou (fallback de 12 meses sem gestão seguinte
+  cadastrada).
+
+`useMemberArchivalPreview()` lista quem está elegível agora, e
+`useConfirmMemberArchival()` arquiva — recalculando por membro no momento da
+confirmação, nunca confiando na prévia. `useReactivateArchivedMember()` traz
+quem está `arquivado` de volta, com um ciclo novo a partir de uma data
+explícita (nunca emenda no ciclo antigo — quem estava arquivado pode ter
+saído há anos). Nenhuma das três aparece em `/membros`: moram na
+Administração (`MemberArchivalPanel`). Ver ADR-025.
 
 ---
 
@@ -373,6 +390,19 @@ Regras estruturais:
 5. **Não é "aprovar/rejeitar".** Não existe publicação a aprovar — ver ADR-013.
 
 Acesso no Supabase (RLS): **qualquer pessoa insere**, **só GG lê e modera**.
+
+### Arquivamento (migration 0040, ADR-025)
+
+Ortogonal a `status`/`resolution` — um relato `ciente` ou `direcionado` pode
+ou não estar arquivado, e a fila de moderação nunca mistura os dois eixos.
+`archivedAt`/`archivedByProfileId`/`archiveReason` nascem e morrem juntos
+(constraint no banco); `useArchiveAnonymousFeedback()` é a única porta de
+escrita (`citi_archive_anonymous_feedback`, idempotente, motivo obrigatório).
+`content`, `source` e `external_id` nunca são apagados — o reprocessamento do
+Google Forms continua reconhecendo uma resposta já processada mesmo depois de
+arquivada. `useAnonymousFeedbacks()`/`useAnonymousFeedback()` (a fila ativa)
+nunca incluem arquivados; `useArchivedAnonymousFeedbacks()` é a seção própria,
+dentro do mesmo quadro de moderação.
 
 ---
 

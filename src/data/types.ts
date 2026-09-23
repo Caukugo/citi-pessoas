@@ -198,6 +198,78 @@ export interface MemberDeactivateInput {
   reason?: string | null;
 }
 
+// ─── Retenção e arquivamento de membros (migration 0039, GERAL-009) ──────────
+
+/**
+ * Por qual regra um membro está elegível para arquivamento AGORA.
+ *
+ * Espelha, byte a byte, os literais devolvidos por
+ * `citi_member_archival_eligibility` (migration 0039) e reproduzidos em
+ * `computeMemberArchivalEligibility` (`features/members/model/memberArchival.ts`,
+ * a mesma regra em TypeScript puro para o modo mock). As duas implementações
+ * precisam concordar — é o que `memberArchival.test.ts` prova.
+ */
+export type MemberArchivalCriterion =
+  | 'desligamento_antecipado_ciclo_expirado'
+  | 'conclusao_normal_pos_gestao_seguinte'
+  | 'conclusao_normal_fallback_12_meses';
+
+export const MEMBER_ARCHIVAL_CRITERION_LABEL: Record<MemberArchivalCriterion, string> = {
+  desligamento_antecipado_ciclo_expirado: 'Desligados cujo ciclo previsto terminou',
+  conclusao_normal_pos_gestao_seguinte: 'Concluíram normalmente e já passaram a gestão seguinte',
+  conclusao_normal_fallback_12_meses: 'Elegíveis pelo limite subsidiário de 12 meses',
+};
+
+/** Uma linha da prévia de arquivamento — devolvida por `citi_member_archival_preview`. */
+export interface MemberArchivalPreviewRow {
+  memberId: ID;
+  fullName: string;
+  status: MemberStatus;
+  criterio: MemberArchivalCriterion;
+  /** Ciclo encerrado que fundamenta a elegibilidade. */
+  cycleId: ID;
+  expectedEndOn: ISODate | null;
+}
+
+/**
+ * O que aconteceu com UM membro do lote pedido a `citi_member_archival_confirm`.
+ *
+ *   arquivado      arquivamento efetivado agora
+ *   ja_arquivado   idempotência: já estava arquivado (por esta ou outra chamada)
+ *   nao_elegivel   recalculado no momento da confirmação e recusado (ex.: foi
+ *                  reativado por outra aba entre a prévia e o clique)
+ *   nao_encontrado o id não corresponde a nenhum membro
+ */
+export type MemberArchivalConfirmOutcome =
+  | 'arquivado'
+  | 'ja_arquivado'
+  | 'nao_elegivel'
+  | 'nao_encontrado';
+
+export interface MemberArchivalConfirmResult {
+  memberId: ID;
+  resultado: MemberArchivalConfirmOutcome;
+}
+
+/**
+ * O que a tela envia a `citi_reactivate_archived_member` (RPC dedicada,
+ * migration 0039) para reativar quem está `arquivado`.
+ *
+ * ⚠️ NÃO é `citi_reactivate_member` (0009, sem contrato de cliente nesta
+ * camada ainda): aquela serve para quem concluiu o ciclo AGORA e quer
+ * continuar sem buraco. Esta pede uma data de início EXPLÍCITA porque quem
+ * está arquivado pode ter saído há anos — o novo ciclo nunca emenda no antigo.
+ */
+export interface MemberReactivateArchivedInput {
+  positionId: ID;
+  /** Obrigatória quando o cargo vale para uma subárea específica. */
+  subareaId?: ID | null;
+  /** `undefined` = hoje (fuso de Recife, decidido pelo servidor). */
+  startedOn?: ISODate;
+  /** Evita reativar duas vezes por um duplo clique. */
+  idempotencyKey?: string;
+}
+
 // ─── Estrutura organizacional ─────────────────────────────────────────────────
 
 /**
@@ -1237,6 +1309,20 @@ export interface AnonymousFeedback {
   moderatedAt?: ISODate | null;
   /** Observação interna da moderação. Não é devolvida a quem enviou. */
   moderationNote?: string | null;
+
+  /**
+   * ── Arquivamento (migration 0040) ──
+   *
+   * Arquivar para de mostrar o feedback na fila ativa — NUNCA apaga
+   * `content`, `source`, `external_id` nem qualquer outro dado. `null` =
+   * ativo. As três colunas nascem e morrem juntas (`archivedAt` preenchido
+   * ⟺ as outras duas também estão). Só `citi_archive_anonymous_feedback`
+   * escreve aqui; ver `AnonymousFeedbacksRepository.archive`.
+   */
+  archivedAt?: ISODate | null;
+  /** Sempre resolvido por `auth.uid()` no servidor — nunca um parâmetro do cliente. */
+  archivedByProfileId?: ID | null;
+  archiveReason?: string | null;
 }
 
 /**

@@ -1334,6 +1334,111 @@ excluiu nada.
 
 ---
 
+## ADR-025 — Elegibilidade de arquivamento de membro é calculada, nunca gravada; feedback anônimo ganha arquivamento próprio (não exclusão)
+
+- **Data:** 2026-09-23
+- **Status:** Aceita
+
+**Contexto.** `member_status` reserva `arquivado` desde a `0004`,
+`member_cycles.end_type` reserva `arquivamento` desde a `0005`, e
+`member_event_type` reserva `arquivamento`/`reativacao` desde a `0006` — mas
+nenhuma RPC jamais escreveu nada disso. `MembersRepository.archive()` existia
+como um `.update({status:'arquivado'})` direto do cliente, sem checagem de
+elegibilidade nenhuma: um atalho que ignorava toda política. `PROJECT_CONTEXT.md`
+§12 já descrevia o ciclo "Perfil arquivado → histórico detalhado → retenção",
+mas faltava decidir **quando**, exatamente, alguém se torna elegível.
+
+**Decisão — elegibilidade de membro.**
+
+| Situação | Elegível quando |
+| --- | --- |
+| `desligado` (saiu antes do fim do ciclo) | hoje > `expected_end_on` do ciclo interrompido |
+| `inativo` (concluiu naturalmente) | hoje > fim da gestão SEGUINTE à gestão em que o ciclo terminou |
+| `inativo`, sem gestão seguinte cadastrada | fallback: hoje > 12 meses após o fim do ciclo |
+
+A elegibilidade é **sempre calculada** (`citi_member_archival_eligibility`),
+nunca gravada — mesmo padrão de `getMemberX1Status` (`ARCHITECTURE.md` §4.1):
+gravar "está elegível" seria gravar a passagem do tempo. Preview
+(`citi_member_archival_preview`) e confirmação (`citi_member_archival_confirm`)
+chamam a MESMA função; não existem duas implementações da regra. A
+confirmação recalcula por membro no momento do clique — tudo-ou-nada
+individual, não pelo lote inteiro — e é idempotente.
+
+Arquivar é **sempre ação humana**: as três RPCs (`preview`, `confirm`,
+`reactivate_archived_member`) revogam `service_role` além de `anon`/`public` —
+diferente de `citi_deactivate_finished_cycles` (automática, liberada para
+`service_role`), aqui nem uma rotina de servidor pode disparar isto sozinha. O
+trigger `citi_log_member_changes` passou a exigir a GUC
+`citi.arquivamento_ciclo_id` para aceitar `status = 'arquivado'` — um
+`UPDATE` direto fora da RPC é recusado, fechando o atalho que `archive()`
+representava.
+
+**Reativação de arquivado é uma RPC dedicada.** `citi_reactivate_member`
+(`0009`) continua servindo quem concluiu o ciclo agora e quer continuar sem
+buraco. `citi_reactivate_archived_member` é para quem pode ter saído há anos:
+pede uma **data de início explícita** e nunca emenda no ciclo antigo.
+
+**Decisão — feedback anônimo.** Diferente de Feedback de acompanhamento
+(ADR-024, que ganhou **exclusão**), feedback anônimo ganha **arquivamento**
+(`citi_archive_anonymous_feedback`): para de aparecer na fila ativa, mas
+`content`, `source` e `external_id` nunca são apagados — o reprocessamento do
+Google Forms depende do índice único em `external_id` continuar valendo
+mesmo depois de arquivado. Três colunas novas (`archived_at`,
+`archived_by_profile_id`, `archive_reason`), e o `UPDATE` de tabela inteira que
+`moderate()` usava foi fechado para um `GRANT` só nas colunas de moderação —
+achado de segurança corrigido por esta migration: sem isso, qualquer GG
+autenticada podia forjar as três colunas de arquivamento por um PATCH direto
+na REST API.
+
+| O quê | Decisão |
+| --- | --- |
+| Membro | Arquivado por elegibilidade calculada — nunca excluído (ADR-024 continua valendo) |
+| Feedback de acompanhamento | Excluível (ADR-024) — fora deste ADR |
+| Feedback anônimo | **Arquivável**, nunca excluído nem convertido — fluxo continua independente |
+
+**Interface.** Um membro arquivado fica **invisível em toda tela
+operacional** — `list()` sem `status` explícito exclui `arquivado` por
+padrão, em ambos os adapters (ADR-025, ver "Consequências"). A **única
+exceção** é o painel de retenção da Administração (`MemberArchivalPanel`),
+restrito a GG, que existe justamente para auditoria (quem está elegível, quem
+já foi arquivado) e reativação explícita — nunca em `/membros`
+(`archiveRemovedFromUI.test.tsx` prova, pela tela renderizada, que nenhum
+texto "Arquiv…" aparece lá): arquivamento é política de retenção, não ação do
+dia a dia sobre uma pessoa. Feedback anônimo arquivado ganha seção própria,
+fechada por padrão, dentro do mesmo quadro de moderação (também restrito a
+GG) — nunca uma quarta coluna, porque arquivamento não é uma decisão de
+moderação (`resolution`), é ortogonal a ela.
+
+**Retenção na V1: prazo indeterminado, sem exclusão automática.** Arquivar
+(membro ou feedback anônimo) não apaga nem agenda apagar nada. O dado
+continua existindo — no Supabase, na planilha de origem da importação e no
+Storage (fotos) — por tempo indefinido; não há rotina, cron nem prazo que
+remova qualquer coisa sozinho. Isto não é uma lacuna desta entrega: é a
+política da V1.
+
+**O que fica em aberto — não é bloqueador.** Esta migration resolve
+**quando** um membro se torna elegível para arquivamento, e o mecanismo de
+arquivar/reativar/consultar. Uma eventual revisão futura da política de
+retenção (um prazo de descarte, se a gestão um dia decidir que deve existir)
+segue registrada em `GERAL-009` como decisão de gestão pendente — não como
+dependência ou próximo passo obrigatório desta entrega. O **registro resumido
+de "alumni"** citado em `PROJECT_CONTEXT.md` §12 é uma **feature futura e
+independente**, sem relação de bloqueio com o que foi implementado aqui.
+
+**Consequências.**
+
+- ✅ `archive()` (o atalho sem elegibilidade) foi removido do contrato do
+  adapter — não sobrou um segundo caminho de escrita.
+- ✅ Mock e Supabase compartilham a mesma regra: o mock reaproveita
+  `computeMemberArchivalEligibility` (TypeScript puro,
+  `features/members/model/memberArchival.ts`), espelho do SQL provado por
+  testes cruzados.
+- ✅ Nenhuma coluna nova em `members`/`member_cycles` — a auditoria completa
+  cabe em `member_events` (GUCs de sessão, mesmo mecanismo de `0031`/`0032`).
+- ⚠️ O mock não modela `member_cycles`: `cycleId` na prévia é sintético
+  (`mockCycleId`), documentado como simplificação — mesmo espírito de
+  `mockCurrentCycle`.
+
 ---
 
 ## Como registrar uma decisão nova

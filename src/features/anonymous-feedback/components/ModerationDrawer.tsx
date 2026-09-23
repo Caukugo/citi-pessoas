@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCheck, CornerDownRight, X } from 'lucide-react';
+import { Archive, CheckCheck, CornerDownRight, X } from 'lucide-react';
 import { Badge, Button, Drawer, FormField, SearchInput, Textarea, useToast } from '@/components/ui';
 import {
   ANONYMOUS_RESOLUTION_LABEL,
   ANONYMOUS_TARGET_LABEL,
   messageFor,
+  useArchiveAnonymousFeedback,
   useModerateAnonymousFeedback,
   type AnonymousFeedback,
   type AnonymousFeedbackResolution,
@@ -66,6 +67,7 @@ export function ModerationDrawer({
   const { user } = useAuth();
   const { showToast } = useToast();
   const moderate = useModerateAnonymousFeedback();
+  const archiveFeedback = useArchiveAnonymousFeedback();
   const orgLabel = useMemberOrgLabels();
 
   // O último relato aberto continua desenhado enquanto a gaveta desliza para
@@ -80,6 +82,8 @@ export function ModerationDrawer({
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedMemberId, setSelectedMemberId] = useState<ID | ''>('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
 
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -96,6 +100,8 @@ export function ModerationDrawer({
     setMemberSearch('');
     setSelectedMemberId('');
     setSubmitError(null);
+    setArchiving(false);
+    setArchiveReason('');
   }, [feedback]);
 
   // Ao abrir o passo de escolher membro, o foco vai para a busca: é o que a
@@ -155,6 +161,21 @@ export function ModerationDrawer({
     }
   };
 
+  const confirmArchive = async () => {
+    setSubmitError(null);
+    try {
+      await archiveFeedback.mutateAsync({ id: shown.id, reason: archiveReason.trim() });
+      onClose();
+      showToast({
+        message: 'Feedback arquivado',
+        description: 'Saiu da fila ativa. Continua disponível na seção de arquivados.',
+        tone: 'success',
+      });
+    } catch (error) {
+      setSubmitError(messageFor(error));
+    }
+  };
+
   return (
     <Drawer
       open={feedback !== null}
@@ -163,7 +184,24 @@ export function ModerationDrawer({
       title="Feedback recebido"
       subtitle={`Recebido em ${formatDateTime(shown.submittedAt)} · ${relativeDays(shown.submittedAt)}`}
       footer={
-        isPending ? (
+        archiving ? (
+          <>
+            <Button onClick={() => setArchiving(false)} disabled={archiveFeedback.isPending}>
+              Voltar
+            </Button>
+            <Button
+              variant="danger"
+              icon={<Archive size={15} />}
+              disabled={!archiveReason.trim()}
+              loading={archiveFeedback.isPending}
+              onClick={() => void confirmArchive()}
+            >
+              Confirmar arquivamento
+            </Button>
+          </>
+        ) : shown.archivedAt ? (
+          <Button onClick={onClose}>Fechar</Button>
+        ) : isPending ? (
           choosingMember ? (
             <>
               <Button onClick={() => setChoosingMember(false)} disabled={moderate.isPending}>
@@ -196,10 +234,18 @@ export function ModerationDrawer({
               >
                 Direcionar para membro
               </Button>
+              <Button icon={<Archive size={15} />} onClick={() => setArchiving(true)}>
+                Arquivar
+              </Button>
             </>
           )
         ) : (
-          <Button onClick={onClose}>Fechar</Button>
+          <>
+            <Button onClick={onClose}>Fechar</Button>
+            <Button icon={<Archive size={15} />} onClick={() => setArchiving(true)}>
+              Arquivar
+            </Button>
+          </>
         )
       }
     >
@@ -240,7 +286,47 @@ export function ModerationDrawer({
           </p>
         </Field>
 
-        {isPending ? (
+        {shown.archivedAt && (
+          <Field label="Arquivamento">
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="neutral">Arquivado</Badge>
+                <span className="text-xs text-muted-foreground">
+                  em {formatDate(shown.archivedAt)}
+                </span>
+              </div>
+              {shown.archiveReason && (
+                <p className="mt-1 border-l border-border pl-3 text-sm break-words whitespace-pre-line text-foreground-secondary">
+                  {shown.archiveReason}
+                </p>
+              )}
+            </div>
+          </Field>
+        )}
+
+        {archiving && (
+          <div className="rounded-control border border-bad/30 bg-bad/5 p-4">
+            <p className="text-sm font-semibold text-foreground">Arquivar este relato</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sai da fila ativa e passa para a seção de arquivados — o conteúdo nunca é apagado, e
+              dá para consultar depois. Informe o motivo.
+            </p>
+
+            <FormField label="Motivo do arquivamento" required className="mt-3">
+              {(field) => (
+                <Textarea
+                  {...field}
+                  value={archiveReason}
+                  onChange={(event) => setArchiveReason(event.target.value)}
+                  rows={2}
+                  placeholder="Por que este relato está sendo arquivado…"
+                />
+              )}
+            </FormField>
+          </div>
+        )}
+
+        {!shown.archivedAt && isPending ? (
           <>
             {choosingMember && (
               <div
@@ -319,39 +405,41 @@ export function ModerationDrawer({
             </FormField>
           </>
         ) : (
-          <Field label="Decisão de GG">
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={shown.resolution === 'direcionado' ? 'brand' : 'neutral'}>
-                  {shown.resolution ? ANONYMOUS_RESOLUTION_LABEL[shown.resolution] : 'Moderado'}
-                </Badge>
-                {directedTo && shown.directedMemberId && (
-                  <Link
-                    to={ROUTES.memberProfile(shown.directedMemberId)}
-                    className="text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
-                  >
-                    {directedTo}
-                  </Link>
+          shown.resolution && (
+            <Field label="Decisão de GG">
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={shown.resolution === 'direcionado' ? 'brand' : 'neutral'}>
+                    {ANONYMOUS_RESOLUTION_LABEL[shown.resolution]}
+                  </Badge>
+                  {directedTo && shown.directedMemberId && (
+                    <Link
+                      to={ROUTES.memberProfile(shown.directedMemberId)}
+                      className="text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
+                    >
+                      {directedTo}
+                    </Link>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {/* Sem autor conhecido a frase muda de forma, em vez de
+                      carregar um marcador de vazio no meio da prosa. */}
+                  {moderatedBy
+                    ? `Por ${moderatedBy} em ${formatDate(shown.moderatedAt)}`
+                    : `Em ${formatDate(shown.moderatedAt)}`}
+                </p>
+
+                {shown.moderationNote ? (
+                  <p className="mt-1 border-l border-border pl-3 text-sm break-words whitespace-pre-line text-foreground-secondary">
+                    {shown.moderationNote}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted-foreground italic">Sem observação interna.</p>
                 )}
               </div>
-
-              <p className="text-xs text-muted-foreground">
-                {/* Sem autor conhecido a frase muda de forma, em vez de
-                    carregar um marcador de vazio no meio da prosa. */}
-                {moderatedBy
-                  ? `Por ${moderatedBy} em ${formatDate(shown.moderatedAt)}`
-                  : `Em ${formatDate(shown.moderatedAt)}`}
-              </p>
-
-              {shown.moderationNote ? (
-                <p className="mt-1 border-l border-border pl-3 text-sm break-words whitespace-pre-line text-foreground-secondary">
-                  {shown.moderationNote}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-muted-foreground italic">Sem observação interna.</p>
-              )}
-            </div>
-          </Field>
+            </Field>
+          )
         )}
 
         {submitError && (

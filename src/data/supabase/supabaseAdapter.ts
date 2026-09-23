@@ -4,7 +4,10 @@ import { DataError } from '../errors';
 import type {
   AuthUser,
   ID,
+  ISODate,
   Member,
+  MemberArchivalConfirmResult,
+  MemberArchivalPreviewRow,
   MemberCreateInput,
   MemberCpfStatus,
   MemberCpfWriteResult,
@@ -311,7 +314,10 @@ export const supabaseAdapter: DataAdapter = {
       // `subarea_id` traz só quem é daquela subárea.
       if (filters?.areaId) query = query.eq('area_id', filters.areaId);
       if (filters?.subareaId) query = query.eq('subarea_id', filters.subareaId);
-      if (filters?.status) query = query.eq('status', filters.status);
+      // Sem `status` explícito, arquivado fica de fora — invisível em toda a
+      // plataforma (migration 0039). A tela de arquivamento pede `status:
+      // 'arquivado'` explicitamente para listar quem pode ser reativado.
+      query = filters?.status ? query.eq('status', filters.status) : query.neq('status', 'arquivado');
       if (filters?.ggResponsibleId) query = query.eq('gg_responsible_id', filters.ggResponsibleId);
       if (filters?.managerId) query = query.eq('manager_id', filters.managerId);
       if (filters?.search) {
@@ -390,15 +396,53 @@ export const supabaseAdapter: DataAdapter = {
       };
     },
 
-    async archive(id) {
-      // Nunca DELETE: arquivar preserva o histórico.
-      const { data, error } = await supabase()
+    async previewArchival(referenceDate) {
+      const { data, error } = await supabase().rpc('citi_member_archival_preview', {
+        p_reference_date: referenceDate ?? undefined,
+      });
+      if (error) fail(error, 'Erro ao carregar a prévia de arquivamento');
+
+      return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+        memberId: row.member_id as ID,
+        fullName: String(row.full_name ?? ''),
+        status: row.status as MemberStatus,
+        criterio: row.criterio as MemberArchivalPreviewRow['criterio'],
+        cycleId: row.cycle_id as ID,
+        expectedEndOn: (row.expected_end_on as ISODate) ?? null,
+      }));
+    },
+
+    async confirmArchival(memberIds, referenceDate) {
+      const { data, error } = await supabase().rpc('citi_member_archival_confirm', {
+        p_member_ids: memberIds,
+        p_reference_date: referenceDate ?? undefined,
+      });
+      if (error) fail(error, 'Erro ao confirmar o arquivamento');
+
+      return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+        memberId: row.member_id as ID,
+        resultado: row.resultado as MemberArchivalConfirmResult['resultado'],
+      }));
+    },
+
+    async reactivateArchived(id, input) {
+      // A RPC devolve o CICLO novo (member_cycles), não o membro — a tela
+      // precisa do membro atualizado, então buscamos de novo em seguida.
+      const { error } = await supabase().rpc('citi_reactivate_archived_member', {
+        p_member_id: id,
+        p_position_id: input.positionId,
+        p_subarea_id: input.subareaId ?? null,
+        p_started_on: input.startedOn ?? null,
+        p_idempotency_key: input.idempotencyKey ?? null,
+      });
+      if (error) fail(error, 'Erro ao reativar membro arquivado');
+
+      const { data, error: fetchError } = await supabase()
         .from('members')
-        .update({ status: 'arquivado' })
+        .select('*')
         .eq('id', id)
-        .select()
         .single();
-      if (error) fail(error, 'Erro ao arquivar membro');
+      if (fetchError) fail(fetchError, 'Erro ao carregar membro reativado');
       return fromMemberRow(data);
     },
 
@@ -962,9 +1006,12 @@ export const supabaseAdapter: DataAdapter = {
 
   anonymousFeedbacks: {
     async list(status) {
+      // Fila ATIVA: arquivado nunca aparece aqui, tenha o status que tiver
+      // (migration 0040) — só em `listArchived`, na seção própria de GG.
       let query = supabase()
         .from('anonymous_feedbacks')
         .select('*')
+        .is('archived_at', null)
         .order('submitted_at', { ascending: false });
       if (status) query = query.eq('status', status);
 
@@ -1014,6 +1061,25 @@ export const supabaseAdapter: DataAdapter = {
         .single();
       if (error) fail(error, 'Erro ao moderar feedback anônimo');
       return fromAnonymousFeedbackRow(data);
+    },
+
+    async archive(id, reason) {
+      const { data, error } = await supabase().rpc('citi_archive_anonymous_feedback', {
+        p_feedback_id: id,
+        p_reason: reason,
+      });
+      if (error) fail(error, 'Erro ao arquivar feedback anônimo');
+      return fromAnonymousFeedbackRow(data as Record<string, unknown>);
+    },
+
+    async listArchived() {
+      const { data, error } = await supabase()
+        .from('anonymous_feedbacks')
+        .select('*')
+        .not('archived_at', 'is', null)
+        .order('archived_at', { ascending: false });
+      if (error) fail(error, 'Erro ao listar feedbacks anônimos arquivados');
+      return (data ?? []).map(fromAnonymousFeedbackRow);
     },
   },
 

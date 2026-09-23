@@ -947,7 +947,7 @@ Execução. Sem dono fixo — quem estiver livre pega.
 | GERAL-006 | Sessão de onboarding do time | Alta | Bloqueada por GERAL-004 |
 | GERAL-007 | Definir o nome final da plataforma | Baixa | Ready |
 | GERAL-008 | Cadastrar a gestão corrente e as subáreas reais do CITi | Alta | Bloqueada por BASE-006 |
-| GERAL-009 | Definir a política de retenção de dados | Média | Ready |
+| GERAL-009 | Definir a política de retenção de dados | Média | ✅ **Mecânica da V1 implementada** (migration `0039`/`0040`, ADR-025): elegibilidade calculada, arquivamento/reativação, invisibilidade nas telas operacionais, retenção por prazo indeterminado sem exclusão automática. Não bloqueia nada. Segue **Ready** só para uma revisão futura, opcional, da política (prazo de descarte e registro de alumni — feature independente) |
 | GERAL-010 | Decidir se o repositório vai para uma organização do CITi | Média | Ready |
 | GERAL-011 | Definir a estratégia de sincronização com a planilha CITi Pessoas | Média | Bloqueada por IMPORT-001 |
 | GERAL-012 | **Revisar a autorização antes da carga dos 70 reais** | Alta | ✅ **Concluída** (migration `0019`) — `citi_is_gg()` passou a conferir o papel; `anon` ficou sem grant nenhum além do INSERT do feedback anônimo; toda `security definer` com `search_path`; trava do último GG |

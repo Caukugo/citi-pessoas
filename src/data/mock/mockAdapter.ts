@@ -1,21 +1,25 @@
 import type { DataAdapter } from '../adapter';
 import { DataError } from '../errors';
 import { normalizeText } from '@/lib/format';
-import { FEEDBACK_TYPE_LABEL } from '../types';
+import { FEEDBACK_TYPE_LABEL, MEMBER_ARCHIVAL_CRITERION_LABEL } from '../types';
 import type {
   AnonymousFeedbackStatus,
   AuthUser,
   Feedback,
   ID,
   Member,
+  MemberArchivalConfirmResult,
+  MemberArchivalPreviewRow,
   MemberCreateInput,
   MemberDeactivateInput,
   MemberImportResult,
   MemberIntakeReviewReason,
+  MemberReactivateArchivedInput,
   X1,
   X1Appointment,
   X1SyncOperation,
 } from '../types';
+import { computeMemberArchivalEligibility } from '@/features/members/model/memberArchival';
 import { MOCK_USERS } from './fixtures';
 import { MOCK_ORG_CATALOG } from './orgFixtures';
 import { cycleBoundsFor } from '../cycleBounds';
@@ -70,6 +74,15 @@ function mockCurrentCycle(member: Member): { startedOn: string; expectedEndOn: s
     startedOn: member.joinedAt,
     expectedEndOn: addDaysISO(addMonthsISO(member.joinedAt, 12), -1),
   };
+}
+
+/**
+ * Id de ciclo SINTÉTICO, só para `MemberArchivalPreviewRow.cycleId` ter algo
+ * estável para exibir — mesma simplificação de `mockCurrentCycle`: o mock não
+ * modela `member_cycles`, então não existe um id de ciclo de verdade aqui.
+ */
+function mockCycleId(member: Member): ID {
+  return `cycle:${member.id}`;
 }
 
 function notifyAuth(user: AuthUser | null) {
@@ -261,7 +274,12 @@ export const mockAdapter: DataAdapter = {
       // Subarea traz so quem e dela. A diretoria de area nao pertence a uma
       // subarea so, entao nao entra neste recorte.
       if (filters?.subareaId) result = result.filter((m) => m.subareaId === filters.subareaId);
-      if (filters?.status) result = result.filter((m) => m.status === filters.status);
+      // Sem `status` explícito, arquivado fica de fora — invisível em toda a
+      // plataforma (migration 0039). A tela de arquivamento pede `status:
+      // 'arquivado'` explicitamente para listar quem pode ser reativado.
+      result = filters?.status
+        ? result.filter((m) => m.status === filters.status)
+        : result.filter((m) => m.status !== 'arquivado');
       if (filters?.ggResponsibleId) {
         result = result.filter((m) => m.ggResponsibleId === filters.ggResponsibleId);
       }
@@ -314,6 +332,18 @@ export const mockAdapter: DataAdapter = {
       if (index < 0) throw new DataError('not_found', 'Membro não encontrado.');
 
       const before = db.members[index];
+
+      // Espelha o trigger `citi_log_member_changes` (migration 0039): igual
+      // no Postgres, um PATCH cru para `arquivado` fora de `confirmArchival`
+      // é recusado — só ali a elegibilidade é conferida e o evento ganha
+      // ciclo de referência e critério.
+      if (input.status === 'arquivado' && before.status !== 'arquivado') {
+        throw new DataError(
+          'invalid',
+          'arquivamento_fora_da_rpc: membros só podem ser arquivados por confirmArchival — update() direto de status para arquivado não é permitido.',
+        );
+      }
+
       const updated: Member = { ...before, ...input, updatedAt: nowISO() };
       db.members[index] = updated;
 
@@ -628,15 +658,208 @@ export const mockAdapter: DataAdapter = {
       return next;
     },
 
-    async archive(id) {
+    async previewArchival(referenceDate) {
+      await delay();
+      const db = mockDb();
+      const ref = referenceDate ?? recifeTodayISO();
+
+      const rows: MemberArchivalPreviewRow[] = [];
+      for (const member of db.members) {
+        if (member.status !== 'desligado' && member.status !== 'inativo') continue;
+
+        const cycle = mockCurrentCycle(member);
+        const elegibilidade = computeMemberArchivalEligibility({
+          status: member.status,
+          cycleEndType: member.status === 'desligado' ? 'desligamento' : 'conclusao_natural',
+          cycleExpectedEndOn: cycle.expectedEndOn,
+          gestoes: db.gestoes,
+          referenceDate: ref,
+        });
+
+        if (!elegibilidade.elegivel || !elegibilidade.criterio) continue;
+
+        rows.push({
+          memberId: member.id,
+          fullName: member.fullName,
+          status: member.status,
+          criterio: elegibilidade.criterio,
+          cycleId: mockCycleId(member),
+          expectedEndOn: cycle.expectedEndOn,
+        });
+      }
+
+      return rows.sort(
+        (a, b) => a.criterio.localeCompare(b.criterio) || a.fullName.localeCompare(b.fullName, 'pt-BR'),
+      );
+    },
+
+    async confirmArchival(memberIds, referenceDate) {
+      await delay();
+      const db = mockDb();
+      const ref = referenceDate ?? recifeTodayISO();
+
+      if (!memberIds || memberIds.length === 0) {
+        throw new DataError('invalid', 'membros_obrigatorio: informe ao menos um membro.');
+      }
+
+      const results: MemberArchivalConfirmResult[] = [];
+      const processados = new Set<ID>();
+
+      for (const id of memberIds) {
+        // Mesma deduplicação do `select distinct` da RPC: duas entradas do
+        // mesmo id no lote (proxy de duas confirmações concorrentes) viram
+        // UMA linha de resultado.
+        if (processados.has(id)) continue;
+        processados.add(id);
+
+        const index = db.members.findIndex((m) => m.id === id);
+        if (index < 0) {
+          results.push({ memberId: id, resultado: 'nao_encontrado' });
+          continue;
+        }
+
+        const member = db.members[index];
+
+        if (member.status === 'arquivado') {
+          // Idempotência: já arquivado só é reportado, nunca reprocessado.
+          results.push({ memberId: id, resultado: 'ja_arquivado' });
+          continue;
+        }
+
+        if (member.status !== 'desligado' && member.status !== 'inativo') {
+          results.push({ memberId: id, resultado: 'nao_elegivel' });
+          continue;
+        }
+
+        const cycle = mockCurrentCycle(member);
+        const elegibilidade = computeMemberArchivalEligibility({
+          status: member.status,
+          cycleEndType: member.status === 'desligado' ? 'desligamento' : 'conclusao_natural',
+          cycleExpectedEndOn: cycle.expectedEndOn,
+          gestoes: db.gestoes,
+          referenceDate: ref,
+        });
+
+        // Recalculado agora: quem deixou de ser elegível entre a prévia e
+        // este clique (ex.: foi reativado por outra aba) não é arquivado.
+        if (!elegibilidade.elegivel || !elegibilidade.criterio) {
+          results.push({ memberId: id, resultado: 'nao_elegivel' });
+          continue;
+        }
+
+        const statusAnterior = member.status;
+        db.members[index] = { ...member, status: 'arquivado', updatedAt: nowISO() };
+
+        db.memberEvents.push({
+          id: mockId('evt'),
+          memberId: id,
+          type: 'arquivamento',
+          occurredAt: nowISO().slice(0, 10),
+          title: 'Membro arquivado',
+          description:
+            `Critério: ${MEMBER_ARCHIVAL_CRITERION_LABEL[elegibilidade.criterio]}. ` +
+            `Situação anterior: ${statusAnterior}.`,
+          sourceId: null,
+          createdAt: nowISO(),
+        });
+
+        results.push({ memberId: id, resultado: 'arquivado' });
+      }
+
+      commit();
+      return results;
+    },
+
+    async reactivateArchived(id, input: MemberReactivateArchivedInput) {
       await delay();
       const db = mockDb();
       const index = db.members.findIndex((m) => m.id === id);
-      if (index < 0) throw new DataError('not_found', 'Membro não encontrado.');
+      if (index < 0) throw new DataError('not_found', `Membro ${id} não encontrado.`);
 
-      db.members[index] = { ...db.members[index], status: 'arquivado', updatedAt: nowISO() };
+      const member = db.members[index];
+      if (member.status !== 'arquivado') {
+        throw new DataError(
+          'invalid',
+          `membro_nao_arquivado: só é possível reativar por esta operação quem está arquivado. Situação atual: ${member.status}. Para quem está inativo por conclusão natural, use a reativação de continuação.`,
+        );
+      }
+
+      const hoje = recifeTodayISO();
+      const startedOn = input.startedOn ?? hoje;
+      if (startedOn > hoje) {
+        throw new DataError(
+          'invalid',
+          `data_futura: a data de início não pode ser no futuro (hoje em Recife: ${hoje}).`,
+        );
+      }
+
+      // Mock não modela `member_cycles` (ver `mockCurrentCycle`): o fim do
+      // ciclo anterior é aproximado por `exitedAt`, com o mesmo fallback de
+      // 12 meses a partir de `joinedAt` quando ausente.
+      const fimCicloAnterior = member.exitedAt ?? mockCurrentCycle(member).expectedEndOn;
+      if (startedOn <= fimCicloAnterior) {
+        throw new DataError(
+          'invalid',
+          `data_anterior_ao_encerramento: a data de início (${startedOn}) precisa ser depois do fim do ciclo anterior (${fimCicloAnterior}).`,
+        );
+      }
+
+      const position = MOCK_ORG_CATALOG.positions.find((p) => p.id === input.positionId);
+      if (!position) throw new DataError('not_found', `Cargo ${input.positionId} não encontrado.`);
+      if (!position.isActive) {
+        throw new DataError('invalid', `O cargo "${position.name}" está inativo e não pode ser atribuído.`);
+      }
+
+      if (position.subareaId && input.subareaId && input.subareaId !== position.subareaId) {
+        throw new DataError('invalid', `O cargo "${position.name}" pertence a outra subárea.`);
+      }
+
+      const subareaId =
+        position.subareaId ??
+        input.subareaId ??
+        (member.areaId === position.areaId ? member.subareaId : null) ??
+        null;
+
+      if (!subareaId) {
+        throw new DataError(
+          'invalid',
+          `O cargo "${position.name}" vale para a área inteira; informe a subárea em que a pessoa vai atuar.`,
+        );
+      }
+
+      const subarea = MOCK_ORG_CATALOG.subareas.find(
+        (s) => s.id === subareaId && s.areaId === position.areaId,
+      );
+      if (!subarea) {
+        throw new DataError('invalid', 'A subárea informada não pertence à área do cargo.');
+      }
+
+      const reativado: Member = {
+        ...member,
+        status: 'ativo',
+        positionId: position.id,
+        areaId: position.areaId,
+        subareaId,
+        role: position.name,
+        area: subarea.name,
+        exitedAt: null,
+        updatedAt: nowISO(),
+      };
+      db.members[index] = reativado;
+
+      db.memberEvents.push({
+        id: mockId('evt'),
+        memberId: id,
+        type: 'reativacao',
+        occurredAt: startedOn,
+        title: 'Reativação de membro arquivado',
+        description: `Novo ciclo a partir de ${startedOn}, para o cargo de ${position.name}.`,
+        sourceId: null,
+        createdAt: nowISO(),
+      });
+
       commit();
-      return db.members[index];
+      return reativado;
     },
 
     async deactivate(id, input: MemberDeactivateInput) {
@@ -1546,7 +1769,9 @@ export const mockAdapter: DataAdapter = {
   anonymousFeedbacks: {
     async list(status?: AnonymousFeedbackStatus) {
       await delay();
-      const all = mockDb().anonymousFeedbacks;
+      // Fila ATIVA: arquivado nunca aparece aqui, tenha o status que tiver
+      // (migration 0040) — só em `listArchived`, na seção própria de GG.
+      const all = mockDb().anonymousFeedbacks.filter((f) => !f.archivedAt);
       const filtered = status ? all.filter((f) => f.status === status) : all;
       return byDateDesc(filtered, (f) => f.submittedAt);
     },
@@ -1589,6 +1814,48 @@ export const mockAdapter: DataAdapter = {
       };
       commit();
       return db.anonymousFeedbacks[index];
+    },
+
+    async archive(id, reason) {
+      await delay();
+      const db = mockDb();
+      const index = db.anonymousFeedbacks.findIndex((f) => f.id === id);
+      if (index < 0) throw new DataError('not_found', 'Feedback anônimo não encontrado.');
+
+      const motivo = reason?.trim() || null;
+      if (!motivo) {
+        throw new DataError('invalid', 'motivo_obrigatorio: informe o motivo do arquivamento.');
+      }
+      const MOTIVO_MAX_CHARS = 500;
+      if (motivo.length > MOTIVO_MAX_CHARS) {
+        throw new DataError(
+          'invalid',
+          `motivo_muito_longo: o motivo aceita no máximo ${MOTIVO_MAX_CHARS} caracteres (recebido ${motivo.length}).`,
+        );
+      }
+
+      const feedback = db.anonymousFeedbacks[index];
+
+      // Idempotência: já arquivado só é devolvido como está — não sobrescreve
+      // quem arquivou primeiro nem o motivo original.
+      if (feedback.archivedAt) return feedback;
+
+      db.anonymousFeedbacks[index] = {
+        ...feedback,
+        archivedAt: nowISO(),
+        // Sempre a sessão atual — nunca um parâmetro do cliente (mesma regra
+        // da RPC real, que resolve por `auth.uid()`).
+        archivedByProfileId: db.currentUser?.id ?? null,
+        archiveReason: motivo,
+      };
+      commit();
+      return db.anonymousFeedbacks[index];
+    },
+
+    async listArchived() {
+      await delay();
+      const arquivados = mockDb().anonymousFeedbacks.filter((f) => f.archivedAt);
+      return byDateDesc(arquivados, (f) => f.archivedAt);
     },
   },
 

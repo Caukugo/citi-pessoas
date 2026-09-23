@@ -4,13 +4,17 @@ import { queryKeys } from './queryKeys';
 import type {
   BulkAssignGgResponsibleResult,
   ID,
+  ISODate,
   Member,
+  MemberArchivalConfirmResult,
+  MemberArchivalPreviewRow,
   MemberCpfStatus,
   MemberCpfWriteResult,
   MemberCreateInput,
   MemberDeactivateInput,
   MemberFilters,
   MemberIntakeReviewReason,
+  MemberReactivateArchivedInput,
   MemberRecordCorrection,
   MemberUpdateInput,
 } from './types';
@@ -49,11 +53,6 @@ export function createMember(input: MemberCreateInput): Promise<Member> {
 
 export function updateMember(id: ID, input: MemberUpdateInput): Promise<Member> {
   return db.members.update(id, input);
-}
-
-/** Arquiva o membro. Não existe exclusão — o histórico é preservado. */
-export function archiveMember(id: ID): Promise<Member> {
-  return db.members.archive(id);
 }
 
 /** Eventos do membro em ordem cronológica — alimenta a Timeline do Perfil. */
@@ -140,16 +139,6 @@ export function useBulkAssignGgResponsible() {
   });
 }
 
-export function useArchiveMember() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: archiveMember,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
-    },
-  });
-}
-
 /**
  * Desliga um membro ativo — interrompe o ciclo em andamento antes do fim
  * previsto (migration 0032). Nunca produz `inativo`.
@@ -166,6 +155,73 @@ export function useDeactivateMember() {
     onSuccess: (member) => {
       // Listagem (badge, filtro por situação) e perfil (botão some, badge
       // aparece) precisam refletir a mudança juntos.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.detail(member.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.events(member.id) });
+    },
+  });
+}
+
+// ─── Retenção e arquivamento (migration 0039, GERAL-009) ─────────────────────
+
+/**
+ * Quem está elegível para arquivamento AGORA, agrupado por critério. Só
+ * leitura. `referenceDate` default é hoje (fuso de Recife, no servidor).
+ */
+export function getMemberArchivalPreview(
+  referenceDate?: ISODate,
+): Promise<MemberArchivalPreviewRow[]> {
+  return db.members.previewArchival(referenceDate);
+}
+
+export function useMemberArchivalPreview(referenceDate?: ISODate) {
+  return useQuery({
+    queryKey: queryKeys.members.archivalPreview(referenceDate),
+    queryFn: () => getMemberArchivalPreview(referenceDate),
+  });
+}
+
+/**
+ * Arquiva só quem CONTINUA elegível no momento da confirmação — o banco
+ * recalcula por membro, tudo-ou-nada individual (nunca pelo lote inteiro).
+ */
+export function confirmMemberArchival(
+  memberIds: ID[],
+  referenceDate?: ISODate,
+): Promise<MemberArchivalConfirmResult[]> {
+  return db.members.confirmArchival(memberIds, referenceDate);
+}
+
+export function useConfirmMemberArchival() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberIds, referenceDate }: { memberIds: ID[]; referenceDate?: ISODate }) =>
+      confirmMemberArchival(memberIds, referenceDate),
+    onSuccess: () => {
+      // Invalida o prefixo inteiro: a listagem (quem sumiu), a prévia (quem
+      // deixou de ser elegível) e qualquer perfil aberto de quem foi arquivado.
+      queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
+    },
+  });
+}
+
+/**
+ * Reativa quem está `arquivado` — cria um ciclo novo a partir de uma data de
+ * início EXPLÍCITA, nunca emendando no ciclo antigo.
+ */
+export function reactivateArchivedMember(
+  id: ID,
+  input: MemberReactivateArchivedInput,
+): Promise<Member> {
+  return db.members.reactivateArchived(id, input);
+}
+
+export function useReactivateArchivedMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: ID; input: MemberReactivateArchivedInput }) =>
+      reactivateArchivedMember(id, input),
+    onSuccess: (member) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.members.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.members.detail(member.id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.members.events(member.id) });
