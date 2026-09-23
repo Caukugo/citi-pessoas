@@ -307,21 +307,40 @@ com dados reais; rastreabilidade; diversidade sempre agregada; feedback anônimo
 preservado como anônimo; decisões sensíveis sempre humanas; informação não é
 exposta ao restante do CITi por conveniência.
 
+**Na V1 (implementada, migration `0039`/`0040`, ADR-025):** um membro
+desligado ou inativo se torna elegível para arquivamento por regra
+**CALCULADA** (ciclo interrompido expirado, ou fim da gestão seguinte à
+conclusão natural, com limite subsidiário de 12 meses) — nunca automática:
+arquivar é sempre um clique humano de GG, depois de conferir a prévia. Uma vez
+arquivado, o membro fica **invisível em toda tela operacional** — listagem,
+filtros, seletores, diretório de nomes. A **única exceção** é o painel de
+retenção da Administração (`MemberArchivalPanel`), acessível somente a GG, que
+existe exatamente para auditoria (quem está elegível, quem já foi arquivado) e
+reativação explícita. Feedback anônimo segue o mesmo princípio: arquivar tira
+o relato da fila ativa de moderação, nunca da existência — há uma seção
+própria, também dentro da área de GG, para consultar o que foi arquivado.
+
 ```text
-Membro ativo → Saída → Perfil arquivado
-    → Histórico detalhado permanece pelo período configurado
-    → Fim do período → Política de retenção
+Membro ativo → Saída → Perfil arquivado (invisível nas telas operacionais,
+                                          preservado por prazo indeterminado)
 ```
 
-Após a retenção, pode ser preservado um registro resumido e não sensível para
-memória institucional: nome, gestões em que participou, cargos, subáreas,
-período no CITi, e-mail de contato, LinkedIn e outros contatos permitidos.
+**Não existe exclusão automática.** Dado arquivado — membro, ciclos, eventos,
+feedback anônimo arquivado — é preservado por **prazo indeterminado** no
+Supabase, na planilha de origem da importação e no Storage (fotos). Nenhuma
+rotina expurga nada.
 
-> O motivo para retenção e descarte é **governança e privacidade**, não
-> capacidade de armazenamento.
+> O motivo para invisibilizar (não para descartar) é **governança e
+> privacidade operacional**: quem saiu não deveria aparecer numa listagem, num
+> filtro ou num seletor do dia a dia, mas o histórico continua existindo para
+> responder a uma auditoria.
 
-*A retenção configurável ainda não está implementada — está registrada como
-necessidade conhecida.*
+*Uma revisão futura da política — um prazo de descarte, se um dia a gestão
+decidir que deve existir, e um possível **registro resumido de "alumni"**
+(feature futura e **independente** desta entrega, não um próximo passo dela) —
+permanece registrada no backlog (`GERAL-009`) como algo a decidir com a
+Diretoria de Gente e Gestão. Não é bloqueador desta entrega nem dependência
+dela. Ver ADR-025 em `DECISIONS.md`.*
 
 ---
 

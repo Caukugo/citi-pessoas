@@ -62,13 +62,26 @@ describe('members', () => {
     ).rejects.toThrow();
   });
 
-  it('arquiva em vez de excluir — o registro continua existindo', async () => {
-    const target = (await mockAdapter.members.list())[0];
-    await mockAdapter.members.archive(target.id);
+  it('arquivado nunca aparece na listagem sem filtro explícito de situação', async () => {
+    const areaId = (await mockAdapter.org.getCatalog()).areas[0]!.id;
+    const membro = await mockAdapter.members.create({
+      fullName: 'Fixture Invisibilidade Arquivado',
+      email: `fixture.invisivel.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      areaId,
+      status: 'desligado',
+      joinedAt: '2018-01-01',
+      exitedAt: '2018-06-01',
+    });
+    await mockAdapter.members.confirmArchival([membro.id], '2030-01-01');
 
-    const after = await mockAdapter.members.getById(target.id);
-    expect(after).not.toBeNull();
-    expect(after?.status).toBe('arquivado');
+    const semFiltro = await mockAdapter.members.list();
+    expect(semFiltro.some((m) => m.id === membro.id)).toBe(false);
+
+    // Continua existindo — só invisível por padrão, nunca excluído.
+    const arquivados = await mockAdapter.members.list({ status: 'arquivado' });
+    expect(arquivados.some((m) => m.id === membro.id)).toBe(true);
   });
 
   it('registra um evento de entrada ao criar um membro', async () => {
@@ -1030,6 +1043,223 @@ describe('deactivate — desligamento de membro (migration 0032)', () => {
     expect(resultado.photoPath).toBe('algum/caminho.png');
     expect(resultado.fullName).toBe(membro.fullName);
     expect(resultado.email).toBe(membro.email);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('retenção e arquivamento de membros (modo mock, migration 0039)', () => {
+  /**
+   * `joinedAt` bem no passado dá, pela aproximação do mock (`mockCurrentCycle`),
+   * um ciclo encerrado há muito tempo — "hoje" (data real de execução do
+   * teste) sempre cai depois do fim previsto, elegível pela regra mais simples
+   * de cada situação.
+   */
+  async function criarDesligadoElegivel(
+    overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]> = {},
+  ) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Arquivamento Desligado',
+      email: `fixture.arq.deslig.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      status: 'desligado',
+      joinedAt: '2018-01-01',
+      exitedAt: '2018-06-01',
+      ...overrides,
+    });
+  }
+
+  /** Sem gestão seguinte cadastrada tão no passado: cai no fallback de 12 meses. */
+  async function criarInativoElegivel(
+    overrides: Partial<Parameters<typeof mockAdapter.members.create>[0]> = {},
+  ) {
+    return mockAdapter.members.create({
+      fullName: 'Fixture Arquivamento Inativo',
+      email: `fixture.arq.inativo.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      status: 'inativo',
+      joinedAt: '2015-01-01',
+      exitedAt: '2015-12-31',
+      ...overrides,
+    });
+  }
+
+  it('previewArchival lista desligado e inativo elegíveis, nunca ativo nem já arquivado', async () => {
+    const desligado = await criarDesligadoElegivel();
+    const inativo = await criarInativoElegivel();
+    const ativo = await mockAdapter.members.create({
+      fullName: 'Fixture Ativo Preview',
+      email: `fixture.arq.ativo.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      status: 'ativo',
+      joinedAt: '2020-01-01',
+    });
+
+    const preview = await mockAdapter.members.previewArchival();
+    const ids = preview.map((row) => row.memberId);
+
+    expect(ids).toContain(desligado.id);
+    expect(ids).toContain(inativo.id);
+    expect(ids).not.toContain(ativo.id);
+
+    const linhaDesligado = preview.find((row) => row.memberId === desligado.id);
+    expect(linhaDesligado?.criterio).toBe('desligamento_antecipado_ciclo_expirado');
+
+    const linhaInativo = preview.find((row) => row.memberId === inativo.id);
+    expect(linhaInativo?.criterio).toBe('conclusao_normal_fallback_12_meses');
+  });
+
+  it('previewArchival não escreve nada — é só leitura', async () => {
+    const membro = await criarDesligadoElegivel();
+    await mockAdapter.members.previewArchival();
+
+    const depois = await mockAdapter.members.getById(membro.id);
+    expect(depois?.status).toBe('desligado');
+  });
+
+  it('confirmArchival arquiva quem está elegível e registra o evento com o critério', async () => {
+    const membro = await criarDesligadoElegivel();
+
+    const [resultado] = await mockAdapter.members.confirmArchival([membro.id]);
+    expect(resultado).toEqual({ memberId: membro.id, resultado: 'arquivado' });
+
+    const depois = await mockAdapter.members.getById(membro.id);
+    expect(depois?.status).toBe('arquivado');
+
+    const eventos = await mockAdapter.members.listEvents(membro.id);
+    const evento = eventos.find((e) => e.type === 'arquivamento');
+    expect(evento?.description).toContain('Desligados cujo ciclo previsto terminou');
+  });
+
+  it('confirmArchival é idempotente — repetir devolve ja_arquivado, sem duplicar evento', async () => {
+    const membro = await criarDesligadoElegivel();
+    await mockAdapter.members.confirmArchival([membro.id]);
+
+    const [resultado] = await mockAdapter.members.confirmArchival([membro.id]);
+    expect(resultado.resultado).toBe('ja_arquivado');
+
+    const eventos = (await mockAdapter.members.listEvents(membro.id)).filter(
+      (e) => e.type === 'arquivamento',
+    );
+    expect(eventos).toHaveLength(1);
+  });
+
+  it('confirmArchival recalcula no momento: quem ainda não é elegível é recusado', async () => {
+    const membro = await mockAdapter.members.create({
+      fullName: 'Fixture Nao Elegivel Ainda',
+      email: `fixture.arq.recente.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      status: 'desligado',
+      joinedAt: '2026-01-01',
+      exitedAt: '2026-02-01',
+    });
+
+    const [resultado] = await mockAdapter.members.confirmArchival([membro.id], '2026-03-01');
+    expect(resultado.resultado).toBe('nao_elegivel');
+    expect((await mockAdapter.members.getById(membro.id))?.status).toBe('desligado');
+  });
+
+  it('confirmArchival com id inexistente devolve nao_encontrado, sem quebrar o lote', async () => {
+    const membro = await criarDesligadoElegivel();
+    const resultados = await mockAdapter.members.confirmArchival([membro.id, 'mbr-nao-existe']);
+
+    expect(resultados.find((r) => r.memberId === membro.id)?.resultado).toBe('arquivado');
+    expect(resultados.find((r) => r.memberId === 'mbr-nao-existe')?.resultado).toBe('nao_encontrado');
+  });
+
+  it('update() direto para arquivado é recusado — só confirmArchival arquiva', async () => {
+    const membro = await criarDesligadoElegivel();
+    await expect(
+      mockAdapter.members.update(membro.id, { status: 'arquivado' }),
+    ).rejects.toThrow(/arquivamento_fora_da_rpc/);
+    expect((await mockAdapter.members.getById(membro.id))?.status).toBe('desligado');
+  });
+
+  it('reactivateArchived recusa quem não está arquivado', async () => {
+    const ativo = await mockAdapter.members.create({
+      fullName: 'Fixture Reativacao Ativo',
+      email: `fixture.reativa.ativo.${Math.random().toString(36).slice(2)}@citi.org.br`,
+      role: 'Analista',
+      area: 'Área de teste',
+      status: 'ativo',
+      joinedAt: '2026-01-01',
+    });
+    const catalog = await mockAdapter.org.getCatalog();
+    const position = catalog.positions.find((p) => p.isActive)!;
+
+    await expect(
+      mockAdapter.members.reactivateArchived(ativo.id, { positionId: position.id }),
+    ).rejects.toThrow(/membro_nao_arquivado/);
+  });
+
+  it('reactivateArchived reativa com ciclo novo a partir da data informada, sem emendar no antigo', async () => {
+    const membro = await criarDesligadoElegivel();
+    await mockAdapter.members.confirmArchival([membro.id]);
+
+    const catalog = await mockAdapter.org.getCatalog();
+    const subarea = catalog.subareas.find((s) =>
+      catalog.positions.some((p) => p.isActive && p.subareaId === s.id),
+    )!;
+    const position = catalog.positions.find((p) => p.isActive && p.subareaId === subarea.id)!;
+
+    const reativado = await mockAdapter.members.reactivateArchived(membro.id, {
+      positionId: position.id,
+      startedOn: '2026-06-01',
+    });
+
+    expect(reativado.status).toBe('ativo');
+    expect(reativado.exitedAt).toBeNull();
+    expect(reativado.positionId).toBe(position.id);
+
+    const eventos = await mockAdapter.members.listEvents(membro.id);
+    expect(eventos.some((e) => e.type === 'reativacao')).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('arquivamento de feedback anônimo (modo mock, migration 0040)', () => {
+  async function pegarFeedbackFixture() {
+    const lista = await mockAdapter.anonymousFeedbacks.list();
+    return lista[0]!;
+  }
+
+  it('arquiva e some da fila ativa, mas continua existindo na seção de arquivados', async () => {
+    const feedback = await pegarFeedbackFixture();
+
+    const arquivado = await mockAdapter.anonymousFeedbacks.archive(feedback.id, 'Motivo de teste');
+    expect(arquivado.archivedAt).not.toBeNull();
+    expect(arquivado.archiveReason).toBe('Motivo de teste');
+
+    const ativos = await mockAdapter.anonymousFeedbacks.list();
+    expect(ativos.some((f) => f.id === feedback.id)).toBe(false);
+
+    const arquivados = await mockAdapter.anonymousFeedbacks.listArchived();
+    expect(arquivados.some((f) => f.id === feedback.id)).toBe(true);
+
+    // Preservação: conteúdo intocado.
+    expect(arquivado.content).toBe(feedback.content);
+  });
+
+  it('motivo obrigatório: vazio ou só espaço é recusado', async () => {
+    const feedback = await pegarFeedbackFixture();
+    await expect(mockAdapter.anonymousFeedbacks.archive(feedback.id, '')).rejects.toThrow(
+      /motivo_obrigatorio/,
+    );
+    await expect(mockAdapter.anonymousFeedbacks.archive(feedback.id, '   ')).rejects.toThrow(
+      /motivo_obrigatorio/,
+    );
+  });
+
+  it('arquivar de novo é idempotente — não sobrescreve o motivo original', async () => {
+    const feedback = await pegarFeedbackFixture();
+    const primeiro = await mockAdapter.anonymousFeedbacks.archive(feedback.id, 'Primeiro motivo');
+    const segundo = await mockAdapter.anonymousFeedbacks.archive(feedback.id, 'Outro motivo');
+
+    expect(segundo.archiveReason).toBe(primeiro.archiveReason);
+    expect(segundo.archivedAt).toBe(primeiro.archivedAt);
   });
 });
 

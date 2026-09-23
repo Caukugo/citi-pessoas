@@ -314,6 +314,21 @@ begin
   -- ═══ 11. Registros históricos não são apagados ═════════════════════════════
   select count(*) into v_events_antes from member_events where member_id = c_dir;
 
+  -- Desde a migration 0039, `citi_log_member_changes` recusa UPDATE direto de
+  -- status para 'arquivado' fora de `citi_member_archival_confirm` — o
+  -- trigger exige as GUCs que só a RPC declara. Esta seção testa uma
+  -- propriedade mais antiga e mais baixa nível ("arquivar não apaga
+  -- histórico nem ciclos", independente de elegibilidade — essa regra vive
+  -- em `supabase/tests/0018_retencao_e_arquivamento_membros.sql`), então
+  -- simulamos aqui a mesma GUC que a RPC declararia, sem repetir o cálculo de
+  -- elegibilidade inteiro.
+  perform set_config(
+    'citi.arquivamento_ciclo_id',
+    (select id::text from member_cycles where member_id = c_dir order by cycle_number desc limit 1),
+    true
+  );
+  perform set_config('citi.arquivamento_criterio', 'teste_regressao_0001', true);
+
   update members set status = 'arquivado' where id = c_dir;
 
   select count(*) into v_events_depois from member_events where member_id = c_dir;

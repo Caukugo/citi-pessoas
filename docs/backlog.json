@@ -2205,21 +2205,23 @@
     {
       "id": "GERAL-009",
       "title": "Definir a política de retenção de dados",
-      "description": "O documento de contexto define o ciclo: perfil arquivado → histórico detalhado por período configurável → registro resumido de alumni. Só o arquivamento foi implementado; falta decidir os prazos.",
+      "description": "Política V1 decidida e implementada (migration 0039/0040, ADR-025): membro desligado ou inativo se torna elegível para arquivamento por regra CALCULADA (nunca automática — arquivar é sempre ação humana de GG); uma vez arquivado, fica invisível em toda tela operacional, com única exceção o painel de retenção da Administração (auditoria e reativação, restrito a GG). Feedback anônimo ganhou arquivamento próprio (tira da fila ativa, nunca da existência). Retenção na V1 é por PRAZO INDETERMINADO, sem exclusão automática nenhuma — nem no Supabase, nem na planilha de origem, nem no Storage.",
       "priority": "Média",
       "difficulty": "assistida",
       "dependencies": [],
       "acceptanceCriteria": [
-        "Prazo de retenção detalhada decidido com a GG",
-        "Definido quais campos sobrevivem como registro de alumni",
-        "Decisão registrada em DECISIONS.md",
-        "Issue de implementação criada, se o time decidir implementar agora"
+        "Elegibilidade de arquivamento calculada e implementada — feito (ADR-025)",
+        "Arquivamento nunca automático, sempre confirmado por GG — feito",
+        "Arquivado invisível nas telas operacionais, exceto painel de retenção de Administração — feito",
+        "Nenhuma exclusão automática de dado arquivado — feito (política V1)",
+        "Decisão registrada em DECISIONS.md — feito (ADR-025)"
       ],
-      "aiInstructions": "O motivo é governança e privacidade, não espaço em disco — ver docs/PROJECT_CONTEXT.md secao 12. Não implemente exclusão automática sem a política fechada.",
+      "aiInstructions": "O motivo é governança e privacidade, não espaço em disco — ver docs/PROJECT_CONTEXT.md secao 12. A mecânica e a política de retenção da V1 (indeterminada, sem exclusão automática) já estão implementadas e não são bloqueador de mais nada. Uma eventual revisão futura de prazo de descarte é decisão de gestão, não técnica, e o registro resumido de 'alumni' é uma feature FUTURA E INDEPENDENTE desta — não implemente nenhuma das duas sem novo pedido explícito.",
       "epic": "EPIC-9",
       "owner": "A definir",
       "reviewer": "A definir",
-      "status": "Ready",
+      "status": "Implementada",
+      "note": "Mecânica e política da V1 prontas (migration 0039/0040, ADR-025). Fica aberta, sem bloquear nada, só para uma eventual revisão futura de prazo de descarte pela Diretoria de Gente e Gestão — e o registro de 'alumni' é feature independente, a ser pedida separadamente se um dia entrar no roadmap.",
       "branch": "—",
       "labels": [
         "area: infra",

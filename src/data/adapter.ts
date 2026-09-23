@@ -23,9 +23,12 @@ import type {
   MemberImportInput,
   MemberImportResult,
   MemberIntakeReviewReason,
+  MemberArchivalConfirmResult,
+  MemberArchivalPreviewRow,
   MemberCpfStatus,
   MemberCpfWriteResult,
   MemberPhotoUpload,
+  MemberReactivateArchivedInput,
   MemberRecordCorrection,
   MemberUpdateInput,
   OrgCatalog,
@@ -117,8 +120,37 @@ export interface MembersRepository {
     ggResponsibleId: ID,
   ): Promise<BulkAssignGgResponsibleResult>;
 
-  /** Não existe exclusão: arquivar preserva o histórico. */
-  archive(id: ID): Promise<Member>;
+  /**
+   * ── Retenção e arquivamento (migration 0039, GERAL-009) ──
+   *
+   * Não existe exclusão: arquivar preserva o histórico. Nunca escreva
+   * `status: 'arquivado'` por `update()` — o banco recusa (a auditoria exige
+   * o ciclo de referência e o critério, que só estas três chamadas conhecem).
+   */
+
+  /**
+   * Quem está elegível para arquivamento AGORA, agrupado por critério.
+   * Só leitura — não altera nada. `referenceDate` default é hoje (fuso de
+   * Recife, resolvido no servidor).
+   */
+  previewArchival(referenceDate?: ISODate): Promise<MemberArchivalPreviewRow[]>;
+
+  /**
+   * Arquiva só quem CONTINUA elegível no momento da execução — recalcula por
+   * membro, não confia na prévia que o cliente mandou (alguém pode ter sido
+   * reativado por outra aba entre a prévia e o clique). Tudo-ou-nada por
+   * MEMBRO, não pelo lote inteiro: um id que deixou de ser elegível não trava
+   * os demais. Idempotente.
+   */
+  confirmArchival(memberIds: ID[], referenceDate?: ISODate): Promise<MemberArchivalConfirmResult[]>;
+
+  /**
+   * Reativa quem está `arquivado` — cria um ciclo novo a partir de uma data
+   * de início EXPLÍCITA (nunca emenda no ciclo antigo, que pode ter terminado
+   * há anos). Diferente da reativação de quem está `inativo` por conclusão
+   * natural (essa continuação apenas emenda no dia seguinte).
+   */
+  reactivateArchived(id: ID, input: MemberReactivateArchivedInput): Promise<Member>;
 
   /**
    * Desliga um membro ATIVO — interrompe o ciclo em andamento ANTES do fim
@@ -402,10 +434,25 @@ export interface FeedbacksRepository {
  * plataforma ainda oferece um caminho de envio.
  */
 export interface AnonymousFeedbacksRepository {
+  /** Fila ATIVA (nunca inclui arquivados — ver `listArchived`). */
   list(status?: AnonymousFeedbackStatus): Promise<AnonymousFeedback[]>;
   getById(id: ID): Promise<AnonymousFeedback | null>;
   /** Decisão humana da GG. Nunca converte em Feedback de acompanhamento. */
   moderate(id: ID, decision: AnonymousFeedbackModeration): Promise<AnonymousFeedback>;
+
+  /**
+   * ── Arquivamento (migration 0040) ──
+   *
+   * Fila ativa é o caso comum: arquivar é a política de retenção para quem
+   * já não precisa aparecer nela — NUNCA apaga conteúdo, `source` nem
+   * `external_id`. Idempotente: arquivar de novo devolve como está, sem
+   * sobrescrever quem arquivou primeiro nem o motivo original. Restrita a GG
+   * autenticada; `motivo` é obrigatório (o banco recusa vazio ou só espaço).
+   */
+  archive(id: ID, reason: string): Promise<AnonymousFeedback>;
+
+  /** Seção própria para GG — separada da fila ativa, nunca misturada a ela. */
+  listArchived(): Promise<AnonymousFeedback[]>;
 }
 
 /**

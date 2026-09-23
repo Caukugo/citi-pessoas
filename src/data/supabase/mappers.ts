@@ -183,6 +183,9 @@ export function fromAnonymousFeedbackRow(row: Row): AnonymousFeedback {
     moderatedById: row.moderated_by_id,
     moderatedAt: row.moderated_at,
     moderationNote: row.moderation_note,
+    archivedAt: row.archived_at,
+    archivedByProfileId: row.archived_by_profile_id,
+    archiveReason: row.archive_reason,
   };
 }
 

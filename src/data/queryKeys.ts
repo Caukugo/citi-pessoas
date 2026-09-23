@@ -1,4 +1,4 @@
-import type { ID, MemberFilters, X1AppointmentFilters } from './types';
+import type { ID, ISODate, MemberFilters, X1AppointmentFilters } from './types';
 
 /**
  * Chaves do cache do TanStack Query, centralizadas.
@@ -32,6 +32,14 @@ export const queryKeys = {
      * da tela, que o descarta ao sair.
      */
     cpfStatus: (id: ID) => ['members', 'cpf-status', id] as const,
+    /**
+     * Prévia de arquivamento (migration 0039), por data de referência — a
+     * mesma data que a confirmação vai usar precisa achar a MESMA prévia em
+     * cache, e datas diferentes (ex.: reabrir a tela outro dia) não podem
+     * colidir na mesma chave.
+     */
+    archivalPreview: (referenceDate?: ISODate) =>
+      ['members', 'archivalPreview', referenceDate ?? 'hoje'] as const,
   },
   x1: {
     all: ['x1'] as const,
@@ -69,8 +77,11 @@ export const queryKeys = {
   },
   anonymousFeedbacks: {
     all: ['anonymousFeedbacks'] as const,
+    /** Fila ATIVA — nunca inclui arquivados. */
     list: (status?: string) => ['anonymousFeedbacks', 'list', status ?? 'todos'] as const,
     detail: (id: ID) => ['anonymousFeedbacks', 'detail', id] as const,
+    /** Seção própria de arquivados (migration 0040) — separada da fila ativa. */
+    archived: ['anonymousFeedbacks', 'archived'] as const,
   },
   settings: {
     all: ['settings'] as const,
