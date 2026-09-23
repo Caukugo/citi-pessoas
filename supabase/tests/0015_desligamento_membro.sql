@@ -563,7 +563,9 @@ begin
   end if;
   v_passou := v_passou + 1;
 
-  -- Repetir sobre quem acabou de ser desligado: recusado, sem segundo evento.
+  -- Reforço do check 6 ("repetir não duplica evento") com o membro do
+  -- caminho de SUCESSO, não um item novo do plano — por isso não incrementa
+  -- v_passou de novo aqui (já contado em 6).
   v_ok := false;
   begin
     perform citi_deactivate_member(c_sucesso, date '2026-06-15');
@@ -574,8 +576,10 @@ begin
   select count(*) into v_count from member_events where member_id = c_sucesso and type = 'desligamento';
   if v_count <> 1 then raise exception '% 6b: repetir não deveria ter criado um segundo evento (achou %).', marcador, v_count; end if;
 
-  -- Motivo em branco vira null, nunca string vazia — usando outro membro para
-  -- não reabrir o caso de sucesso já fechado acima.
+  -- Reforço do check 18 ("motivo em branco vira null") com outro membro,
+  -- para não reabrir o caso de sucesso já fechado acima — mesma razão:
+  -- não é item novo do plano, não incrementa v_passou de novo (já contado
+  -- em 18).
   insert into members (id, full_name, email, role, area, area_id, subarea_id, position_id, status, joined_at)
   values ('7e57de5c-0000-4000-8000-000000000010', 'Fixture Desligamento Sem Motivo',
           'fixture.deslig.semmotivo@teste.invalid', 'Analista de Gente e Gestão', 'Gente e Gestão',
@@ -589,7 +593,6 @@ begin
   if v_texto is not null then
     raise exception '% 18b: motivo só com espaços deveria virar null, veio "%".', marcador, v_texto;
   end if;
-  v_passou := v_passou + 1;
 
   -- ═══ 20. Conclusão natural (0009) continua intocada ══════════════════════
   perform citi_deactivate_finished_cycles(date '2026-01-16');
@@ -597,6 +600,13 @@ begin
     raise exception '% 20: conclusão natural deveria continuar produzindo inativo.', marcador;
   end if;
   v_passou := v_passou + 1;
+
+  -- Plano vs. execução: 20 verificações declaradas no cabeçalho, 20
+  -- incrementos de v_passou no corpo.
+  if v_passou <> 20 then
+    raise exception '%: contagem final não bate — plano diz 20, execução chegou a %. Alguma verificação foi pulada ou duplicada.',
+      marcador, v_passou;
+  end if;
 
   raise notice '─────────────────────────────────────────────';
   raise notice '  % de 20 verificações passaram.', v_passou;

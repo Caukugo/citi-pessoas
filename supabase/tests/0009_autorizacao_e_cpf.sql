@@ -30,9 +30,16 @@ do $test$
 declare
   marcador constant text := 'TESTE FALHOU';
 
-  c_membro  constant uuid := '7e57fe19-0000-4000-8000-000000000019';
-  c_outro   constant uuid := '7e57fe19-0000-4000-8000-00000000001a';
-  c_perfil  constant uuid := '7e57fe19-0000-4000-8000-00000000001b';
+  c_membro   constant uuid := '7e57fe19-0000-4000-8000-000000000019';
+  c_outro    constant uuid := '7e57fe19-0000-4000-8000-00000000001a';
+  c_perfil   constant uuid := '7e57fe19-0000-4000-8000-00000000001b';
+  -- Único profile autorizado deste arquivo — a verificação 12 ("o último
+  -- acesso não pode ser removido") precisa de EXATAMENTE um, e antes este
+  -- arquivo pressupunha que ele já existiria, seedado fora da migration (do
+  -- antigo projeto de teste remoto). Um `supabase db reset` local não semeia
+  -- profile nenhum — por isso o fixture nasce AQUI, isolado, como todo o
+  -- resto do arquivo.
+  c_gg_profile constant uuid := '7e57fe19-0000-4000-8000-00000000001c';
 
   -- Material que IMITA o cifrado. O banco não distingue — e não deveria.
   c_cipher  constant text := encode(decode('00112233445566778899aabbccddeeff', 'hex'), 'base64');
@@ -57,6 +64,15 @@ begin
           'Gente e Gestão', v_area, v_subarea, v_cargo, 'ativo', date '2026-01-01'),
          (c_outro, 'Fixture Outro Cpf', 'fixture.outro.cpf@teste.invalid', 'Analista de Gente e Gestão',
           'Gente e Gestão', v_area, v_subarea, v_cargo, 'ativo', date '2026-01-01');
+
+  -- Único profile autorizado do arquivo (ver comentário na declaração de
+  -- `c_gg_profile`). `auth.users` não existe para este id fabricado — a
+  -- FK só é contornável desligando o trigger/checagem de referência
+  -- momentaneamente, mesma técnica de `supabase/tests/0018`/`0019`.
+  set local session_replication_role = replica;
+  insert into profiles (id, name, email, role)
+  values (c_gg_profile, 'GG Teste Autorização', 'gg.teste@teste.invalid', 'gg');
+  set local session_replication_role = origin;
 
   -- ═══ 1. `citi_is_gg()` confere o PAPEL ═════════════════════════════════════
   -- A versão antiga era `exists (select 1 from profiles where id = auth.uid())`:

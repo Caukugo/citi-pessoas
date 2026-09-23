@@ -317,7 +317,7 @@ begin
   -- Limpeza da 3ª pessoa para não interferir na conferência de ACL abaixo.
   perform 1 from members where email = c_email_3; -- (não criada neste arquivo — placeholder de leitura)
 
-  -- ═══ 11 e 12. ACL das funções de campanha e de importação ═════════════════
+  -- ═══ 11. ACL: anon não executa nenhuma das três funções ═══════════════════
   declare
     v_fn_start  constant regprocedure := 'citi_start_intake_campaign(text, date, timestamptz)'::regprocedure;
     v_fn_close  constant regprocedure := 'citi_close_intake_campaign(uuid)'::regprocedure;
@@ -333,7 +333,16 @@ begin
     if has_function_privilege('anon', v_fn_import, 'execute') then
       raise exception '% 11c: anon não deveria executar citi_import_member_via_forms.', marcador;
     end if;
+  end;
+  v_passou := v_passou + 1;
 
+  -- ═══ 12. ACL: authenticated (GG) e service_role recebem o que deveriam ════
+  declare
+    v_fn_start  constant regprocedure := 'citi_start_intake_campaign(text, date, timestamptz)'::regprocedure;
+    v_fn_close  constant regprocedure := 'citi_close_intake_campaign(uuid)'::regprocedure;
+    v_fn_import constant regprocedure :=
+      'citi_import_member_via_forms(text, jsonb, text, text, uuid, text, text, text, text, integer, date)'::regprocedure;
+  begin
     if not has_function_privilege('authenticated', v_fn_start, 'execute') then
       raise exception '% 12a: authenticated (GG) deveria poder executar citi_start_intake_campaign.', marcador;
     end if;
@@ -369,6 +378,13 @@ begin
     raise exception '% 13c: não deveria existir policy de escrita direta em member_intake_campaigns — só as funções.', marcador;
   end if;
   v_passou := v_passou + 1;
+
+  -- Plano vs. execução: 13 verificações declaradas no cabeçalho, 13
+  -- incrementos de v_passou no corpo.
+  if v_passou <> 13 then
+    raise exception '%: contagem final não bate — plano diz 13, execução chegou a %. Alguma verificação foi pulada ou duplicada.',
+      marcador, v_passou;
+  end if;
 
   raise notice '─────────────────────────────────────────────';
   raise notice '  % de 13 verificações passaram.', v_passou;

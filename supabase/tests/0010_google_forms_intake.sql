@@ -1,8 +1,17 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DA ENTRADA VIA GOOGLE FORMS (migrations 0020, 0021, 0022, 0023, 0024, 0025)
+-- TESTES DA ENTRADA VIA GOOGLE FORMS
+-- (migrations 0020, 0021, 0022, 0023, 0024, 0025 — e a assinatura de
+-- `citi_import_member_via_forms` atualizada aqui para a versão vigente desde
+-- as migrations 0026/0027/0029/0030: gestão e data de entrada NÃO são mais
+-- parâmetro do cliente — a função resolve sozinha, a partir da campanha cuja
+-- janela contém o instante de `payload.responded_at`. Ver
+-- `supabase/tests/0013_prazo_por_timestamp_da_resposta.sql`, que é quem prova
+-- as regras de janela/campanha em si; este arquivo só precisa de UMA campanha
+-- fictícia, de janela larga, para as próprias verificações (campo, CPF, ACL,
+-- pendência) não dependerem de timing.
 --
 -- Como rodar:
---   npx supabase db query --linked -f supabase/tests/0010_google_forms_intake.sql
+--   npx supabase db query --local -f supabase/tests/0010_google_forms_intake.sql
 --
 -- ⚠️ TERMINA EM `rollback`. Nada do que ele cria sobrevive.
 -- ⚠️ Todos os dados são FICTÍCIOS (e-mails `.invalid`, CPFs de exemplo, gestão
@@ -108,15 +117,30 @@ begin
   values (c_gestao, '2099.1', date '2099-01-01', date '2099-12-31', 'finalizada')
   on conflict (id) do nothing;
 
-  -- ═══ 1, 2, 3, 10. Resposta válida cria membro ativo, com o cargo certo ═════
+  -- Campanha de janela larga: só existe para que `citi_import_member_via_
+  -- forms` (0026/0030) ache uma campanha cuja janela contenha o
+  -- `responded_at` de cada chamada abaixo. Este arquivo não testa regras de
+  -- janela/prazo (isso é a 0013) — por isso uma janela larga e sem
+  -- sobreposição com nada mais nesta transação isolada é suficiente.
+  insert into member_intake_campaigns (
+    gestao_id, entry_date, activated_at, response_deadline_at, closed_at, status
+  )
+  values (
+    c_gestao, date '2099-01-01',
+    timestamptz '2099-01-01T00:00:00Z', timestamptz '2099-12-31T00:00:00Z',
+    null, 'ativa'
+  );
+
+  -- ═══ 1, 2, 3. Resposta válida cria membro ativo, com o cargo certo ═════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-1',
-    p_payload     => jsonb_build_object('full_name', 'Fulana Forms Teste', 'campus', 'Recife'),
+    p_payload     => jsonb_build_object(
+      'full_name', 'Fulana Forms Teste', 'campus', 'Recife',
+      'responded_at', '2099-01-01T00:00:00Z'
+    ),
     p_full_name   => 'Fulana Forms Teste',
     p_email       => c_email_1,
     p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01',
     p_campus      => 'Recife',
     p_course      => 'Ciência da Computação',
     p_department  => 'Centro de Informática',
@@ -125,12 +149,21 @@ begin
   );
 
   if v_res ->> 'outcome' <> 'criado' then
-    raise exception '% 1: outcome esperado ''criado'', veio %.', marcador, v_res ->> 'outcome';
+    raise exception '% 1a: outcome esperado ''criado'', veio %.', marcador, v_res ->> 'outcome';
   end if;
-  v_passou := v_passou + 1;
 
   v_member_id := (v_res ->> 'member_id')::uuid;
   select * into v_member from members where id = v_member_id;
+
+  -- Esta é a segunda metade do check 1 ("cria membro ATIVO, com o cargo da
+  -- subárea") — não um check "10" à parte. O rótulo "% 10" aqui era um erro:
+  -- colidia com o check 10 de verdade ("área e subárea incompatíveis",
+  -- mais abaixo) e inflava a contagem de verificações que passaram sem
+  -- corresponder a um item novo do plano.
+  if v_member.status <> 'ativo' then
+    raise exception '% 1b: membro deveria nascer ativo, veio %.', marcador, v_member.status;
+  end if;
+  v_passou := v_passou + 1;
 
   if v_member.position_id <> v_cargo_id then
     raise exception '% 2: cargo do membro (%) difere de subareas.entry_position_id (%).',
@@ -143,20 +176,16 @@ begin
   end if;
   v_passou := v_passou + 1;
 
-  if v_member.status <> 'ativo' then
-    raise exception '% 10: membro deveria nascer ativo, veio %.', marcador, v_member.status;
-  end if;
-  v_passou := v_passou + 1;
-
   -- ═══ 4. Reprocessar a MESMA resposta não duplica nada ══════════════════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-1',
-    p_payload     => jsonb_build_object('full_name', 'Fulana Forms Teste', 'campus', 'Recife'),
+    p_payload     => jsonb_build_object(
+      'full_name', 'Fulana Forms Teste', 'campus', 'Recife',
+      'responded_at', '2099-01-01T00:00:00Z'
+    ),
     p_full_name   => 'Fulana Forms Teste',
     p_email       => c_email_1,
-    p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01'
+    p_subarea_id  => v_subarea_id
   );
 
   if v_res ->> 'outcome' <> 'ja_importado' then
@@ -189,12 +218,10 @@ begin
   -- ═══ 5. E-mail já cadastrado devolve ja_existia, sem sobrescrever ══════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-2-email-repetido',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', '2099-01-01T00:00:00Z'),
     p_full_name   => 'Outra Pessoa Com Mesmo Email',
     p_email       => c_email_1,
-    p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01'
+    p_subarea_id  => v_subarea_id
   );
 
   if v_res ->> 'outcome' <> 'ja_existia' then
@@ -238,10 +265,10 @@ begin
   end if;
   v_passou := v_passou + 1;
 
-  -- ═══ 10 (bis). Área e subárea incompatíveis ════════════════════════════════
+  -- ═══ 10. Área e subárea incompatíveis ═══════════════════════════════════════
   v_res := citi_resolve_entry_subarea('Gente e Gestão', 'Comercial');
   if v_res ->> 'outcome' <> 'subarea_fora_da_area' then
-    raise exception '% 10b: esperado subarea_fora_da_area, veio %.', marcador, v_res ->> 'outcome';
+    raise exception '% 10: esperado subarea_fora_da_area, veio %.', marcador, v_res ->> 'outcome';
   end if;
   v_passou := v_passou + 1;
 
@@ -284,12 +311,10 @@ begin
   -- ═══ 13. CPF duplicado (mesmo hash em outro membro) é recusado ═════════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-3',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', '2099-01-01T00:00:00Z'),
     p_full_name   => 'Ciclano Forms Teste',
     p_email       => c_email_2,
-    p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01'
+    p_subarea_id  => v_subarea_id
   );
   if v_res ->> 'outcome' <> 'criado' then
     raise exception '% 13a: segunda pessoa deveria ser criada, outcome %.', marcador, v_res ->> 'outcome';
@@ -343,11 +368,17 @@ begin
   v_passou := v_passou + 1;
 
   -- ═══ 15. google_forms_intake_config não liga incompleta ════════════════════
-  update google_forms_intake_config set enabled = false, gestao_id = null, entry_date = null, form_id = null where id = 1;
+  -- Desde a 0026/0029, gestão e data de entrada são da CAMPANHA, não da
+  -- configuração permanente — a constraint atual
+  -- (`google_forms_intake_config_completa_para_habilitar`) só exige
+  -- form_id/responder_url.
+  update google_forms_intake_config
+     set enabled = false, form_id = null, responder_url = null
+   where id = 1;
 
   begin
     update google_forms_intake_config set enabled = true where id = 1;
-    raise exception '% 15: deveria ter sido recusado por falta de gestão/data/form_id.', marcador;
+    raise exception '% 15: deveria ter sido recusado por falta de form_id/responder_url.', marcador;
   exception
     when check_violation then
       null; -- esperado
@@ -357,7 +388,7 @@ begin
   -- ═══ 17. ACL de citi_import_member_via_forms: só service_role ═════════════
   declare
     v_fn constant regprocedure :=
-      'citi_import_member_via_forms(text, jsonb, text, text, uuid, uuid, date, text, text, text, text, integer, date)'::regprocedure;
+      'citi_import_member_via_forms(text, jsonb, text, text, uuid, text, text, text, text, integer, date)'::regprocedure;
   begin
     if has_function_privilege('public', v_fn, 'execute') then
       raise exception '% 17a: public pode executar citi_import_member_via_forms.', marcador;
@@ -381,12 +412,10 @@ begin
   -- ═══     cpf_duplicado, mas preserva pendência sem relação com CPF ═══════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-4',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', '2099-01-01T00:00:00Z'),
     p_full_name   => 'Beltrana Forms Teste',
     p_email       => c_email_4,
-    p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01'
+    p_subarea_id  => v_subarea_id
   );
   if v_res ->> 'outcome' <> 'criado' then
     raise exception '% 18a: quarta pessoa deveria ser criada, outcome %.', marcador, v_res ->> 'outcome';
@@ -451,12 +480,10 @@ begin
   -- ═══     o CPF do dono original ═══════════════════════════════════════
   v_res := citi_import_member_via_forms(
     p_external_id => 'google_forms:form-teste:resposta-5',
-    p_payload     => '{}'::jsonb,
+    p_payload     => jsonb_build_object('responded_at', '2099-01-01T00:00:00Z'),
     p_full_name   => 'Sicrano Forms Teste',
     p_email       => c_email_5,
-    p_subarea_id  => v_subarea_id,
-    p_gestao_id   => c_gestao,
-    p_joined_on   => date '2099-01-01'
+    p_subarea_id  => v_subarea_id
   );
   if v_res ->> 'outcome' <> 'criado' then
     raise exception '% 19a: quinta pessoa deveria ser criada, outcome %.', marcador, v_res ->> 'outcome';
@@ -646,6 +673,15 @@ begin
     raise exception '% 28c: catálogo de academic_courses veio vazio — 0020 não está aplicada?', marcador;
   end if;
   v_passou := v_passou + 1;
+
+  -- Plano vs. execução: 28 verificações declaradas no cabeçalho, 28
+  -- incrementos de v_passou no corpo — nem a mais (duplicidade de rótulo),
+  -- nem a menos (verificação pulada). Falha aqui, e não só uma NOTICE, se
+  -- algum dia divergir de novo.
+  if v_passou <> 28 then
+    raise exception '%: contagem final não bate — plano diz 28, execução chegou a %. Alguma verificação foi pulada ou duplicada.',
+      marcador, v_passou;
+  end if;
 
   raise notice '─────────────────────────────────────────────';
   raise notice '  % de 28 verificações passaram (checagem 28 cobriu % cursos do catálogo).', v_passou, v_total_catalogo;
