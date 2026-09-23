@@ -532,4 +532,10 @@ export interface AuthRepository {
    * Devolve uma função para cancelar a inscrição.
    */
   onAuthChange(callback: (user: AuthUser | null) => void): () => void;
+  /**
+   * Troca a senha da PRÓPRIA conta autenticada. O e-mail vem sempre da sessão
+   * atual — nunca um parâmetro que escolha qual conta alterar. Confere a
+   * senha atual antes de trocar; se ela estiver errada, nada muda.
+   */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
 }

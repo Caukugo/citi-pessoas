@@ -1652,6 +1652,27 @@ export const mockAdapter: DataAdapter = {
       authListeners.add(callback);
       return () => authListeners.delete(callback);
     },
+
+    async changePassword(currentPassword, newPassword) {
+      await delay(300);
+      const current = mockDb().currentUser;
+      if (!current) {
+        throw new DataError('unauthorized', 'Sessão expirada. Entre de novo.');
+      }
+
+      // Confere contra a senha de brinquedo da própria conta — nunca contra a
+      // de outra. Nada aqui grava a senha em fixture, localStorage ou log: a
+      // troca só precisa simular sucesso/falha para a interface decidir o que
+      // fazer a seguir (encerrar a sessão e voltar ao login).
+      const account = MOCK_USERS.find((u) => u.id === current.id);
+      if (!account || account.password !== currentPassword) {
+        throw new DataError('unauthorized', 'Senha atual incorreta.');
+      }
+
+      if (newPassword === currentPassword) {
+        throw new DataError('invalid', 'A nova senha precisa ser diferente da atual.');
+      }
+    },
   },
 
   org: {

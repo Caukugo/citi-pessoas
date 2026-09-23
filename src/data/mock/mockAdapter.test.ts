@@ -289,6 +289,54 @@ describe('auth', () => {
     await mockAdapter.auth.signOut();
     expect(await mockAdapter.auth.getCurrentUser()).toBeNull();
   });
+
+  describe('alterar senha', () => {
+    it('exige sessão — sem login, recusa mesmo com a senha certa', async () => {
+      await expect(
+        mockAdapter.auth.changePassword('citi123', 'uma-senha-nova-com-12-mais'),
+      ).rejects.toThrow();
+    });
+
+    it('recusa senha atual incorreta — nada muda', async () => {
+      await mockAdapter.auth.signIn('gg@citi.org.br', 'citi123');
+      await expect(
+        mockAdapter.auth.changePassword('senha-errada', 'uma-senha-nova-com-12-mais'),
+      ).rejects.toThrow(/incorreta/i);
+
+      // A sessão continua a mesma — uma tentativa recusada não desloga ninguém.
+      expect(await mockAdapter.auth.getCurrentUser()).not.toBeNull();
+    });
+
+    it('recusa nova senha igual à atual', async () => {
+      await mockAdapter.auth.signIn('gg@citi.org.br', 'citi123');
+      await expect(mockAdapter.auth.changePassword('citi123', 'citi123')).rejects.toThrow(
+        /diferente/i,
+      );
+    });
+
+    it('senha atual certa e nova senha diferente: sucede sem lançar', async () => {
+      await mockAdapter.auth.signIn('gg@citi.org.br', 'citi123');
+      await expect(
+        mockAdapter.auth.changePassword('citi123', 'uma-senha-nova-com-12-mais'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('⚠️ nunca grava a senha em localStorage, sucesso ou falha', async () => {
+      await mockAdapter.auth.signIn('gg@citi.org.br', 'citi123');
+
+      await mockAdapter.auth
+        .changePassword('senha-errada', 'segredo-que-nao-pode-vazar-1')
+        .catch(() => undefined);
+      await mockAdapter.auth
+        .changePassword('citi123', 'segredo-que-nao-pode-vazar-2')
+        .catch(() => undefined);
+
+      const raw = localStorage.getItem('citi-pessoas:mock-db:v1') ?? '';
+      expect(raw).not.toContain('segredo-que-nao-pode-vazar-1');
+      expect(raw).not.toContain('segredo-que-nao-pode-vazar-2');
+      expect(raw).not.toContain('senha-errada');
+    });
+  });
 });
 
 describe('importação (modo mock)', () => {
