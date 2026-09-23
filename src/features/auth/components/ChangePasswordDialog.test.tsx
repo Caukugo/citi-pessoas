@@ -86,6 +86,31 @@ describe('ChangePasswordDialog', () => {
     expect(screen.getByLabelText(/^confirmar nova senha/i)).toBeVisible();
   });
 
+  it('⚠️ foco inicial vai para "Senha atual", nunca para "Cancelar"', async () => {
+    renderDialog();
+
+    const campo = await screen.findByLabelText(/^senha atual/i);
+    await waitFor(() => expect(document.activeElement).toBe(campo));
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'Cancelar' }));
+  });
+
+  it('⚠️ "Cancelar" recebe foco por Tab (a partir do último campo) e por clique', async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' });
+
+    await screen.findByLabelText(/^senha atual/i);
+    await user.click(screen.getByLabelText(/^confirmar nova senha/i));
+    await user.tab();
+    expect(document.activeElement).toBe(cancelar);
+
+    // E por clique direto, a qualquer momento.
+    await user.click(screen.getByLabelText(/^senha atual/i));
+    await user.click(cancelar);
+    expect(document.activeElement).toBe(cancelar);
+  });
+
   it('⚠️ atributos de preenchimento automático corretos nos três campos', async () => {
     renderDialog();
     await screen.findByRole('dialog', { name: 'Alterar senha' });
@@ -110,6 +135,59 @@ describe('ChangePasswordDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /ocultar senha atual/i }));
     expect(campo).toHaveAttribute('type', 'password');
+  });
+
+  it('⚠️ mostrar/ocultar preserva o valor digitado e o foco continua no campo', async () => {
+    const user = userEvent.setup({ delay: 5 });
+    renderDialog();
+
+    const campo = screen.getByLabelText(/^senha atual/i) as HTMLInputElement;
+    await user.type(campo, 'senha-secreta');
+    expect(campo).toHaveValue('senha-secreta');
+
+    await user.click(screen.getByRole('button', { name: /mostrar senha atual/i }));
+    expect(campo).toHaveValue('senha-secreta');
+    expect(document.activeElement).toBe(campo);
+
+    await user.click(screen.getByRole('button', { name: /ocultar senha atual/i }));
+    expect(campo).toHaveValue('senha-secreta');
+    expect(document.activeElement).toBe(campo);
+  });
+
+  it.each([
+    ['Senha atual', /^senha atual/i],
+    ['Nova senha', /^nova senha/i],
+    ['Confirmar nova senha', /^confirmar nova senha/i],
+  ])(
+    '⚠️ digitar em "%s" caractere por caractere mantém o foco no campo e o valor completo, sem focar Cancelar',
+    async (_label, seletor) => {
+      const user = userEvent.setup({ delay: 5 });
+      renderDialog();
+
+      const campo = await screen.findByLabelText(seletor);
+      const cancelar = screen.getByRole('button', { name: 'Cancelar' });
+      const texto = 'senha-digitada-123';
+
+      await user.type(campo, texto);
+
+      expect(campo).toHaveValue(texto);
+      expect(document.activeElement).toBe(campo);
+      expect(document.activeElement).not.toBe(cancelar);
+    },
+  );
+
+  it('⚠️ envio por teclado: Enter no último campo confirma a troca', async () => {
+    const user = userEvent.setup({ delay: 5 });
+    const changePasswordSpy = vi.spyOn(mockAdapter.auth, 'changePassword');
+    renderDialog();
+
+    await user.type(await screen.findByLabelText(/^senha atual/i), 'citi123');
+    await user.type(screen.getByLabelText(/^nova senha/i), 'senha-nova-valida-123');
+    await user.type(screen.getByLabelText(/^confirmar nova senha/i), 'senha-nova-valida-123{Enter}');
+
+    await waitFor(() =>
+      expect(changePasswordSpy).toHaveBeenCalledWith('citi123', 'senha-nova-valida-123'),
+    );
   });
 
   it('campos vazios são recusados sem chamar o adapter', async () => {

@@ -69,6 +69,18 @@ function useOverlayBehavior(
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
+  // `onClose` quase sempre é uma closure recriada a cada render de quem chama
+  // (ex.: `handleClose` fechando sobre `submitting`) — e `initialFocusRef`,
+  // embora normalmente estável, é passado por fora. Nenhum dos dois entra no
+  // array de dependências abaixo: guardados em ref, o efeito não vê a
+  // identidade mudar. Se entrassem, cada keystroke que causa um re-render (ex.
+  // digitar em um campo do formulário dentro do overlay) re-rodaria o efeito
+  // inteiro — reabrindo o foco em `initialFocusRef` no meio da digitação.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const initialFocusRefRef = useRef(initialFocusRef);
+  initialFocusRefRef.current = initialFocusRef;
+
   useEffect(() => {
     if (!open) return;
 
@@ -76,7 +88,7 @@ function useOverlayBehavior(
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -113,7 +125,7 @@ function useOverlayBehavior(
     // Um quadro de atraso porque o painel entra no DOM depois deste efeito
     // (é `usePresence` quem o monta): focar agora seria focar `null`.
     const frame = requestAnimationFrame(() => {
-      (initialFocusRef?.current ?? panelRef.current)?.focus();
+      (initialFocusRefRef.current?.current ?? panelRef.current)?.focus();
     });
 
     return () => {
@@ -122,7 +134,7 @@ function useOverlayBehavior(
       document.body.style.overflow = previousOverflow;
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose, initialFocusRef]);
+  }, [open]);
 
   return panelRef;
 }
