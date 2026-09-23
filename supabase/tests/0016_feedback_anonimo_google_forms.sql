@@ -1,13 +1,24 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- TESTES DO CANAL PERMANENTE DE FEEDBACK ANÔNIMO (migration 0033, ainda NÃO
--- aplicada)
+-- TESTES DO CANAL PERMANENTE DE FEEDBACK ANÔNIMO (migration 0033)
 --
 -- Como rodar:
---   npx supabase db query --linked -f supabase/tests/0016_feedback_anonimo_google_forms.sql
+--   npx supabase db query --local -f supabase/tests/0016_feedback_anonimo_google_forms.sql
 --
--- ⚠️ TERMINA EM `rollback`. As DUAS TABELAS, os DOIS ÍNDICES, os DOIS TRIGGERS
---    e as QUATRO FUNÇÕES recriados abaixo somem no rollback — DDL transacional.
---    Nenhum enum novo é criado (`target_type='citi'` já existe desde a 0001).
+-- ⚠️ Este arquivo foi escrito quando a 0033 "ainda não estava aplicada", e por
+--    isso recriava tabelas, índices, triggers e funções dentro da própria
+--    transação. A 0033 está permanentemente no schema desde então — recriar
+--    aqui colide com o que já existe (`relation "anonymous_feedback_intake_
+--    config" already exists`). Este arquivo agora só CONSULTA e EXERCITA o
+--    que a 0033 já criou de verdade — nunca recria, nunca dropa, nunca altera
+--    tabela real do schema. Conferido, campo a campo, que o texto da 0033
+--    é exatamente o que este arquivo pressupunha (mesmas tabelas, mesma
+--    arquitetura de segurança sem `citi_assert_gg()` nas RPCs de falha, mesmo
+--    índice único de `external_id`, mesma constraint de tamanho de `content`).
+-- ⚠️ TERMINA EM `rollback`. Todo dado FICTÍCIO criado pelas asserções abaixo
+--    (linhas de `anonymous_feedbacks`/`anonymous_feedback_intake_failures`,
+--    e a config alterada durante o teste) some no rollback — a TABELA em si
+--    não é tocada, só as linhas que este arquivo insere/atualiza dentro da
+--    própria transação.
 -- ⚠️ CONTEÚDO FICTÍCIO: todo `content` usado é marcado 'FIXTURE'. Nenhum dos
 --    70 membros reais é tocado, nenhum conteúdo real é lido.
 -- ⚠️ REVISÃO DE SEGURANÇA: a versão original das RPCs de falha chamava
@@ -57,178 +68,6 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 begin;
-
--- ─── Recria o conteúdo da 0033 dentro desta transação ───────────────────────
-
-create table anonymous_feedback_intake_config (
-  id            smallint primary key default 1 check (id = 1),
-  enabled       boolean not null default false,
-  form_id       text,
-  responder_url text,
-  updated_at    timestamptz not null default now(),
-  updated_by_id uuid references profiles (id) on delete set null,
-  constraint anonymous_feedback_intake_config_completa_para_habilitar
-    check (not enabled or (form_id is not null and responder_url is not null)),
-  constraint anonymous_feedback_intake_config_responder_url_valida
-    check (
-      responder_url is null
-      or responder_url ~ '^https://(docs\.google\.com/forms/|forms\.gle/)'
-    )
-);
-
-insert into anonymous_feedback_intake_config (id) values (1)
-  on conflict (id) do nothing;
-
-create trigger anonymous_feedback_intake_config_updated_at
-  before update on anonymous_feedback_intake_config
-  for each row execute function set_updated_at();
-
-create or replace function citi_stamp_anonymous_feedback_intake_config_editor()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
-begin
-  new.updated_by_id := auth.uid();
-  return new;
-end;
-$fn$;
-
-create trigger anonymous_feedback_intake_config_stamp_editor
-  before update on anonymous_feedback_intake_config
-  for each row execute function citi_stamp_anonymous_feedback_intake_config_editor();
-
-alter table anonymous_feedback_intake_config enable row level security;
-
-create policy "GG lê configuração do feedback anônimo" on anonymous_feedback_intake_config
-  for select using (is_gg());
-create policy "GG altera configuração do feedback anônimo" on anonymous_feedback_intake_config
-  for update using (is_gg()) with check (is_gg());
-
-alter table anonymous_feedbacks
-  add column source       text,
-  add column external_id  text,
-  add column responded_at timestamptz;
-
-do $$
-declare
-  v_excedentes integer;
-begin
-  select count(*) into v_excedentes from anonymous_feedbacks where length(content) > 4000;
-  if v_excedentes > 0 then
-    raise exception 'MIGRATION INTERROMPIDA: % registro(s) existente(s) já ultrapassam 4000 caracteres.', v_excedentes;
-  end if;
-end
-$$;
-
-alter table anonymous_feedbacks
-  add constraint anonymous_feedbacks_content_tamanho_maximo
-    check (length(content) <= 4000);
-
-create unique index anonymous_feedbacks_external_id_idx
-  on anonymous_feedbacks (external_id)
-  where external_id is not null;
-
-create table anonymous_feedback_intake_failures (
-  id              uuid primary key default gen_random_uuid(),
-  source          text not null default 'google_forms',
-  form_id         text,
-  response_id     text,
-  external_id     text not null,
-  responded_at    timestamptz,
-  error_code      text not null,
-  attempts        integer not null default 1 check (attempts > 0),
-  first_failed_at timestamptz not null default now(),
-  last_failed_at  timestamptz not null default now(),
-  resolved_at     timestamptz,
-  request_id      text,
-  constraint anonymous_feedback_intake_failures_external_id_unico unique (external_id)
-);
-
-alter table anonymous_feedback_intake_failures enable row level security;
-
-create policy "GG lê falhas do feedback anônimo" on anonymous_feedback_intake_failures
-  for select using (is_gg());
-
-create or replace function citi_record_anonymous_feedback_failure(
-  p_external_id  text,
-  p_error_code   text,
-  p_source       text default 'google_forms',
-  p_form_id      text default null,
-  p_response_id  text default null,
-  p_responded_at timestamptz default null,
-  p_request_id   text default null
-)
-returns uuid
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
-declare
-  c_error_code_max_chars constant integer := 100;
-  v_id uuid;
-begin
-  if p_external_id is null or btrim(p_external_id) = '' then
-    raise exception 'external_id_obrigatorio: informe o external_id da resposta.' using errcode = 'P0001';
-  end if;
-  if p_error_code is null or btrim(p_error_code) = '' then
-    raise exception 'error_code_obrigatorio: informe o código técnico do erro.' using errcode = 'P0001';
-  end if;
-  if length(p_error_code) > c_error_code_max_chars then
-    raise exception 'error_code_muito_longo: o código aceita no máximo % caracteres (recebido %).',
-      c_error_code_max_chars, length(p_error_code) using errcode = 'P0001';
-  end if;
-
-  insert into anonymous_feedback_intake_failures (
-    external_id, error_code, source, form_id, response_id, responded_at, request_id
-  )
-  values (
-    p_external_id, p_error_code, coalesce(p_source, 'google_forms'), p_form_id, p_response_id,
-    p_responded_at, p_request_id
-  )
-  on conflict (external_id) do update set
-    error_code      = excluded.error_code,
-    attempts        = anonymous_feedback_intake_failures.attempts + 1,
-    last_failed_at  = now(),
-    request_id      = excluded.request_id,
-    resolved_at     = null
-  returning id into v_id;
-
-  return v_id;
-end;
-$fn$;
-
-revoke execute on function citi_record_anonymous_feedback_failure(text, text, text, text, text, timestamptz, text) from public, anon, authenticated;
-grant execute on function citi_record_anonymous_feedback_failure(text, text, text, text, text, timestamptz, text) to service_role;
-
-create or replace function citi_resolve_anonymous_feedback_failure(
-  p_external_id text
-)
-returns boolean
-language plpgsql
-security definer
-set search_path = public, pg_temp
-as $fn$
-declare
-  v_updated integer;
-begin
-  update anonymous_feedback_intake_failures
-     set resolved_at = now()
-   where external_id = p_external_id
-     and resolved_at is null;
-  get diagnostics v_updated = row_count;
-
-  return v_updated > 0;
-end;
-$fn$;
-
-revoke execute on function citi_resolve_anonymous_feedback_failure(text) from public, anon, authenticated;
-grant execute on function citi_resolve_anonymous_feedback_failure(text) to service_role;
-
-drop policy if exists "Qualquer um envia feedback anônimo" on anonymous_feedbacks;
-revoke insert on table public.anonymous_feedbacks from anon;
-revoke insert on table public.anonymous_feedbacks from authenticated;
 
 -- ─── Assertions ──────────────────────────────────────────────────────────────
 do $test$
@@ -326,10 +165,13 @@ begin
   end if;
   v_passou := v_passou + 1;
 
-  -- ═══ 6/7. anon/authenticated sem INSERT direto em anonymous_feedbacks ══════
+  -- ═══ 6. anon sem INSERT direto em anonymous_feedbacks ══════════════════════
   if has_table_privilege('anon', 'anonymous_feedbacks', 'INSERT') then
     raise exception '% 6: anon ainda pode inserir em anonymous_feedbacks.', marcador;
   end if;
+  v_passou := v_passou + 1;
+
+  -- ═══ 7. authenticated sem INSERT direto em anonymous_feedbacks ════════════
   if has_table_privilege('authenticated', 'anonymous_feedbacks', 'INSERT') then
     raise exception '% 7: authenticated ainda pode inserir diretamente em anonymous_feedbacks.', marcador;
   end if;
@@ -563,6 +405,13 @@ begin
     raise exception '% 26: esperava % + 2 registros, achou %.', marcador, v_antes, v_count;
   end if;
   v_passou := v_passou + 1;
+
+  -- Plano vs. execução: 26 verificações declaradas no cabeçalho, 26
+  -- incrementos de v_passou no corpo — nem a mais, nem a menos.
+  if v_passou <> 26 then
+    raise exception '%: contagem final não bate — plano diz 26, execução chegou a %. Alguma verificação foi pulada ou duplicada.',
+      marcador, v_passou;
+  end if;
 
   raise notice '─────────────────────────────────────────────';
   raise notice '  % de 26 verificações passaram.', v_passou;
