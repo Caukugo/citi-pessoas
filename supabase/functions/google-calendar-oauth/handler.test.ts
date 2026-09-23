@@ -262,6 +262,30 @@ describe('POST /iniciar', () => {
     expect(gravacao?.body).toContain('"p_retorno":"/x1"');
     expect(gravacao?.body).not.toContain('site-de-outra-pessoa');
   });
+
+  it('⚠️ REGRESSÃO: filtro na URL não derruba mais o "Conectar" com 502', async () => {
+    // Reproduz o bug real: `/x1${window.location.search}` chegava aqui como
+    // `/x1?status=pendente&view=agenda`, a constraint
+    // `google_oauth_state_retorno_relativo` recusava a linha (só aceita
+    // pathname puro), o INSERT falhava e o handler devolvia 502 falha_interna.
+    const response = await handleRequest(
+      iniciar({ retorno: '/x1?status=pendente&view=agenda' }),
+      { env: env(), fetchImpl: mundo.fetchImpl },
+    );
+
+    expect(response.status).not.toBe(502);
+    expect(response.status).toBe(200);
+
+    const gravacao = mundo.chamadas.find((chamada) =>
+      chamada.url.includes('citi_google_oauth_abrir_state'),
+    );
+
+    // A RPC recebe só o pathname — nunca a query que o banco recusaria.
+    expect(gravacao?.body).toContain('"p_retorno":"/x1"');
+    expect(gravacao?.body).not.toContain('status=pendente');
+    expect(gravacao?.body).not.toContain('view=agenda');
+    expect(gravacao?.body).not.toContain('?');
+  });
 });
 
 describe('GET /callback', () => {
