@@ -6,6 +6,9 @@ dist/
 dist-ssr/
 *.local
 
+# Vercel CLI — configuração local do link do projeto, específica da máquina
+.vercel
+
 # Ambiente — NUNCA comitar. Segredos ficam só na sua máquina.
 .env
 .env.local
