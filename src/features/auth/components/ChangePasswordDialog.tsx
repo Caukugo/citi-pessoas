@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
 import { Button, FormField, Input, Modal, useToast } from '@/components/ui';
 import { messageFor } from '@/data';
@@ -30,20 +30,30 @@ import { useAuth } from '../useAuth';
 
 const MIN_LENGTH = 12;
 
+/** Escreve em uma ref, seja ela um callback ou um `MutableRefObject`. */
+function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === 'function') ref(value);
+  else (ref as { current: T | null }).current = value;
+}
+
 function PasswordField({
   label,
   value,
   onChange,
   autoComplete,
   disabled,
+  inputRef,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   autoComplete: string;
   disabled: boolean;
+  inputRef?: Ref<HTMLInputElement>;
 }): ReactNode {
   const [visible, setVisible] = useState(false);
+  const localRef = useRef<HTMLInputElement>(null);
 
   return (
     <FormField label={label} required>
@@ -51,6 +61,10 @@ function PasswordField({
         <div className="relative">
           <Input
             {...field}
+            ref={(node) => {
+              localRef.current = node;
+              setRef(inputRef, node);
+            }}
             type={visible ? 'text' : 'password'}
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -60,7 +74,13 @@ function PasswordField({
           />
           <button
             type="button"
-            onClick={() => setVisible((current) => !current)}
+            onClick={() => {
+              setVisible((current) => !current);
+              // Clicar no botão move o foco pra ele (comportamento nativo de
+              // clique, já consumado quando `onClick` roda) — sem isto, quem
+              // alternava mostrar/ocultar perdia o lugar onde estava digitando.
+              localRef.current?.focus();
+            }}
             disabled={disabled}
             // `tabIndex={-1}`: alternar visibilidade não é um campo do
             // formulário — Tab pula direto para o próximo campo de senha.
@@ -103,6 +123,11 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  // Foco inicial ao abrir: o campo "Senha atual", não "Cancelar" — trocar
+  // senha não é uma ação destrutiva (ver `useOverlayBehavior` em overlay.tsx),
+  // então quem abre o diálogo já pode começar a digitar. "Cancelar" só recebe
+  // foco por Tab, Shift+Tab ou clique, nunca automaticamente.
+  const currentPasswordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -179,7 +204,7 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
       onClose={handleClose}
       title="Alterar senha"
       size="sm"
-      initialFocusRef={cancelRef}
+      initialFocusRef={currentPasswordRef}
       footer={
         <>
           <Button ref={cancelRef} onClick={handleClose} disabled={submitting}>
@@ -211,6 +236,7 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
           onChange={setCurrentPassword}
           autoComplete="current-password"
           disabled={submitting}
+          inputRef={currentPasswordRef}
         />
         <PasswordField
           label="Nova senha"
@@ -239,6 +265,17 @@ export function ChangePasswordDialog({ open, onClose }: { open: boolean; onClose
             {error}
           </p>
         )}
+
+        {/*
+          O botão "Alterar senha" de verdade mora no footer do `Modal`, fora
+          deste `<form>` — layout do overlay, não deste componente. Sem um
+          botão `submit` DENTRO do form, Enter em qualquer campo não aciona
+          `onSubmit` (3 campos de texto, nenhum default button: a submissão
+          implícita do HTML não se aplica). Este botão invisível é esse
+          default button — nunca alcançável por Tab nem visível, só existe
+          para o Enter do teclado chegar ao mesmo `submit()` do botão visível.
+        */}
+        <button type="submit" tabIndex={-1} aria-hidden className="hidden" />
       </form>
     </Modal>
   );
