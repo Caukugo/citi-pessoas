@@ -8,6 +8,11 @@ export interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Troca a senha da PRÓPRIA conta autenticada. Não desloga sozinho — quem
+   * chama decide quando encerrar a sessão (ver `ChangePasswordDialog`).
+   */
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

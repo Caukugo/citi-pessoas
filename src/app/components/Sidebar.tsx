@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LogOut, RotateCcw } from 'lucide-react';
+import { KeyRound, LogOut, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { IS_MOCK } from '@/lib/env';
 import { Avatar, Logo } from '@/components/ui';
 import { resetMockData } from '@/data/mock/store';
 import { useAuth } from '@/features/auth/useAuth';
+import { ChangePasswordDialog } from '@/features/auth/components/ChangePasswordDialog';
 import { NAV_ITEMS } from '../navigation';
 
 /**
@@ -44,6 +46,7 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useAuth();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   return (
     <aside className="sidebar-glow flex h-full w-[248px] shrink-0 flex-col">
@@ -113,6 +116,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <button
           type="button"
+          onClick={() => setChangingPassword(true)}
+          aria-label="Alterar senha"
+          title="Alterar senha"
+          className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground"
+        >
+          <KeyRound size={14} />
+        </button>
+        <button
+          type="button"
           onClick={() => void signOut()}
           aria-label="Sair"
           title="Sair"
@@ -121,6 +133,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <LogOut size={14} />
         </button>
       </div>
+
+      <ChangePasswordDialog open={changingPassword} onClose={() => setChangingPassword(false)} />
     </aside>
   );
 }

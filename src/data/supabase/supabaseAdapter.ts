@@ -1117,7 +1117,12 @@ export const supabaseAdapter: DataAdapter = {
     },
 
     async signOut() {
-      await supabase().auth.signOut();
+      // `scope: 'global'` explícito: já era o padrão do Supabase sem essa
+      // opção, mas por escrito em vez de implícito — encerra a sessão em
+      // TODOS os dispositivos, não só neste navegador. Importa especialmente
+      // depois de alterar senha (`ChangePasswordDialog`): a sessão antiga não
+      // pode continuar válida em nenhum lugar depois da troca.
+      await supabase().auth.signOut({ scope: 'global' });
     },
 
     onAuthChange(callback: (user: AuthUser | null) => void) {
@@ -1135,6 +1140,42 @@ export const supabaseAdapter: DataAdapter = {
       });
 
       return () => data.subscription.unsubscribe();
+    },
+
+    async changePassword(currentPassword, newPassword) {
+      // O e-mail vem SEMPRE da sessão atual — nunca um parâmetro. É o que
+      // impede esta função de ser usada para alterar a senha de outra conta.
+      const { data: userData, error: userError } = await supabase().auth.getUser();
+      const email = userData.user?.email;
+      if (userError || !email) {
+        throw new DataError('unauthorized', 'Sessão expirada. Entre de novo.');
+      }
+
+      // Reautentica com a senha ATUAL antes de trocar. É a forma confiável de
+      // confirmar que quem pediu a troca sabe a senha de hoje — o parâmetro
+      // `current_password` de `updateUser()` só é conferido pelo servidor
+      // quando `GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD`
+      // está ligado, e não temos como confirmar isso sem alterar configuração
+      // (fora do escopo desta tarefa). A reautenticação funciona igual nos
+      // dois casos.
+      const { error: reauthError } = await supabase().auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (reauthError) {
+        throw new DataError('unauthorized', 'Senha atual incorreta.');
+      }
+
+      const { error: updateError } = await supabase().auth.updateUser({ password: newPassword });
+      if (updateError) {
+        if (updateError.code === 'same_password') {
+          throw new DataError('invalid', 'A nova senha precisa ser diferente da atual.');
+        }
+        if (updateError.code === 'weak_password') {
+          throw new DataError('invalid', 'Senha muito fraca. Escolha uma senha mais forte.');
+        }
+        throw new DataError('unavailable', 'Não foi possível alterar a senha. Tente novamente.');
+      }
     },
   },
 
